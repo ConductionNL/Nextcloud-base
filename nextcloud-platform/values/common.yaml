@@ -154,101 +154,27 @@ nextcloud:
       php_admin_value[max_input_time] = 3600
       php_admin_value[output_buffering] = Off
   
-  # Default Nextcloud configs (merged per-tenant)
+  # Default Nextcloud configs
+  # Let Nextcloud manage its own config.php - don't mount custom configs
   defaultConfigs:
-    # Disable default configs we'll override
-    .htaccess: false
+    .htaccess: true
     redis.config.php: false
     apache-pretty-urls.config.php: true
     apcu.config.php: true
     apps.config.php: true
     autoconfig.php: false
-    smtp.config.php: true
+    smtp.config.php: false
   
-  # Custom Nextcloud configuration
-  configs:
-    # Proxy and trusted settings
-    proxy.config.php: |
-      <?php
-      $CONFIG = array (
-        // Trusted proxies (ingress + tailscale)
-        'trusted_proxies' => array(
-          '127.0.0.1',
-          '10.0.0.0/8',
-          '172.16.0.0/12',
-          '192.168.0.0/16',
-          '100.64.0.0/10',
-        ),
-        // Overwrite settings for reverse proxy
-        'overwriteprotocol' => 'https',
-        'overwrite.cli.url' => 'https://' . getenv('NEXTCLOUD_TRUSTED_DOMAINS'),
-      );
-    
-    # Redis configuration for cache and locking
-    redis.config.php: |
-      <?php
-      $CONFIG = array (
-        // Redis server (shared platform service)
-        'redis' => array(
-          'host' => 'redis.nextcloud-platform.svc.cluster.local',
-          'port' => 6379,
-          'timeout' => 1.5,
-          'read_timeout' => 1.5,
-        ),
-        // Use Redis for distributed cache
-        'memcache.distributed' => '\OC\Memcache\Redis',
-        // Use Redis for local cache
-        'memcache.local' => '\OC\Memcache\Redis',
-        // Use Redis for file locking
-        'memcache.locking' => '\OC\Memcache\Redis',
-        'filelocking.enabled' => true,
-      );
-    
-    # Session and activity settings
-    session.config.php: |
-      <?php
-      $CONFIG = array (
-        'session_lifetime' => 86400,
-        'session_keepalive' => true,
-        'remember_login_cookie_lifetime' => 60*60*24*15,
-        'token_auth_enforced' => false,
-        'activity_expire_days' => 365,
-      );
-    
-    # Performance and behavior settings
-    performance.config.php: |
-      <?php
-      $CONFIG = array (
-        'backgroundjobs_mode' => 'cron',
-        'enable_previews' => true,
-        'enabledPreviewProviders' => array(
-          'OC\Preview\PNG',
-          'OC\Preview\JPEG',
-          'OC\Preview\GIF',
-          'OC\Preview\BMP',
-          'OC\Preview\XBitmap',
-          'OC\Preview\Movie',
-          'OC\Preview\PDF',
-          'OC\Preview\MP3',
-          'OC\Preview\TXT',
-          'OC\Preview\MarkDown',
-          'OC\Preview\HEIC',
-        ),
-        'default_quota' => '10 GB',
-        'log_type' => 'file',
-        'logfile' => '/var/log/nextcloud/nextcloud.log',
-        'loglevel' => 2,
-        'log_rotate_size' => 104857600,
-        'skeletondirectory' => '',
-        'maintenance_window_start' => 1,
-      );
+  # NO custom configs - let Nextcloud create config.php first
+  # Add configs later via occ commands after installation succeeds
+  configs: {}
 
 # Nginx configuration (sidecar)
 nginx:
   enabled: true
   image:
     repository: nginx
-    tag: "1.25-alpine"
+    tag: "alpine"
     pullPolicy: IfNotPresent
   
   config:

@@ -47,19 +47,6 @@ nextcloud:
   
   trustedDomains:
     - nextcloud-canary.commonground.nu
-  
-  # Disable default configs from common.yaml during initial install
-  defaultConfigs:
-    .htaccess: true
-    redis.config.php: false
-    apache-pretty-urls.config.php: true
-    apcu.config.php: true
-    apps.config.php: true
-    autoconfig.php: false
-    smtp.config.php: false
-  
-  # Disable custom configs during initial install
-  configs: {}
 
 # Ingress
 ingress:
