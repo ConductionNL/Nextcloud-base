@@ -20,10 +20,6 @@ spec:
         revision: HEAD
         files:
           - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
-        # Extract values from each tenant file
-        values:
-          # Default wave for tenants not specifying one
-          wave: "1"
   
   # Application template
   template:
@@ -35,10 +31,7 @@ spec:
         nextcloud.platform/tenant: "{{tenant.name}}"
         nextcloud.platform/environment: "{{tenant.environment}}"
       annotations:
-        # Wave-based sync for controlled rollouts
         argocd.argoproj.io/sync-wave: "{{tenant.wave}}"
-        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: nextcloud-alerts
-        notifications.argoproj.io/subscribe.on-sync-failed.slack: nextcloud-alerts
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
@@ -53,16 +46,11 @@ spec:
           helm:
             releaseName: "nextcloud"
             valueFiles:
-              # Load values from Git repo (our config repo)
               - "$values/nextcloud-platform/values/common.yaml"
               - "$values/nextcloud-platform/values/env/{{tenant.environment}}.yaml"
               - "$values/nextcloud-platform/values/tenants/tenant-{{tenant.name}}.yaml"
-            # Additional values computed at sync time
             values: |
-              # Namespace-specific overrides
               fullnameOverride: "nextcloud"
-              
-              # Inject tenant name for labels
               commonLabels:
                 nextcloud.platform/tenant: "{{tenant.name}}"
                 nextcloud.platform/environment: "{{tenant.environment}}"
@@ -71,18 +59,6 @@ spec:
         - repoURL: "https://github.com/conductionnl/Nextcloud-base.git"
           targetRevision: HEAD
           ref: values
-        
-        # Platform components (ExternalSecret, NetworkPolicy, etc.)
-        - repoURL: "https://github.com/conductionnl/Nextcloud-base.git"
-          targetRevision: HEAD
-          path: "nextcloud-platform/platform/tenant-resources"
-          helm:
-            releaseName: "tenant-resources"
-            values: |
-              tenant:
-                name: "{{tenant.name}}"
-                environment: "{{tenant.environment}}"
-                namespace: "nc-{{tenant.name}}"
       
       # Destination: tenant-specific namespace
       destination:
@@ -100,7 +76,6 @@ spec:
           - PrunePropagationPolicy=foreground
           - PruneLast=true
           - ServerSideApply=true
-          - RespectIgnoreDifferences=true
         retry:
           limit: 5
           backoff:
@@ -108,78 +83,10 @@ spec:
             factor: 2
             maxDuration: 3m
       
-      # Health checks
       revisionHistoryLimit: 10
       
-      # Ignore differences for fields managed by controllers
       ignoreDifferences:
         - group: apps
           kind: Deployment
           jsonPointers:
             - /spec/replicas
-        - group: autoscaling
-          kind: HorizontalPodAutoscaler
-          jsonPointers:
-            - /spec/minReplicas
-            - /spec/maxReplicas
-
----
-# ApplicationSet for platform components (Redis, PgBouncer, etc.)
-apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
-metadata:
-  name: nextcloud-platform-components
-  namespace: argocd
-spec:
-  generators:
-    - list:
-        elements:
-          - component: redis
-            path: nextcloud-platform/platform/redis
-            wave: "-2"
-          - component: pgbouncer
-            path: nextcloud-platform/platform/pgbouncer
-            wave: "-2"
-          - component: externalsecrets
-            path: nextcloud-platform/platform/externalsecrets
-            wave: "-3"
-          - component: policies
-            path: nextcloud-platform/platform/policies
-            wave: "-1"
-  
-  template:
-    metadata:
-      name: "platform-{{component}}"
-      namespace: argocd
-      labels:
-        app.kubernetes.io/part-of: nextcloud-platform
-        nextcloud.platform/component: "{{component}}"
-      annotations:
-        argocd.argoproj.io/sync-wave: "{{wave}}"
-      finalizers:
-        - resources-finalizer.argocd.argoproj.io
-    spec:
-      project: nextcloud-platform
-      
-      source:
-        repoURL: "https://github.com/conductionnl/Nextcloud-base.git"
-        targetRevision: HEAD
-        path: "{{path}}"
-      
-      destination:
-        server: https://kubernetes.default.svc
-        namespace: nextcloud-platform
-      
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
-        syncOptions:
-          - CreateNamespace=true
-          - ServerSideApply=true
-        retry:
-          limit: 3
-          backoff:
-            duration: 5s
-            factor: 2
-            maxDuration: 1m
