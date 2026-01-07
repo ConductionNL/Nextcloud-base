@@ -18,13 +18,14 @@ mariadb:
   image:
     registry: docker.io
     repository: bitnamilegacy/mariadb
-    tag: "11.2"  # Use stable tag without specific debian version
+    tag: "11.2"
   auth:
     database: nextcloud
     username: nextcloud
     existingSecret: nextcloud-secrets
     secretKeys:
-      password: db-password
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: db-password
   primary:
     persistence:
       enabled: true
