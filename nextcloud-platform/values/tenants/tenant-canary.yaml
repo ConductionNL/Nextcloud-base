@@ -17,7 +17,7 @@ mariadb:
   enabled: true
   image:
     registry: docker.io
-    repository: bitnami/mariadb
+    repository: bitnamilegacy/mariadb
     tag: "11.2"  # Use stable tag without specific debian version
   auth:
     database: nextcloud
