@@ -16,7 +16,7 @@ spec:
   # Generator: create one Application per tenant file
   generators:
     - git:
-        repoURL: "https://github.com/conductionnl/Nextcloud-base.git"
+        repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
         revision: HEAD
         files:
           - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
@@ -56,7 +56,7 @@ spec:
                 nextcloud.platform/environment: "{{tenant.environment}}"
         
         # Our GitOps repo for values files
-        - repoURL: "https://github.com/conductionnl/Nextcloud-base.git"
+        - repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
           targetRevision: HEAD
           ref: values
       

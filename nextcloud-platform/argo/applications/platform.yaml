@@ -15,7 +15,7 @@ spec:
   project: nextcloud-platform
   
   source:
-    repoURL: "https://github.com/conductionnl/Nextcloud-base.git"
+    repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
     targetRevision: HEAD
     path: "nextcloud-platform/platform"
     directory:

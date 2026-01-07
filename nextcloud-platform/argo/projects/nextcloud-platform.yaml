@@ -13,7 +13,7 @@ spec:
   
   # Source repositories allowed for this project
   sourceRepos:
-    - "https://github.com/conductionnl/Nextcloud-base.git"
+    - "git@github.com:ConductionNL/Nextcloud-base.git"
     - "https://nextcloud.github.io/helm/"
   
   # Destination clusters and namespaces
