@@ -104,7 +104,7 @@ externalDatabase:
 # Global image settings
 image:
   repository: nextcloud
-  tag: "30.04-fpm"
+  tag: "30.0.4-fpm"
   pullPolicy: Always
 
 # Replica count (can be overridden per env/tenant)

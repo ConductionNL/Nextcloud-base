@@ -25,17 +25,21 @@ mariadb:
     existingSecret: nextcloud-secrets
     secretKeys:
       mariadb-root-password: mariadb-root-password
-      mariadb-password: db-password
+      mariadb-password: mariadb-password
   primary:
     persistence:
       enabled: true
       size: 8Gi
 
+# Disable internal SQLite
 internalDatabase:
   enabled: false
 
+# Disable external PostgreSQL (using MariaDB subchart instead)
 externalDatabase:
   enabled: false
+  existingSecret:
+    enabled: false
 
 # Nextcloud settings
 nextcloud:
