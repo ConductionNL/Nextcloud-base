@@ -1,0 +1,20 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: nextcloud-platform
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - servicemonitor.yaml
+  - pdb.yaml
+  - configmap.yaml
+  - networkpolicy.yaml
+
+commonLabels:
+  app.kubernetes.io/name: redis
+  app.kubernetes.io/component: cache
+  app.kubernetes.io/part-of: nextcloud-platform
+  app.kubernetes.io/managed-by: argocd
+

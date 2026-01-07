@@ -1,0 +1,68 @@
+---
+# Release workflow for version bumps
+# Creates a release when a version tag is pushed
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -n "$LAST_TAG" ]; then
+            echo "Changes since $LAST_TAG:" > CHANGELOG.md
+            git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" >> CHANGELOG.md
+          else
+            echo "Initial release" > CHANGELOG.md
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat CHANGELOG.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## Nextcloud Platform ${{ steps.version.outputs.version }}
+            
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ### Upgrade Instructions
+            
+            1. Update `values/common.yaml` with new chart version if changed
+            2. Sync canary tenant first: `argocd app sync nc-canary`
+            3. Run validation checks on canary
+            4. Proceed with wave rollout
+            
+            See README.md for detailed upgrade procedures.
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'rc') || contains(steps.version.outputs.version, 'beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

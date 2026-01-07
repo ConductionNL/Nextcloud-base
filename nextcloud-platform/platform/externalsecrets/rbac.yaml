@@ -1,0 +1,61 @@
+---
+# ServiceAccount for secret operations (generation, copying, checking)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secret-generator
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: external-secrets
+    app.kubernetes.io/component: secrets-management
+
+---
+# ClusterRole for secret operations across namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nextcloud-secret-generator
+  labels:
+    app.kubernetes.io/name: external-secrets
+    app.kubernetes.io/component: secrets-management
+rules:
+  # Manage secrets in any namespace
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+  # Check ExternalSecrets if ESO is used
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["get", "list"]
+  # Create namespaces for tenants
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "create"]
+
+---
+# ClusterRoleBinding for secret generator
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nextcloud-secret-generator
+  labels:
+    app.kubernetes.io/name: external-secrets
+    app.kubernetes.io/component: secrets-management
+subjects:
+  - kind: ServiceAccount
+    name: secret-generator
+    namespace: nextcloud-platform
+roleRef:
+  kind: ClusterRole
+  name: nextcloud-secret-generator
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Namespace for fallback Kubernetes secret store (if using ESO with K8s backend)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nextcloud-secrets
+  labels:
+    app.kubernetes.io/part-of: nextcloud-platform
+    pod-security.kubernetes.io/enforce: restricted

@@ -1,0 +1,73 @@
+---
+# ResourceQuota template for tenant namespaces
+# Applied per-tenant via ApplicationSet or manually
+#
+# Note: These are example quotas. Adjust based on your cluster capacity.
+
+# Template for production tenants
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota-prod
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: policies
+    app.kubernetes.io/component: governance
+    template: "true"
+  annotations:
+    description: "Template quota for production tenants"
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "4"
+    requests.memory: "8Gi"
+    limits.cpu: "8"
+    limits.memory: "16Gi"
+    
+    # Storage
+    requests.storage: "100Gi"
+    persistentvolumeclaims: "5"
+    
+    # Object counts
+    pods: "20"
+    services: "10"
+    secrets: "30"
+    configmaps: "30"
+    
+    # Specific storage classes
+    cephfs.storageclass.storage.k8s.io/requests.storage: "50Gi"
+
+---
+# Template for acceptance/test tenants
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota-accept
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: policies
+    app.kubernetes.io/component: governance
+    template: "true"
+  annotations:
+    description: "Template quota for acceptance tenants"
+spec:
+  hard:
+    # Compute resources (smaller for test)
+    requests.cpu: "2"
+    requests.memory: "4Gi"
+    limits.cpu: "4"
+    limits.memory: "8Gi"
+    
+    # Storage
+    requests.storage: "20Gi"
+    persistentvolumeclaims: "3"
+    
+    # Object counts
+    pods: "10"
+    services: "5"
+    secrets: "20"
+    configmaps: "20"
+    
+    # Specific storage classes
+    cephfs.storageclass.storage.k8s.io/requests.storage: "10Gi"
+

@@ -1,0 +1,54 @@
+# Secrets - NEVER commit these
+*.secret
+*.key
+*.pem
+*.crt
+secrets/
+secrets.yaml
+secrets.yml
+
+# Local development
+.env
+.env.local
+*.local.yaml
+*.local.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Helm
+charts/
+*.tgz
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Test outputs
+/test-output/
+coverage/
+
+# kubeconfig (never commit!)
+kubeconfig
+kubeconfig.yaml
+~/.kube/
+
+# Terraform state (if used)
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Generated files
+*.generated.yaml
+/rendered/
+

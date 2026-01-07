@@ -1,0 +1,109 @@
+---
+# Example production tenant configuration
+# Use this as a template for new tenants
+
+tenant:
+  name: example
+  environment: prod
+  wave: 1  # After canary (wave 0)
+  hostname: example.nextcloud.commonground.nu
+  
+  s3:
+    bucket: nextcloud  # Can use same bucket with different prefix, or separate bucket
+    prefix: "example/"  # Prefix to isolate tenant data in shared bucket
+
+# Database: MariaDB (default)
+database:
+  type: mariadb
+
+mariadb:
+  enabled: true
+  auth:
+    database: nextcloud
+    username: nextcloud
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      password: db-password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: false
+
+# Nextcloud settings
+nextcloud:
+  host: example.nextcloud.commonground.nu
+  
+  trustedDomains:
+    - example.nextcloud.commonground.nu
+  
+  # S3 Primary Object Storage (Fuga Cloud)
+  configs:
+    s3.config.php: |
+      <?php
+      $CONFIG = array (
+        'objectstore' => array(
+          'class' => '\OC\Files\ObjectStore\S3',
+          'arguments' => array(
+            'bucket' => 'nextcloud',
+            'hostname' => 'core.fuga.cloud',
+            'port' => 8080,
+            'use_ssl' => true,
+            'verify_ssl_cert' => true,
+            'region' => '',
+            'use_path_style' => true,
+            'key' => getenv('S3_ACCESS_KEY'),
+            'secret' => getenv('S3_SECRET_KEY'),
+            'objectPrefix' => 'example/urn:oid:',
+            'autocreate' => false,
+          ),
+        ),
+      );
+
+# Ingress
+ingress:
+  tls:
+    - secretName: nextcloud-example-tls
+      hosts:
+        - example.nextcloud.commonground.nu
+  hosts:
+    - host: example.nextcloud.commonground.nu
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Resources
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 4
+    memory: 4Gi
+
+# S3 credentials
+extraEnv:
+  - name: PHP_MEMORY_LIMIT
+    value: "2048M"
+  - name: PHP_UPLOAD_LIMIT
+    value: "16G"
+  - name: S3_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-secrets
+        key: s3-access-key
+  - name: S3_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-secrets
+        key: s3-secret-key
+
+# Labels
+podLabels:
+  nextcloud.platform/tenant: example
+  nextcloud.platform/wave: "1"

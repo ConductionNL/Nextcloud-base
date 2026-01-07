@@ -1,0 +1,23 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pgbouncer
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: pgbouncer
+    app.kubernetes.io/component: database-proxy
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pgbouncer
+      app.kubernetes.io/component: database-proxy
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+  namespaceSelector:
+    matchNames:
+      - nextcloud-platform
+

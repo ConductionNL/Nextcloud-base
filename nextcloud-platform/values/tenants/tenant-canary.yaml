@@ -1,0 +1,128 @@
+---
+# Canary tenant configuration
+# This tenant is ALWAYS upgraded first (wave 0)
+
+tenant:
+  name: canary
+  environment: prod
+  wave: 0
+  hostname: nextcloud-canary.commonground.nu
+  
+  s3:
+    bucket: nextcloud
+    prefix: ""
+
+# =============================================================================
+# DATABASE: Using MariaDB (simplest option for now)
+# =============================================================================
+# To switch to PostgreSQL later, change to:
+#   database:
+#     type: external
+#   externalDatabase:
+#     enabled: true
+#     database: nextcloud_canary
+
+database:
+  type: mariadb
+
+# MariaDB configuration (in-cluster, per-tenant)
+mariadb:
+  enabled: true
+  auth:
+    database: nextcloud
+    username: nextcloud
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      password: db-password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# Disable external database (using MariaDB instead)
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: false
+
+# =============================================================================
+# Nextcloud settings
+# =============================================================================
+nextcloud:
+  host: nextcloud-canary.commonground.nu
+  
+  trustedDomains:
+    - nextcloud-canary.commonground.nu
+  
+  # S3 Primary Object Storage configuration (Fuga Cloud)
+  configs:
+    s3.config.php: |
+      <?php
+      $CONFIG = array (
+        'objectstore' => array(
+          'class' => '\OC\Files\ObjectStore\S3',
+          'arguments' => array(
+            'bucket' => 'nextcloud',
+            'hostname' => 'core.fuga.cloud',
+            'port' => 8080,
+            'use_ssl' => true,
+            'verify_ssl_cert' => true,
+            'region' => '',
+            'use_path_style' => true,
+            'key' => getenv('S3_ACCESS_KEY'),
+            'secret' => getenv('S3_SECRET_KEY'),
+            'objectPrefix' => 'urn:oid:',
+            'autocreate' => false,
+          ),
+        ),
+      );
+
+# Ingress
+ingress:
+  tls:
+    - secretName: nextcloud-canary-tls
+      hosts:
+        - nextcloud-canary.commonground.nu
+  hosts:
+    - host: nextcloud-canary.commonground.nu
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Resources (smaller for canary)
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+replicaCount: 1
+
+hpa:
+  enabled: false
+
+# S3 credentials as environment variables
+extraEnv:
+  - name: PHP_MEMORY_LIMIT
+    value: "2048M"
+  - name: PHP_UPLOAD_LIMIT
+    value: "16G"
+  - name: S3_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-secrets
+        key: s3-access-key
+  - name: S3_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-secrets
+        key: s3-secret-key
+
+# Labels
+podLabels:
+  nextcloud.platform/tenant: canary
+  nextcloud.platform/wave: "0"
+  nextcloud.platform/role: canary

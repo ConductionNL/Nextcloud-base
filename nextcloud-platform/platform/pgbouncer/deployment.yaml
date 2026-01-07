@@ -1,0 +1,175 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncer
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: pgbouncer
+    app.kubernetes.io/component: database-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pgbouncer
+      app.kubernetes.io/component: database-proxy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pgbouncer
+        app.kubernetes.io/component: database-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9127"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containers:
+        - name: pgbouncer
+          image: bitnami/pgbouncer:1.21.0
+          imagePullPolicy: IfNotPresent
+          
+          ports:
+            - name: pgbouncer
+              containerPort: 5432
+              protocol: TCP
+          
+          env:
+            # PostgreSQL host from secret
+            - name: POSTGRESQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: host
+            - name: POSTGRESQL_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: port
+                  optional: true
+            # Admin credentials for auth_query
+            - name: POSTGRESQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: username
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: password
+            # PgBouncer settings
+            - name: PGBOUNCER_AUTH_TYPE
+              value: "md5"
+            - name: PGBOUNCER_AUTH_QUERY
+              value: "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"
+            - name: PGBOUNCER_POOL_MODE
+              value: "transaction"
+            - name: PGBOUNCER_MAX_CLIENT_CONN
+              value: "1000"
+            - name: PGBOUNCER_DEFAULT_POOL_SIZE
+              value: "20"
+            - name: PGBOUNCER_IGNORE_STARTUP_PARAMETERS
+              value: "extra_float_digits"
+          
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          
+          livenessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          readinessProbe:
+            tcpSocket:
+              port: pgbouncer
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+        
+        # PgBouncer exporter sidecar for Prometheus metrics
+        - name: pgbouncer-exporter
+          image: prometheuscommunity/pgbouncer-exporter:v0.7.0
+          imagePullPolicy: IfNotPresent
+          
+          args:
+            - --pgBouncer.connectionString=postgres://$(POSTGRESQL_USERNAME):$(POSTGRESQL_PASSWORD)@localhost:5432/pgbouncer?sslmode=disable
+          
+          env:
+            - name: POSTGRESQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: username
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: password
+          
+          ports:
+            - name: metrics
+              containerPort: 9127
+              protocol: TCP
+          
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      
+      nodeSelector:
+        kubernetes.io/os: linux
+      
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: pgbouncer
+              topologyKey: kubernetes.io/hostname
+      
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: pgbouncer

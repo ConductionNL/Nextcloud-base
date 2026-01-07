@@ -1,0 +1,24 @@
+---
+# ServiceMonitor for Nextcloud (if Prometheus Operator is available)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nextcloud
+  namespace: {{ .Values.tenant.namespace | default (printf "nc-%s" .Values.tenant.name) }}
+  labels:
+    {{- include "tenant-resources.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud
+  endpoints:
+    - port: http
+      interval: 60s
+      scrapeTimeout: 30s
+      path: /status.php
+      # Note: Nextcloud doesn't expose Prometheus metrics by default
+      # Consider installing the serverinfo app or a metrics exporter
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.tenant.namespace | default (printf "nc-%s" .Values.tenant.name) }}
+

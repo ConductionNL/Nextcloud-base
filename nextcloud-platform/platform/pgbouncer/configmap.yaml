@@ -1,0 +1,72 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: pgbouncer
+    app.kubernetes.io/component: database-proxy
+data:
+  pgbouncer.ini: |
+    ;; PgBouncer configuration for Nextcloud platform
+    ;; Supports multiple tenant users via auth_query
+    
+    [databases]
+    ;; Wildcard - all databases proxied to same PostgreSQL host
+    * = host=${POSTGRESQL_HOST} port=${POSTGRESQL_PORT:-5432}
+    
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 5432
+    
+    ;; Authentication
+    ;; Use auth_query to look up passwords from PostgreSQL
+    ;; This allows any tenant user to authenticate
+    auth_type = md5
+    auth_query = SELECT usename, passwd FROM pg_shadow WHERE usename=$1
+    
+    ;; Pool mode: transaction is best for Nextcloud
+    pool_mode = transaction
+    
+    ;; Connection limits
+    max_client_conn = 1000
+    default_pool_size = 20
+    min_pool_size = 5
+    reserve_pool_size = 5
+    reserve_pool_timeout = 5
+    
+    ;; Timeouts
+    server_idle_timeout = 600
+    server_lifetime = 3600
+    server_connect_timeout = 15
+    server_login_retry = 15
+    client_idle_timeout = 0
+    client_login_timeout = 60
+    query_timeout = 0
+    query_wait_timeout = 120
+    
+    ;; Logging
+    log_connections = 1
+    log_disconnections = 1
+    log_pooler_errors = 1
+    stats_period = 60
+    
+    ;; Admin access (uses userlist.txt for admin only)
+    admin_users = pgbouncer_admin
+    stats_users = pgbouncer_admin
+    auth_file = /etc/pgbouncer/userlist.txt
+    
+    ;; Ignore problematic startup parameters
+    ignore_startup_parameters = extra_float_digits
+    
+    ;; TCP settings
+    tcp_keepalive = 1
+    tcp_keepidle = 60
+    tcp_keepintvl = 30
+    tcp_keepcnt = 3
+  
+  userlist.txt: |
+    ;; Admin user for PgBouncer management
+    ;; This is only for pgbouncer admin commands, not tenant auth
+    "pgbouncer_admin" "md5_hash_placeholder"
