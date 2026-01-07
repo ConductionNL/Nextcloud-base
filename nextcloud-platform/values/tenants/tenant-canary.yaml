@@ -5,29 +5,20 @@
 tenant:
   name: canary
   environment: prod
-  wave: 0
+  wave: "0"
   hostname: nextcloud-canary.commonground.nu
   
   s3:
     bucket: nextcloud
     prefix: ""
 
-# =============================================================================
-# DATABASE: Using MariaDB (simplest option for now)
-# =============================================================================
-# To switch to PostgreSQL later, change to:
-#   database:
-#     type: external
-#   externalDatabase:
-#     enabled: true
-#     database: nextcloud_canary
-
-database:
-  type: mariadb
-
-# MariaDB configuration (in-cluster, per-tenant)
+# Database: MariaDB (in-cluster)
 mariadb:
   enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/mariadb
+    tag: "11.2"  # Use stable tag without specific debian version
   auth:
     database: nextcloud
     username: nextcloud
@@ -39,16 +30,13 @@ mariadb:
       enabled: true
       size: 8Gi
 
-# Disable external database (using MariaDB instead)
 internalDatabase:
   enabled: false
 
 externalDatabase:
   enabled: false
 
-# =============================================================================
 # Nextcloud settings
-# =============================================================================
 nextcloud:
   host: nextcloud-canary.commonground.nu
   
@@ -90,7 +78,7 @@ ingress:
         - path: /
           pathType: Prefix
 
-# Resources (smaller for canary)
+# Resources
 resources:
   requests:
     cpu: 250m
@@ -104,7 +92,7 @@ replicaCount: 1
 hpa:
   enabled: false
 
-# S3 credentials as environment variables
+# S3 credentials
 extraEnv:
   - name: PHP_MEMORY_LIMIT
     value: "2048M"

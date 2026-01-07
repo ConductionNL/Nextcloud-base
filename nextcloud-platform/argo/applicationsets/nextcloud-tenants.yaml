@@ -19,7 +19,8 @@ spec:
         repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
         revision: HEAD
         files:
-          - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
+          # Only canary - example is just a template
+          - path: "nextcloud-platform/values/tenants/tenant-canary.yaml"
   
   # Application template
   template:

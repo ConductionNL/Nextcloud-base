@@ -1,23 +1,19 @@
 ---
-# Kustomization for all platform components
-# Deployed as single Application "nextcloud-platform"
+# Platform components - single kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namespace: nextcloud-platform
 
 resources:
-  - redis/
-  - externalsecrets/
-
-# PgBouncer only needed for external PostgreSQL (Option B/C)
-# Uncomment when switching from MariaDB:
-# - pgbouncer/
-
-# Policies are optional
-# - policies/
+  # Redis for caching/locking
+  - redis/deployment.yaml
+  - redis/service.yaml
+  - redis/configmap.yaml
+  - redis/pdb.yaml
+  # RBAC for secret management
+  - externalsecrets/rbac.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: nextcloud-platform
   app.kubernetes.io/managed-by: argocd
-

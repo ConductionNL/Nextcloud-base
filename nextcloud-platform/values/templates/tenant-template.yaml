@@ -1,23 +1,24 @@
 ---
-# Example production tenant configuration
-# Use this as a template for new tenants
+# TEMPLATE - Copy this file to values/tenants/tenant-<name>.yaml
+# This file is NOT deployed, it's just a template
 
 tenant:
-  name: example
-  environment: prod
-  wave: 1  # After canary (wave 0)
-  hostname: example.nextcloud.commonground.nu
+  name: <TENANT_NAME>           # e.g., "acme"
+  environment: prod             # accept or prod
+  wave: "1"                     # 0=canary, 1+=production waves
+  hostname: <NAME>.nextcloud.commonground.nu
   
   s3:
-    bucket: nextcloud  # Can use same bucket with different prefix, or separate bucket
-    prefix: "example/"  # Prefix to isolate tenant data in shared bucket
+    bucket: nextcloud           # Shared bucket
+    prefix: "<TENANT_NAME>/"    # Prefix to isolate data
 
-# Database: MariaDB (default)
-database:
-  type: mariadb
-
+# Database: MariaDB (in-cluster)
 mariadb:
   enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/mariadb
+    tag: "11.2"
   auth:
     database: nextcloud
     username: nextcloud
@@ -37,12 +38,11 @@ externalDatabase:
 
 # Nextcloud settings
 nextcloud:
-  host: example.nextcloud.commonground.nu
+  host: <NAME>.nextcloud.commonground.nu
   
   trustedDomains:
-    - example.nextcloud.commonground.nu
+    - <NAME>.nextcloud.commonground.nu
   
-  # S3 Primary Object Storage (Fuga Cloud)
   configs:
     s3.config.php: |
       <?php
@@ -59,7 +59,7 @@ nextcloud:
             'use_path_style' => true,
             'key' => getenv('S3_ACCESS_KEY'),
             'secret' => getenv('S3_SECRET_KEY'),
-            'objectPrefix' => 'example/urn:oid:',
+            'objectPrefix' => '<TENANT_NAME>/urn:oid:',
             'autocreate' => false,
           ),
         ),
@@ -68,11 +68,11 @@ nextcloud:
 # Ingress
 ingress:
   tls:
-    - secretName: nextcloud-example-tls
+    - secretName: nextcloud-<TENANT_NAME>-tls
       hosts:
-        - example.nextcloud.commonground.nu
+        - <NAME>.nextcloud.commonground.nu
   hosts:
-    - host: example.nextcloud.commonground.nu
+    - host: <NAME>.nextcloud.commonground.nu
       paths:
         - path: /
           pathType: Prefix
@@ -105,5 +105,6 @@ extraEnv:
 
 # Labels
 podLabels:
-  nextcloud.platform/tenant: example
+  nextcloud.platform/tenant: <TENANT_NAME>
   nextcloud.platform/wave: "1"
+
