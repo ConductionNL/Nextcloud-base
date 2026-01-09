@@ -290,13 +290,8 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
     nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
-    nginx.ingress.kubernetes.io/server-snippet: |
-      location = /.well-known/carddav {
-        return 301 $scheme://$host/remote.php/dav;
-      }
-      location = /.well-known/caldav {
-        return 301 $scheme://$host/remote.php/dav;
-      }
+    # NOTE: Removed server-snippet for caldav/carddav - caused duplicate location errors
+    # Nextcloud handles these redirects internally
   tls:
     - secretName: nextcloud-tls
       hosts: []
