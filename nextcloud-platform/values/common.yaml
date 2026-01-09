@@ -343,10 +343,10 @@ readinessProbe:
 
 startupProbe:
   enabled: true
-  initialDelaySeconds: 30
+  initialDelaySeconds: 60
   periodSeconds: 10
   timeoutSeconds: 10
-  failureThreshold: 30
+  failureThreshold: 60
   successThreshold: 1
 
 # Resources
@@ -364,9 +364,13 @@ podAnnotations:
   prometheus.io/port: "9090"
   prometheus.io/path: "/metrics"
 
-# Security context
+# Security context - www-data is UID/GID 33
 securityContext:
+  fsGroup: 33
   fsGroupChangePolicy: "OnRootMismatch"
+
+podSecurityContext:
+  fsGroup: 33
 
 containerSecurityContext:
   runAsUser: 33
