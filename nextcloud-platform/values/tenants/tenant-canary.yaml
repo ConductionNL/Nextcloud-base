@@ -47,6 +47,11 @@ nextcloud:
   
   trustedDomains:
     - nextcloud-canary.commonground.nu
+  
+  # Pod security context - www-data is UID/GID 33 in official Nextcloud image
+  podSecurityContext:
+    fsGroup: 33
+    fsGroupChangePolicy: "OnRootMismatch"
 
 # Ingress
 ingress:
@@ -90,16 +95,6 @@ extraEnv:
       secretKeyRef:
         name: nextcloud-secrets
         key: s3-secret-key
-
-# Security context - MUST be www-data (33) for official Nextcloud image
-# Try multiple key formats to ensure it gets applied
-securityContext:
-  fsGroup: 33
-  fsGroupChangePolicy: "OnRootMismatch"
-
-podSecurityContext:
-  fsGroup: 33
-  fsGroupChangePolicy: "OnRootMismatch"
 
 # Labels
 podLabels:

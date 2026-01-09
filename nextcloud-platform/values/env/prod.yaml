@@ -27,11 +27,6 @@ hpa:
 #   occ config:system:set loglevel --value=2
 #   occ config:system:set log_type --value=file
 
-# Explicitly set security context for Nextcloud (www-data = 33)
-securityContext:
-  fsGroup: 33
-  fsGroupChangePolicy: "OnRootMismatch"
-
 # Production Let's Encrypt issuer
 ingress:
   annotations:

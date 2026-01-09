@@ -115,6 +115,11 @@ nextcloud:
   # Host is set per-tenant
   # host: tenant.example.com
   
+  # Pod security context - www-data is UID/GID 33 in official Nextcloud image
+  podSecurityContext:
+    fsGroup: 33
+    fsGroupChangePolicy: "OnRootMismatch"
+  
   # Existing secret for credentials (created by ExternalSecret)
   existingSecret:
     enabled: true
@@ -364,19 +369,8 @@ podAnnotations:
   prometheus.io/port: "9090"
   prometheus.io/path: "/metrics"
 
-# Security context - www-data is UID/GID 33 in official Nextcloud image
-# NOTE: Nextcloud entrypoint runs as root first, then drops to www-data
-# Using both keys to ensure compatibility with different chart versions
-securityContext:
-  fsGroup: 33
-  fsGroupChangePolicy: "OnRootMismatch"
-
-podSecurityContext:
-  fsGroup: 33
-  fsGroupChangePolicy: "OnRootMismatch"
-
-# Don't set container security context - let Nextcloud manage it
-# The entrypoint needs root to initialize, then drops privileges
+# Don't set deprecated top-level securityContext
+# The correct key is nextcloud.podSecurityContext (set in nextcloud section above)
 
 # Node selector
 nodeSelector:
