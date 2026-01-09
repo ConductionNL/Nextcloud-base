@@ -92,7 +92,12 @@ extraEnv:
         key: s3-secret-key
 
 # Security context - MUST be www-data (33) for official Nextcloud image
+# Try multiple key formats to ensure it gets applied
 securityContext:
+  fsGroup: 33
+  fsGroupChangePolicy: "OnRootMismatch"
+
+podSecurityContext:
   fsGroup: 33
   fsGroupChangePolicy: "OnRootMismatch"
 

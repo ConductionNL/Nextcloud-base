@@ -366,7 +366,12 @@ podAnnotations:
 
 # Security context - www-data is UID/GID 33 in official Nextcloud image
 # NOTE: Nextcloud entrypoint runs as root first, then drops to www-data
+# Using both keys to ensure compatibility with different chart versions
 securityContext:
+  fsGroup: 33
+  fsGroupChangePolicy: "OnRootMismatch"
+
+podSecurityContext:
   fsGroup: 33
   fsGroupChangePolicy: "OnRootMismatch"
 
