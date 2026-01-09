@@ -22,17 +22,15 @@ hpa:
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
-# Production logging (warnings and above)
-nextcloud:
-  configs:
-    logging.config.php: |
-      <?php
-      $CONFIG = array (
-        'loglevel' => 2,  // WARN level for prod
-        'log_type' => 'file',
-        'logfile' => '/var/log/nextcloud/nextcloud.log',
-        'log_rotate_size' => 104857600,  // 100MB
-      );
+# Production logging - DON'T mount as ConfigMap, let Nextcloud handle it
+# Configure logging via occ commands after install:
+#   occ config:system:set loglevel --value=2
+#   occ config:system:set log_type --value=file
+
+# Explicitly set security context for Nextcloud (www-data = 33)
+securityContext:
+  fsGroup: 33
+  fsGroupChangePolicy: "OnRootMismatch"
 
 # Production Let's Encrypt issuer
 ingress:

@@ -91,6 +91,11 @@ extraEnv:
         name: nextcloud-secrets
         key: s3-secret-key
 
+# Security context - MUST be www-data (33) for official Nextcloud image
+securityContext:
+  fsGroup: 33
+  fsGroupChangePolicy: "OnRootMismatch"
+
 # Labels
 podLabels:
   nextcloud.platform/tenant: canary
