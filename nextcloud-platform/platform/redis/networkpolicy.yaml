@@ -1,0 +1,51 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Redis connections from Nextcloud tenant namespaces
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: nextcloud-platform
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - nc-canary
+                  - nc-example
+                  # Add more tenant namespaces as needed
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow metrics scraping from monitoring namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9121
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+

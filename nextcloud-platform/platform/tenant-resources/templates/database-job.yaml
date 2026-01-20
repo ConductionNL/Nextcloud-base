@@ -1,0 +1,130 @@
+---
+# Job to automatically create PostgreSQL database for tenant
+# Runs as Argo CD PreSync hook - creates DB before Nextcloud starts
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-provision-{{ .Values.tenant.name }}
+  namespace: {{ .Values.tenant.namespace | default (printf "nc-%s" .Values.tenant.name) }}
+  labels:
+    {{- include "tenant-resources.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-provisioning
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "tenant-resources.labels" . | nindent 8 }}
+        app.kubernetes.io/component: db-provisioning
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: db-provision
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            # Admin credentials to create databases (from platform secret)
+            - name: PGHOST
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: host
+            - name: PGPORT
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: port
+                  optional: true
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-admin
+                  key: password
+            # Tenant-specific values
+            - name: TENANT_NAME
+              value: "{{ .Values.tenant.name }}"
+            - name: TENANT_DB
+              value: "nextcloud_{{ .Values.tenant.name }}"
+            - name: TENANT_USER
+              value: "nextcloud_{{ .Values.tenant.name }}"
+            - name: TENANT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-secrets
+                  key: db-password
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              echo "=========================================="
+              echo "Database Provisioning for: $TENANT_NAME"
+              echo "=========================================="
+              echo "Host: $PGHOST"
+              echo "Database: $TENANT_DB"
+              echo "User: $TENANT_USER"
+              echo ""
+              
+              # Check if database already exists
+              if psql -lqt | cut -d \| -f 1 | grep -qw "$TENANT_DB"; then
+                echo "✓ Database '$TENANT_DB' already exists"
+              else
+                echo "Creating database '$TENANT_DB'..."
+                psql -c "CREATE DATABASE $TENANT_DB;"
+                echo "✓ Database created"
+              fi
+              
+              # Check if user exists
+              if psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$TENANT_USER'" | grep -q 1; then
+                echo "✓ User '$TENANT_USER' already exists"
+                # Update password in case it changed
+                psql -c "ALTER USER $TENANT_USER WITH ENCRYPTED PASSWORD '$TENANT_PASSWORD';"
+                echo "✓ Password updated"
+              else
+                echo "Creating user '$TENANT_USER'..."
+                psql -c "CREATE USER $TENANT_USER WITH ENCRYPTED PASSWORD '$TENANT_PASSWORD';"
+                echo "✓ User created"
+              fi
+              
+              # Grant privileges
+              echo "Granting privileges..."
+              psql -c "GRANT ALL PRIVILEGES ON DATABASE $TENANT_DB TO $TENANT_USER;"
+              
+              # Connect to tenant database and grant schema permissions
+              psql -d "$TENANT_DB" -c "GRANT ALL ON SCHEMA public TO $TENANT_USER;"
+              psql -d "$TENANT_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $TENANT_USER;"
+              psql -d "$TENANT_DB" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $TENANT_USER;"
+              
+              echo ""
+              echo "=========================================="
+              echo "✓ Database provisioning complete!"
+              echo "=========================================="
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+

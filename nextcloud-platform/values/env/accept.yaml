@@ -1,0 +1,77 @@
+---
+# Environment-specific values for ACCEPTANCE environment
+# Merged with common.yaml and tenant values
+
+# Lower replicas for test environment
+replicaCount: 1
+
+# Smaller resources for test
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1
+    memory: 1Gi
+
+# HPA disabled in accept
+hpa:
+  enabled: false
+
+# Debug logging
+nextcloud:
+  configs:
+    logging.config.php: |
+      <?php
+      $CONFIG = array (
+        'loglevel' => 1,  // INFO level for accept
+        'log_type' => 'file',
+        'logfile' => '/var/log/nextcloud/nextcloud.log',
+      );
+
+# Use staging Let's Encrypt issuer to avoid rate limits
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+
+# S3 configuration for accept environment (Fuga Cloud)
+s3:
+  enabled: true
+  endpoint: "https://core.fuga.cloud:8080"
+  region: ""
+  pathStyle: true
+  sslVerify: true
+  legacyAuth: false
+
+# PgBouncer for accept (same service, different DB)
+externalDatabase:
+  host: pgbouncer.nextcloud-platform.svc.cluster.local
+  port: 5432
+
+# Priority class for accept
+priorityClassName: nextcloud-tenant-normal
+
+# Shorter probe delays for faster feedback in test
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  failureThreshold: 3
+
+readinessProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  failureThreshold: 3
+
+startupProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  failureThreshold: 30
+
+# Pod labels for accept
+podLabels:
+  environment: accept
+  nextcloud.platform/tier: test
+
+# Reduced cron frequency in accept
+cronjob:
+  schedule: "*/15 * * * *"

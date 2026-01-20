@@ -1,0 +1,19 @@
+---
+# PodDisruptionBudget for Nextcloud
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nextcloud
+  namespace: {{ .Values.tenant.namespace | default (printf "nc-%s" .Values.tenant.name) }}
+  labels:
+    {{- include "tenant-resources.labels" . | nindent 4 }}
+spec:
+  {{- if eq .Values.tenant.environment "prod" }}
+  minAvailable: 1
+  {{- else }}
+  minAvailable: 0
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud
+

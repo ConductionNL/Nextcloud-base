@@ -1,0 +1,103 @@
+---
+# Canary tenant configuration
+# This tenant is ALWAYS upgraded first (wave 0)
+
+tenant:
+  name: canary
+  environment: prod
+  wave: "0"
+  hostname: nextcloud-canary.commonground.nu
+  
+  s3:
+    bucket: nextcloud
+    prefix: ""
+
+# Database: MariaDB (in-cluster)
+mariadb:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/mariadb
+    tag: "11.2"
+  auth:
+    database: nextcloud
+    username: nextcloud
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# Disable internal SQLite
+internalDatabase:
+  enabled: false
+
+# Disable external PostgreSQL (using MariaDB subchart instead)
+externalDatabase:
+  enabled: false
+  existingSecret:
+    enabled: false
+
+# Nextcloud settings
+nextcloud:
+  host: nextcloud-canary.commonground.nu
+  
+  trustedDomains:
+    - nextcloud-canary.commonground.nu
+  
+  # Pod security context - www-data is UID/GID 33 in official Nextcloud image
+  podSecurityContext:
+    fsGroup: 33
+    fsGroupChangePolicy: "OnRootMismatch"
+
+# Ingress
+ingress:
+  tls:
+    - secretName: nextcloud-canary-tls
+      hosts:
+        - nextcloud-canary.commonground.nu
+  hosts:
+    - host: nextcloud-canary.commonground.nu
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Resources
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+replicaCount: 1
+
+hpa:
+  enabled: false
+
+# S3 credentials
+extraEnv:
+  - name: PHP_MEMORY_LIMIT
+    value: "2048M"
+  - name: PHP_UPLOAD_LIMIT
+    value: "16G"
+  - name: S3_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-secrets
+        key: s3-access-key
+  - name: S3_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-secrets
+        key: s3-secret-key
+
+# Labels
+podLabels:
+  nextcloud.platform/tenant: canary
+  nextcloud.platform/wave: "0"
+  nextcloud.platform/role: canary

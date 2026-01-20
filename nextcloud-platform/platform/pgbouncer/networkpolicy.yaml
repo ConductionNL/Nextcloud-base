@@ -1,0 +1,70 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pgbouncer
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: pgbouncer
+    app.kubernetes.io/component: database-proxy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pgbouncer
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow PostgreSQL connections from Nextcloud tenant namespaces
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: nextcloud-platform
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - nc-canary
+                  - nc-example
+                  # Add more tenant namespaces as needed
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow metrics scraping from monitoring namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9127
+  egress:
+    # Allow connections to external PostgreSQL
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow connection to internal PostgreSQL if used
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: database
+      ports:
+        - protocol: TCP
+          port: 5432
+

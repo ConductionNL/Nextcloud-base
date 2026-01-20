@@ -1,0 +1,23 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/component: cache
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics
+  namespaceSelector:
+    matchNames:
+      - nextcloud-platform
+

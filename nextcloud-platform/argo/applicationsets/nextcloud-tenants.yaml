@@ -1,0 +1,93 @@
+---
+# ApplicationSet that generates Nextcloud Applications for each tenant
+# Tenants are defined by files in nextcloud-platform/values/tenants/
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nextcloud-tenants
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+spec:
+  # Prevent accidental deletion of tenant applications
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+  
+  # Generator: create one Application per tenant file
+  generators:
+    - git:
+        repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
+        revision: HEAD
+        files:
+          # Only canary - example is just a template
+          - path: "nextcloud-platform/values/tenants/tenant-canary.yaml"
+  
+  # Application template
+  template:
+    metadata:
+      name: "nc-{{tenant.name}}"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/part-of: nextcloud-platform
+        nextcloud.platform/tenant: "{{tenant.name}}"
+        nextcloud.platform/environment: "{{tenant.environment}}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{tenant.wave}}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: nextcloud-platform
+      
+      # Source: Nextcloud Helm chart with our values
+      sources:
+        # Main Nextcloud Helm chart
+        - repoURL: "https://nextcloud.github.io/helm/"
+          chart: nextcloud
+          targetRevision: "5.2.0"
+          helm:
+            releaseName: "nextcloud"
+            valueFiles:
+              - "$values/nextcloud-platform/values/common.yaml"
+              - "$values/nextcloud-platform/values/env/{{tenant.environment}}.yaml"
+              - "$values/nextcloud-platform/values/tenants/tenant-{{tenant.name}}.yaml"
+            values: |
+              fullnameOverride: "nextcloud"
+              commonLabels:
+                nextcloud.platform/tenant: "{{tenant.name}}"
+                nextcloud.platform/environment: "{{tenant.environment}}"
+        
+        # Our GitOps repo for values files
+        - repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
+          targetRevision: HEAD
+          ref: values
+      
+      # Destination: tenant-specific namespace
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "nc-{{tenant.name}}"
+      
+      # Sync policy
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - PruneLast=true
+          - ServerSideApply=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+      
+      revisionHistoryLimit: 10
+      
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

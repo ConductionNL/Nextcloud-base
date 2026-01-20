@@ -1,0 +1,41 @@
+---
+# Single Application for all platform components
+# Deploys Redis and RBAC for secrets
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nextcloud-platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: nextcloud-platform
+    nextcloud.platform/component: platform
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: nextcloud-platform
+  
+  source:
+    repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
+    targetRevision: HEAD
+    path: "nextcloud-platform/platform"
+    directory:
+      recurse: false
+      include: "kustomization.yaml"
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nextcloud-platform
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m

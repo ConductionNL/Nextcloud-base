@@ -1,0 +1,120 @@
+---
+# Argo CD AppProject for Nextcloud Platform
+# Defines permissions and resource boundaries for all Nextcloud tenants
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: nextcloud-platform
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Multi-tenant Nextcloud platform managed by GitOps"
+  
+  # Source repositories allowed for this project
+  sourceRepos:
+    - "git@github.com:ConductionNL/Nextcloud-base.git"
+    - "https://nextcloud.github.io/helm/"
+  
+  # Destination clusters and namespaces
+  destinations:
+    # Platform components namespace
+    - namespace: nextcloud-platform
+      server: https://kubernetes.default.svc
+    # Tenant namespaces (nc-* pattern)
+    - namespace: "nc-*"
+      server: https://kubernetes.default.svc
+  
+  # Cluster resource whitelist
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+  
+  # Namespace resource blacklist (prevent dangerous resources)
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange
+  
+  # Namespace resource whitelist
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: "*"
+    - group: batch
+      kind: "*"
+    - group: networking.k8s.io
+      kind: "*"
+    - group: policy
+      kind: "*"
+    - group: autoscaling
+      kind: "*"
+    - group: external-secrets.io
+      kind: "*"
+    - group: cert-manager.io
+      kind: "*"
+    - group: monitoring.coreos.com
+      kind: "*"
+  
+  # Sync windows for controlled rollouts
+  syncWindows:
+    # Allow canary (wave 0) anytime
+    - kind: allow
+      schedule: "* * * * *"
+      duration: 24h
+      applications:
+        - "nc-canary"
+      manualSync: true
+    # Prod rollouts during business hours only (example)
+    - kind: allow
+      schedule: "0 6 * * 1-5"
+      duration: 12h
+      applications:
+        - "nc-*"
+      manualSync: true
+  
+  # Roles for project access
+  roles:
+    - name: platform-admin
+      description: "Full access to Nextcloud platform"
+      policies:
+        - p, proj:nextcloud-platform:platform-admin, applications, *, nextcloud-platform/*, allow
+        - p, proj:nextcloud-platform:platform-admin, repositories, *, nextcloud-platform/*, allow
+      groups:
+        - platform-admins
+    
+    - name: tenant-viewer
+      description: "Read-only access to tenant applications"
+      policies:
+        - p, proj:nextcloud-platform:tenant-viewer, applications, get, nextcloud-platform/*, allow
+        - p, proj:nextcloud-platform:tenant-viewer, applications, sync, nextcloud-platform/*, deny
+      groups:
+        - tenant-viewers
+    
+    - name: tenant-operator
+      description: "Sync access to specific tenant applications"
+      policies:
+        - p, proj:nextcloud-platform:tenant-operator, applications, get, nextcloud-platform/*, allow
+        - p, proj:nextcloud-platform:tenant-operator, applications, sync, nextcloud-platform/*, allow
+        - p, proj:nextcloud-platform:tenant-operator, applications, action/*, nextcloud-platform/*, allow
+      groups:
+        - tenant-operators
+
+---
+# Namespace for platform components
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nextcloud-platform
+  labels:
+    app.kubernetes.io/part-of: nextcloud-platform
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+

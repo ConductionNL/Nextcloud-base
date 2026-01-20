@@ -1,0 +1,112 @@
+---
+# Environment-specific values for PRODUCTION environment
+# Merged with common.yaml and tenant values
+
+# Multiple replicas for HA
+replicaCount: 2
+
+# Production resources
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 4
+    memory: 4Gi
+
+# HPA enabled in prod
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Production logging - DON'T mount as ConfigMap, let Nextcloud handle it
+# Configure logging via occ commands after install:
+#   occ config:system:set loglevel --value=2
+#   occ config:system:set log_type --value=file
+
+# Production Let's Encrypt issuer
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Additional production hardening
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+# S3 configuration for prod environment (Fuga Cloud)
+s3:
+  enabled: true
+  endpoint: "https://core.fuga.cloud:8080"
+  region: ""
+  pathStyle: true
+  sslVerify: true
+  legacyAuth: false
+
+# PgBouncer for prod
+externalDatabase:
+  host: pgbouncer.nextcloud-platform.svc.cluster.local
+  port: 5432
+
+# Priority class for prod
+priorityClassName: nextcloud-tenant-high
+
+# Production-appropriate probe settings
+livenessProbe:
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 6
+
+readinessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+startupProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 10
+  failureThreshold: 30
+
+# Pod labels for prod
+podLabels:
+  environment: prod
+  nextcloud.platform/tier: production
+
+# Frequent cron in prod
+cronjob:
+  schedule: "*/5 * * * *"
+
+# Pod anti-affinity for HA
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: nextcloud
+          topologyKey: kubernetes.io/hostname
+      - weight: 50
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: nextcloud
+          topologyKey: topology.kubernetes.io/zone
+
+# Topology spread for zone distribution
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: nextcloud
+
+# PDB for prod
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

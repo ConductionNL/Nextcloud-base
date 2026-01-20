@@ -1,0 +1,116 @@
+---
+# NetworkPolicy for tenant Nextcloud pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nextcloud
+  namespace: {{ .Values.tenant.namespace | default (printf "nc-%s" .Values.tenant.name) }}
+  labels:
+    {{- include "tenant-resources.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nextcloud
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
+    # Allow health checks from kubelet
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow Redis (platform namespace)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nextcloud-platform
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow PgBouncer (platform namespace)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nextcloud-platform
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pgbouncer
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow S3/Ceph RGW (external)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
+    # Allow SMTP (if configured)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 25
+        - protocol: TCP
+          port: 465
+        - protocol: TCP
+          port: 587
+    # Allow LDAP/AD (if configured)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 389
+        - protocol: TCP
+          port: 636
+
+---
+# Default deny all ingress for the namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ .Values.tenant.namespace | default (printf "nc-%s" .Values.tenant.name) }}
+  labels:
+    {{- include "tenant-resources.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+

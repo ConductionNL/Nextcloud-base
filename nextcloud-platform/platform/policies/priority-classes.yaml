@@ -1,0 +1,55 @@
+---
+# PriorityClasses for Nextcloud workloads
+# Ensures critical components get scheduled first
+
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: nextcloud-platform-critical
+  labels:
+    app.kubernetes.io/name: policies
+    app.kubernetes.io/component: governance
+value: 1000000
+globalDefault: false
+description: "Critical platform components (Redis, PgBouncer)"
+preemptionPolicy: PreemptLowerPriority
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: nextcloud-tenant-high
+  labels:
+    app.kubernetes.io/name: policies
+    app.kubernetes.io/component: governance
+value: 100000
+globalDefault: false
+description: "Production tenant Nextcloud pods"
+preemptionPolicy: PreemptLowerPriority
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: nextcloud-tenant-normal
+  labels:
+    app.kubernetes.io/name: policies
+    app.kubernetes.io/component: governance
+value: 10000
+globalDefault: false
+description: "Non-production tenant Nextcloud pods"
+preemptionPolicy: PreemptLowerPriority
+
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: nextcloud-cron
+  labels:
+    app.kubernetes.io/name: policies
+    app.kubernetes.io/component: governance
+value: 1000
+globalDefault: false
+description: "Nextcloud cron jobs"
+preemptionPolicy: Never
+
