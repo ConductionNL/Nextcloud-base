@@ -12,6 +12,20 @@ tenant:
     bucket: nextcloud           # Shared bucket
     prefix: "<TENANT_NAME>/"    # Prefix to isolate data
 
+# =============================================================================
+# CONDUCTION APPS
+# =============================================================================
+# De Conduction product apps die automatisch geïnstalleerd worden
+# Deze apps vormen het product dat we uitleveren
+#
+# Apps:
+#   - opencatalogi   : Open Catalogi - publicatie platform
+#   - openconnector  : Open Connector - integratie platform  
+#   - openregister   : Open Register - register beheer
+#
+# Installatie gebeurt via post-install hook bij eerste deployment
+# =============================================================================
+
 # Database: MariaDB (in-cluster)
 mariadb:
   enabled: true
@@ -43,7 +57,18 @@ nextcloud:
   trustedDomains:
     - <NAME>.nextcloud.commonground.nu
   
+  # Conduction Apps - geïnstalleerd bij eerste boot
   configs:
+    conduction-apps.config.php: |
+      <?php
+      // Conduction Product Apps
+      // Deze config zorgt dat de apps worden ingeschakeld
+      $CONFIG = array (
+        // Apps die standaard enabled moeten zijn na installatie
+        // De daadwerkelijke installatie gebeurt via de hook
+        'default_phone_region' => 'NL',
+      );
+    
     s3.config.php: |
       <?php
       $CONFIG = array (
@@ -107,4 +132,45 @@ extraEnv:
 podLabels:
   nextcloud.platform/tenant: <TENANT_NAME>
   nextcloud.platform/wave: "1"
+
+# =============================================================================
+# CONDUCTION APPS INSTALLER
+# =============================================================================
+# Lifecycle hook die de Conduction apps installeert na pod start
+# Apps worden alleen geïnstalleerd als ze nog niet bestaan
+#
+# Voeg meer apps toe aan de lijst indien nodig
+# =============================================================================
+
+lifecycle:
+  postStartCommand:
+    - /bin/sh
+    - -c
+    - |
+      echo "=== Conduction Apps Installer ===" 
+      
+      # Wacht tot Nextcloud klaar is
+      until php occ status 2>/dev/null | grep -q "installed: true"; do
+        echo "Waiting for Nextcloud to be ready..."
+        sleep 10
+      done
+      
+      echo "Nextcloud is ready, checking apps..."
+      
+      # Conduction Apps lijst
+      APPS="opencatalogi openconnector openregister"
+      
+      for APP in $APPS; do
+        if ! php occ app:list | grep -q "- $APP:"; then
+          echo "Installing $APP..."
+          php occ app:install "$APP" || echo "Warning: Could not install $APP (may not exist in app store yet)"
+        else
+          echo "$APP already installed"
+        fi
+        
+        # Enable app (idempotent)
+        php occ app:enable "$APP" 2>/dev/null || true
+      done
+      
+      echo "=== Conduction Apps Installer Complete ==="
 

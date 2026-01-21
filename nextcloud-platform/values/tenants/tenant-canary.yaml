@@ -101,3 +101,44 @@ podLabels:
   nextcloud.platform/tenant: canary
   nextcloud.platform/wave: "0"
   nextcloud.platform/role: canary
+
+# =============================================================================
+# CONDUCTION APPS INSTALLER
+# =============================================================================
+# Installeert automatisch de Conduction product apps:
+#   - opencatalogi   : Open Catalogi
+#   - openconnector  : Open Connector
+#   - openregister   : Open Register
+# =============================================================================
+
+lifecycle:
+  postStartCommand:
+    - /bin/sh
+    - -c
+    - |
+      echo "=== Conduction Apps Installer ===" 
+      
+      # Wacht tot Nextcloud klaar is
+      until php occ status 2>/dev/null | grep -q "installed: true"; do
+        echo "Waiting for Nextcloud to be ready..."
+        sleep 10
+      done
+      
+      echo "Nextcloud is ready, checking apps..."
+      
+      # Conduction Apps lijst
+      APPS="opencatalogi openconnector openregister"
+      
+      for APP in $APPS; do
+        if ! php occ app:list | grep -q "- $APP:"; then
+          echo "Installing $APP..."
+          php occ app:install "$APP" || echo "Warning: Could not install $APP"
+        else
+          echo "$APP already installed"
+        fi
+        
+        # Enable app (idempotent)
+        php occ app:enable "$APP" 2>/dev/null || true
+      done
+      
+      echo "=== Conduction Apps Installer Complete ==="
