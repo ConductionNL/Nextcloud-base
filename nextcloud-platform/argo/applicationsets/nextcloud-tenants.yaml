@@ -43,7 +43,7 @@ spec:
         # Main Nextcloud Helm chart
         - repoURL: "https://nextcloud.github.io/helm/"
           chart: nextcloud
-          targetRevision: "8.8.1"
+          targetRevision: "6.6.0"
           helm:
             releaseName: "nextcloud"
             valueFiles:

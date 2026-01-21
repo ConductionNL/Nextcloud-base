@@ -6,7 +6,7 @@
 chart:
   # Pin the Nextcloud Helm chart version for reproducibility
   # Update this to upgrade all tenants
-  version: "8.8.1"
+  version: "6.6.0"
 
 # =============================================================================
 # DATABASE CONFIGURATION
@@ -104,7 +104,7 @@ externalDatabase:
 # Global image settings
 image:
   repository: nextcloud
-  tag: "32.0.5-fpm"
+  tag: "31.0.13-fpm"
   pullPolicy: Always
 
 # Replica count (can be overridden per env/tenant)
