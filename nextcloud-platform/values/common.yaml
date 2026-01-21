@@ -309,7 +309,7 @@ service:
 persistence:
   enabled: true
   accessMode: ReadWriteOnce
-  size: 1Gi
+  size: 20Gi
   storageClass: ""
   
   nextcloudData:
