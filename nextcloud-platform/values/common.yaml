@@ -413,6 +413,9 @@ podAnnotations:
 # Don't set deprecated top-level securityContext
 # The correct key is nextcloud.podSecurityContext (set in nextcloud section above)
 
+# Priority class (disabled - cluster doesn't have nextcloud-tenant-high)
+priorityClassName: ""
+
 # Node selector
 nodeSelector:
   kubernetes.io/os: linux
