@@ -191,9 +191,12 @@ nextcloud:
         if [ -n "$VERSION" ] && [ -d "/var/www/html/apps/$APP_NAME" ]; then
           log "Removing /apps/$APP_NAME (app:enable downloaded it, but we want custom_apps version)"
           rm -rf "/var/www/html/apps/$APP_NAME"
+          # Re-enable to pick up from custom_apps
+          php occ app:enable "$APP_NAME" 2>>"$LOG" || true
         fi
         
-        log "$APP_NAME enabled (version: $(php occ app:list 2>/dev/null | grep "$APP_NAME" | head -1))"
+        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep "- $APP_NAME:" | sed 's/.*: //')
+        log "$APP_NAME enabled (version: $INSTALLED_VER)"
       }
       
       install_app "opencatalogi"  "OPENCATALOGI_VERSION"
