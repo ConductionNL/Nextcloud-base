@@ -26,8 +26,11 @@ spec:
                 operator: In
                 values:
                   - nc-canary
+                  - nc-canary-accept
                   - nc-example
                   # Add more tenant namespaces as needed
+                  # IMPORTANT: Update this list when adding new tenants!
+                  # See docs/ADDING-TENANT.md for details
       ports:
         - protocol: TCP
           port: 6379
