@@ -49,8 +49,8 @@ externalDatabase:
   host: pgbouncer.nextcloud-platform.svc.cluster.local
   port: 5432
 
-# Priority class for prod
-priorityClassName: nextcloud-tenant-high
+# Priority class disabled - not available in this cluster
+# priorityClassName: nextcloud-tenant-high
 
 # Production-appropriate probe settings
 livenessProbe:

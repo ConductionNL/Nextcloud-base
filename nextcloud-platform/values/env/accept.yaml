@@ -48,8 +48,8 @@ externalDatabase:
   host: pgbouncer.nextcloud-platform.svc.cluster.local
   port: 5432
 
-# Priority class for accept
-priorityClassName: nextcloud-tenant-normal
+# Priority class disabled - not available in this cluster
+# priorityClassName: nextcloud-tenant-normal
 
 # Shorter probe delays for faster feedback in test
 livenessProbe:
