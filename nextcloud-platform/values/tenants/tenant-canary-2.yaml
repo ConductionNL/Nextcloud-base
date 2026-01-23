@@ -1,0 +1,158 @@
+---
+# Canary-2 tenant configuration
+# Test tenant om volledige flow vanaf scratch te testen
+# Kan na succesvolle test verwijderd worden
+
+tenant:
+  name: canary-2
+  environment: prod
+  wave: "0"
+  hostname: nextcloud-canary-2.commonground.nu
+  
+  s3:
+    bucket: nextcloud
+    prefix: "canary-2/"
+
+# =============================================================================
+# DATABASE: MariaDB (in-cluster)
+# =============================================================================
+mariadb:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/mariadb
+    tag: "11.2"
+  auth:
+    database: nextcloud
+    username: nextcloud
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# Disable internal SQLite
+internalDatabase:
+  enabled: false
+
+# Disable external PostgreSQL (using MariaDB subchart instead)
+externalDatabase:
+  enabled: false
+  existingSecret:
+    enabled: false
+
+# =============================================================================
+# NEXTCLOUD SETTINGS
+# =============================================================================
+nextcloud:
+  host: nextcloud-canary-2.commonground.nu
+  
+  trustedDomains:
+    - nextcloud-canary-2.commonground.nu
+  
+  # Pod security context - www-data is UID/GID 33 in official Nextcloud image
+  podSecurityContext:
+    fsGroup: 33
+    fsGroupChangePolicy: "OnRootMismatch"
+
+# =============================================================================
+# INGRESS
+# =============================================================================
+ingress:
+  tls:
+    - secretName: nextcloud-canary-2-tls
+      hosts:
+        - nextcloud-canary-2.commonground.nu
+  hosts:
+    - host: nextcloud-canary-2.commonground.nu
+      paths:
+        - path: /
+          pathType: Prefix
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+replicaCount: 1
+
+hpa:
+  enabled: false
+
+# =============================================================================
+# S3 CREDENTIALS
+# =============================================================================
+extraEnv:
+  - name: PHP_MEMORY_LIMIT
+    value: "2048M"
+  - name: PHP_UPLOAD_LIMIT
+    value: "16G"
+  - name: S3_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-secrets
+        key: s3-access-key
+  - name: S3_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: nextcloud-secrets
+        key: s3-secret-key
+
+# =============================================================================
+# LABELS
+# =============================================================================
+podLabels:
+  nextcloud.platform/tenant: canary-2
+  nextcloud.platform/wave: "0"
+  nextcloud.platform/role: test
+
+# =============================================================================
+# CONDUCTION APPS INSTALLER
+# =============================================================================
+# Installeert automatisch de Conduction product apps:
+#   - opencatalogi   : Open Catalogi - publicatie platform
+#   - openconnector  : Open Connector - integratie platform
+#   - openregister   : Open Register - register beheer
+# =============================================================================
+
+lifecycle:
+  postStartCommand:
+    - /bin/sh
+    - -c
+    - |
+      echo "=== Conduction Apps Installer ===" 
+      
+      # Wacht tot Nextcloud klaar is
+      until php occ status 2>/dev/null | grep -q "installed: true"; do
+        echo "Waiting for Nextcloud to be ready..."
+        sleep 10
+      done
+      
+      echo "Nextcloud is ready, checking apps..."
+      
+      # Conduction Apps lijst
+      APPS="opencatalogi openconnector openregister"
+      
+      for APP in $APPS; do
+        if ! php occ app:list | grep -q "- $APP:"; then
+          echo "Installing $APP..."
+          php occ app:install "$APP" || echo "Warning: Could not install $APP"
+        else
+          echo "$APP already installed"
+        fi
+        
+        # Enable app (idempotent)
+        php occ app:enable "$APP" 2>/dev/null || true
+      done
+      
+      echo "=== Conduction Apps Installer Complete ==="
+

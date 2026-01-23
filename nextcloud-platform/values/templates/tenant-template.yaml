@@ -1,6 +1,10 @@
 ---
 # TEMPLATE - Copy this file to values/tenants/tenant-<name>.yaml
 # This file is NOT deployed, it's just a template
+#
+# Vervang overal:
+#   <TENANT_NAME>  ->  je tenant naam (bijv. "acme")
+#   <NAME>         ->  hostname prefix (bijv. "acme" voor acme.nextcloud.commonground.nu)
 
 tenant:
   name: <TENANT_NAME>           # e.g., "acme"
@@ -13,84 +17,53 @@ tenant:
     prefix: "<TENANT_NAME>/"    # Prefix to isolate data
 
 # =============================================================================
-# CONDUCTION APPS
+# DATABASE: MariaDB (in-cluster)
 # =============================================================================
-# De Conduction product apps die automatisch geïnstalleerd worden
-# Deze apps vormen het product dat we uitleveren
-#
-# Apps:
-#   - opencatalogi   : Open Catalogi - publicatie platform
-#   - openconnector  : Open Connector - integratie platform  
-#   - openregister   : Open Register - register beheer
-#
-# Installatie gebeurt via post-install hook bij eerste deployment
-# =============================================================================
-
-# Database: MariaDB (in-cluster)
 mariadb:
   enabled: true
   image:
     registry: docker.io
-    repository: bitnami/mariadb
+    repository: bitnamilegacy/mariadb
     tag: "11.2"
   auth:
     database: nextcloud
     username: nextcloud
     existingSecret: nextcloud-secrets
     secretKeys:
-      password: db-password
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
   primary:
     persistence:
       enabled: true
       size: 8Gi
 
+# Disable internal SQLite
 internalDatabase:
   enabled: false
 
+# Disable external PostgreSQL (using MariaDB subchart instead)
 externalDatabase:
   enabled: false
+  existingSecret:
+    enabled: false
 
-# Nextcloud settings
+# =============================================================================
+# NEXTCLOUD SETTINGS
+# =============================================================================
 nextcloud:
   host: <NAME>.nextcloud.commonground.nu
   
   trustedDomains:
     - <NAME>.nextcloud.commonground.nu
   
-  # Conduction Apps - geïnstalleerd bij eerste boot
-  configs:
-    conduction-apps.config.php: |
-      <?php
-      // Conduction Product Apps
-      // Deze config zorgt dat de apps worden ingeschakeld
-      $CONFIG = array (
-        // Apps die standaard enabled moeten zijn na installatie
-        // De daadwerkelijke installatie gebeurt via de hook
-        'default_phone_region' => 'NL',
-      );
-    
-    s3.config.php: |
-      <?php
-      $CONFIG = array (
-        'objectstore' => array(
-          'class' => '\OC\Files\ObjectStore\S3',
-          'arguments' => array(
-            'bucket' => 'nextcloud',
-            'hostname' => 'core.fuga.cloud',
-            'port' => 8080,
-            'use_ssl' => true,
-            'verify_ssl_cert' => true,
-            'region' => '',
-            'use_path_style' => true,
-            'key' => getenv('S3_ACCESS_KEY'),
-            'secret' => getenv('S3_SECRET_KEY'),
-            'objectPrefix' => '<TENANT_NAME>/urn:oid:',
-            'autocreate' => false,
-          ),
-        ),
-      );
+  # Pod security context - www-data is UID/GID 33 in official Nextcloud image
+  podSecurityContext:
+    fsGroup: 33
+    fsGroupChangePolicy: "OnRootMismatch"
 
-# Ingress
+# =============================================================================
+# INGRESS
+# =============================================================================
 ingress:
   tls:
     - secretName: nextcloud-<TENANT_NAME>-tls
@@ -102,16 +75,25 @@ ingress:
         - path: /
           pathType: Prefix
 
-# Resources
+# =============================================================================
+# RESOURCES
+# =============================================================================
 resources:
   requests:
-    cpu: 500m
-    memory: 1Gi
+    cpu: 250m
+    memory: 512Mi
   limits:
-    cpu: 4
-    memory: 4Gi
+    cpu: 2
+    memory: 2Gi
 
-# S3 credentials
+replicaCount: 1
+
+hpa:
+  enabled: false
+
+# =============================================================================
+# S3 CREDENTIALS
+# =============================================================================
 extraEnv:
   - name: PHP_MEMORY_LIMIT
     value: "2048M"
@@ -128,7 +110,9 @@ extraEnv:
         name: nextcloud-secrets
         key: s3-secret-key
 
-# Labels
+# =============================================================================
+# LABELS
+# =============================================================================
 podLabels:
   nextcloud.platform/tenant: <TENANT_NAME>
   nextcloud.platform/wave: "1"
@@ -136,10 +120,12 @@ podLabels:
 # =============================================================================
 # CONDUCTION APPS INSTALLER
 # =============================================================================
-# Lifecycle hook die de Conduction apps installeert na pod start
-# Apps worden alleen geïnstalleerd als ze nog niet bestaan
+# Installeert automatisch de Conduction product apps:
+#   - opencatalogi   : Open Catalogi - publicatie platform
+#   - openconnector  : Open Connector - integratie platform
+#   - openregister   : Open Register - register beheer
 #
-# Voeg meer apps toe aan de lijst indien nodig
+# Apps worden geïnstalleerd bij pod start (idempotent)
 # =============================================================================
 
 lifecycle:
@@ -163,7 +149,7 @@ lifecycle:
       for APP in $APPS; do
         if ! php occ app:list | grep -q "- $APP:"; then
           echo "Installing $APP..."
-          php occ app:install "$APP" || echo "Warning: Could not install $APP (may not exist in app store yet)"
+          php occ app:install "$APP" || echo "Warning: Could not install $APP"
         else
           echo "$APP already installed"
         fi
@@ -173,4 +159,3 @@ lifecycle:
       done
       
       echo "=== Conduction Apps Installer Complete ==="
-
