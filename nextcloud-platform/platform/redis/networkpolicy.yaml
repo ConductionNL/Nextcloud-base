@@ -26,6 +26,7 @@ spec:
                 operator: In
                 values:
                   - nc-canary
+                  - nc-canary-2
                   - nc-canary-accept
                   - nc-example
                   # Add more tenant namespaces as needed

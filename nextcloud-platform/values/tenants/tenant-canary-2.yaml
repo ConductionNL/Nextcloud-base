@@ -1,0 +1,195 @@
+---
+# =============================================================================
+# TENANT: canary-2 (test met gepinde versies)
+# =============================================================================
+# Test tenant voor verificatie van versie-pinning functionaliteit
+# =============================================================================
+
+tenant:
+  name: canary-2
+  environment: prod
+  wave: "0"                              # Canary wave - eerst deployen
+  hostname: nextcloud-canary-2.commonground.nu
+  
+  s3:
+    bucket: nextcloud
+    prefix: "canary-2/"
+
+# =============================================================================
+# DATABASE: MariaDB (in-cluster)
+# =============================================================================
+mariadb:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/mariadb
+    tag: "11.2"
+  auth:
+    database: nextcloud
+    username: nextcloud
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# Disable alternatives
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: false
+  existingSecret:
+    enabled: false
+
+# =============================================================================
+# NEXTCLOUD SETTINGS
+# =============================================================================
+nextcloud:
+  host: nextcloud-canary-2.commonground.nu
+  
+  trustedDomains:
+    - nextcloud-canary-2.commonground.nu
+  
+  # Tenant-specific configs (merged with common.yaml configs)
+  configs:
+    tenant.config.php: |
+      <?php
+      $CONFIG = array (
+        // Required for WebDAV self-check
+        'overwrite.cli.url' => 'https://nextcloud-canary-2.commonground.nu',
+      );
+  
+  # Pod security context - www-data is UID/GID 33 in official Nextcloud image
+  podSecurityContext:
+    fsGroup: 33
+    fsGroupChangePolicy: "OnRootMismatch"
+
+  # ===========================================================================
+  # ENVIRONMENT VARIABLES
+  # ===========================================================================
+  extraEnv:
+    - name: PHP_MEMORY_LIMIT
+      value: "2048M"
+    - name: PHP_UPLOAD_LIMIT
+      value: "16G"
+    # S3 credentials (uit secret)
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: s3-access-key
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: s3-secret-key
+    # -------------------------------------------------------------------------
+    # APP VERSION PINNING - GEPINDE VERSIES VOOR TEST
+    # -------------------------------------------------------------------------
+    - name: OPENCATALOGI_VERSION
+      value: "0.7.6"
+    - name: OPENCONNECTOR_VERSION
+      value: "0.2.6"
+    - name: OPENREGISTER_VERSION
+      value: "0.2.8"
+
+  # ===========================================================================
+  # CONDUCTION APPS INSTALLER (hooks)
+  # ===========================================================================
+  hooks:
+    post-installation: |
+      #!/bin/bash
+      LOG="/var/www/html/data/conduction-apps.log"
+      
+      log() {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG" 2>&1
+      }
+      
+      log "=== Conduction Apps Post-Install Hook Started ==="
+      log "OPENCATALOGI_VERSION=$OPENCATALOGI_VERSION"
+      log "OPENCONNECTOR_VERSION=$OPENCONNECTOR_VERSION"
+      log "OPENREGISTER_VERSION=$OPENREGISTER_VERSION"
+      
+      install_app() {
+        APP_NAME=$1
+        VERSION_VAR=$2
+        
+        if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
+          log "$APP_NAME already installed"
+          return 0
+        fi
+        
+        VERSION=$(eval echo "\$$VERSION_VAR")
+        
+        if [ -n "$VERSION" ]; then
+          log "Installing $APP_NAME v$VERSION (pinned)..."
+          URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
+          log "Download URL: $URL"
+          mkdir -p /var/www/html/custom_apps
+          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
+            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
+            rm /tmp/$APP_NAME.tar.gz
+            log "$APP_NAME v$VERSION installed from GitHub"
+          else
+            log "WARNING: GitHub download failed for $URL, trying app store..."
+            php occ app:install "$APP_NAME" 2>>"$LOG" || true
+          fi
+        else
+          log "Installing $APP_NAME (latest from app store)..."
+          php occ app:install "$APP_NAME" 2>>"$LOG" || true
+        fi
+        
+        php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+        log "$APP_NAME enabled"
+      }
+      
+      install_app "opencatalogi"  "OPENCATALOGI_VERSION"
+      install_app "openconnector" "OPENCONNECTOR_VERSION"
+      install_app "openregister"  "OPENREGISTER_VERSION"
+      
+      log "=== Conduction Apps Post-Install Hook Complete ==="
+    post-upgrade: |
+      #!/bin/bash
+      echo "$(date '+%Y-%m-%d %H:%M:%S') Post-upgrade hook completed" >> /var/www/html/data/conduction-apps.log
+
+# =============================================================================
+# INGRESS
+# =============================================================================
+ingress:
+  tls:
+    - secretName: nextcloud-canary-2-tls
+      hosts:
+        - nextcloud-canary-2.commonground.nu
+  hosts:
+    - host: nextcloud-canary-2.commonground.nu
+      paths:
+        - path: /
+          pathType: Prefix
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+replicaCount: 1
+
+hpa:
+  enabled: false
+
+# =============================================================================
+# LABELS
+# =============================================================================
+podLabels:
+  nextcloud.platform/tenant: canary-2
+  nextcloud.platform/wave: "0"
+
