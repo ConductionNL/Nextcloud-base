@@ -197,6 +197,9 @@ nextcloud:
         // Cleanup settings
         'trashbin_retention_obligation' => 'auto',
         'activity_expire_days' => 2,
+        
+        // Kubernetes: skip permission check (handled by fsGroup)
+        'check_data_directory_permissions' => false,
       );
 
 # Nginx configuration (sidecar)
