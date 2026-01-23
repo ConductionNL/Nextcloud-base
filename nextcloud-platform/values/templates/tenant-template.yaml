@@ -185,7 +185,15 @@ nextcloud:
         fi
         
         php occ app:enable "$APP_NAME" 2>>"$LOG" || true
-        log "$APP_NAME enabled"
+        
+        # After enable: remove /apps/ version if we installed a pinned version
+        # (app:enable might download to /apps/ which takes precedence over custom_apps)
+        if [ -n "$VERSION" ] && [ -d "/var/www/html/apps/$APP_NAME" ]; then
+          log "Removing /apps/$APP_NAME (app:enable downloaded it, but we want custom_apps version)"
+          rm -rf "/var/www/html/apps/$APP_NAME"
+        fi
+        
+        log "$APP_NAME enabled (version: $(php occ app:list 2>/dev/null | grep "$APP_NAME" | head -1))"
       }
       
       install_app "opencatalogi"  "OPENCATALOGI_VERSION"
