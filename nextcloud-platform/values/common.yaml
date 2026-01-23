@@ -200,6 +200,24 @@ nextcloud:
         
         // Kubernetes: skip permission check (handled by fsGroup)
         'check_data_directory_permissions' => false,
+        
+        // Maintenance window: 3:00 - 5:00 UTC (4:00 - 6:00 CET)
+        'maintenance_window_start' => 3,
+      );
+    
+    redis.config.php: |
+      <?php
+      $CONFIG = array (
+        // Redis for caching and file locking
+        'memcache.local' => '\\OC\\Memcache\\APCu',
+        'memcache.distributed' => '\\OC\\Memcache\\Redis',
+        'memcache.locking' => '\\OC\\Memcache\\Redis',
+        'redis' => array(
+          'host' => 'redis.nextcloud-platform.svc.cluster.local',
+          'port' => 6379,
+          'timeout' => 1.5,
+        ),
+        'filelocking.enabled' => true,
       );
 
 # Nginx configuration (sidecar)
