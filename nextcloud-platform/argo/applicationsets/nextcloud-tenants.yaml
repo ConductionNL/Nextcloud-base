@@ -14,13 +14,14 @@ spec:
     preserveResourcesOnDeletion: true
   
   # Generator: create one Application per tenant file
+  # Alle tenant-*.yaml bestanden worden automatisch opgepikt
+  # UITGEZONDERD: templates/tenant-template.yaml (staat in andere folder)
   generators:
     - git:
         repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
         revision: HEAD
         files:
-          # Tenant files - template is excluded
-          - path: "nextcloud-platform/values/tenants/tenant-canary.yaml"
+          - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
   
   # Application template
   template:
