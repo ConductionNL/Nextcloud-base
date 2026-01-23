@@ -196,7 +196,7 @@ nextcloud:
         
         // Cleanup settings
         'trashbin_retention_obligation' => 'auto',
-        'activity_expire_days' => 14,
+        'activity_expire_days' => 2,
       );
 
 # Nginx configuration (sidecar)
