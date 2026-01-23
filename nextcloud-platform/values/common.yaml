@@ -171,8 +171,33 @@ nextcloud:
     smtp.config.php: false
     logging.config.php: false
   
-  # NO custom configs
-  configs: {}
+  # Custom Nextcloud configs
+  configs:
+    proxy.config.php: |
+      <?php
+      $CONFIG = array (
+        // Trust proxies in cluster network ranges
+        'trusted_proxies' => array(
+          0 => '127.0.0.1',
+          1 => '100.96.0.0/16',   // Kubernetes pod network
+          2 => '10.0.0.0/8',       // Internal services
+          3 => '192.168.0.0/16',   // Private networks
+        ),
+        'forwarded_for_headers' => array('HTTP_X_FORWARDED_FOR'),
+        'overwriteprotocol' => 'https',
+        
+        // Session settings
+        'session_lifetime' => 28800,      // 8 hours
+        'session_idle_timeout' => 7200,   // 2 hours idle
+        'session_keepalive' => false,
+        
+        // UI settings
+        'simpleSignUpLink.shown' => false,
+        
+        // Cleanup settings
+        'trashbin_retention_obligation' => 'auto',
+        'activity_expire_days' => 14,
+      );
 
 # Nginx configuration (sidecar)
 nginx:
