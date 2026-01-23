@@ -115,6 +115,9 @@ nextcloud:
   # Host is set per-tenant
   # host: tenant.example.com
   
+  # Priority class (disabled - not available in cluster)
+  priorityClassName: ""
+  
   # Pod security context - www-data is UID/GID 33 in official Nextcloud image
   podSecurityContext:
     fsGroup: 33
@@ -369,6 +372,8 @@ cronjob:
     prometheus.io/scrape: "false"
   failedJobsHistoryLimit: 3
   successfulJobsHistoryLimit: 3
+  cronjob:
+    priorityClassName: ""  # Disable - not available in cluster
 
 # Probes
 livenessProbe:
