@@ -92,13 +92,14 @@ hpa:
   enabled: false
 
 # =============================================================================
-# S3 CREDENTIALS
+# ENVIRONMENT VARIABLES
 # =============================================================================
 extraEnv:
   - name: PHP_MEMORY_LIMIT
     value: "2048M"
   - name: PHP_UPLOAD_LIMIT
     value: "16G"
+  # S3 credentials
   - name: S3_ACCESS_KEY
     valueFrom:
       secretKeyRef:
@@ -109,6 +110,19 @@ extraEnv:
       secretKeyRef:
         name: nextcloud-secrets
         key: s3-secret-key
+  # ---------------------------------------------------------------------------
+  # APP VERSION PINNING (optioneel)
+  # ---------------------------------------------------------------------------
+  # Uncomment om specifieke versies te pinnen in plaats van latest
+  # Als niet gezet: app store latest wordt gebruikt
+  # Format: GitHub release tag zonder 'v' prefix
+  #
+  # - name: OPENCATALOGI_VERSION
+  #   value: "1.2.3"
+  # - name: OPENCONNECTOR_VERSION
+  #   value: "2.0.1"
+  # - name: OPENREGISTER_VERSION
+  #   value: "0.9.5"
 
 # =============================================================================
 # LABELS
@@ -124,6 +138,10 @@ podLabels:
 #   - opencatalogi   : Open Catalogi - publicatie platform
 #   - openconnector  : Open Connector - integratie platform
 #   - openregister   : Open Register - register beheer
+#
+# Versie gedrag:
+#   - Geen *_VERSION env var: latest uit app store (default)
+#   - Met *_VERSION env var: download specifieke versie van GitHub
 #
 # Apps worden geïnstalleerd bij pod start (idempotent)
 # =============================================================================
@@ -143,19 +161,49 @@ lifecycle:
       
       echo "Nextcloud is ready, checking apps..."
       
-      # Conduction Apps lijst
-      APPS="opencatalogi openconnector openregister"
-      
-      for APP in $APPS; do
-        if ! php occ app:list | grep -q "- $APP:"; then
-          echo "Installing $APP..."
-          php occ app:install "$APP" || echo "Warning: Could not install $APP"
-        else
-          echo "$APP already installed"
+      # Functie: installeer app (latest of pinned version)
+      install_app() {
+        APP_NAME=$1
+        VERSION_VAR=$2
+        GITHUB_ORG=${3:-"ConductionNL"}
+        
+        # Check of app al geïnstalleerd is
+        if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
+          echo "$APP_NAME already installed, skipping"
+          return 0
         fi
         
-        # Enable app (idempotent)
-        php occ app:enable "$APP" 2>/dev/null || true
-      done
+        # Haal versie op uit environment (indien gezet)
+        VERSION=$(eval echo "\$$VERSION_VAR")
+        
+        if [ -n "$VERSION" ]; then
+          # Pinned version: download van GitHub
+          echo "Installing $APP_NAME v$VERSION (pinned)..."
+          URL="https://github.com/$GITHUB_ORG/$APP_NAME/releases/download/v$VERSION/$APP_NAME.tar.gz"
+          
+          mkdir -p /var/www/html/custom_apps
+          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz; then
+            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/
+            rm /tmp/$APP_NAME.tar.gz
+            echo "$APP_NAME v$VERSION installed from GitHub"
+          else
+            echo "Warning: Failed to download $APP_NAME v$VERSION, trying app store..."
+            php occ app:install "$APP_NAME" || echo "Warning: Could not install $APP_NAME"
+          fi
+        else
+          # No version pinned: use app store (latest)
+          echo "Installing $APP_NAME (latest from app store)..."
+          php occ app:install "$APP_NAME" || echo "Warning: Could not install $APP_NAME"
+        fi
+        
+        # Enable app
+        php occ app:enable "$APP_NAME" 2>/dev/null || true
+      }
+      
+      # Installeer Conduction apps
+      # Args: app_name, version_env_var, github_org (optional)
+      install_app "opencatalogi"  "OPENCATALOGI_VERSION"
+      install_app "openconnector" "OPENCONNECTOR_VERSION"
+      install_app "openregister"  "OPENREGISTER_VERSION"
       
       echo "=== Conduction Apps Installer Complete ==="
