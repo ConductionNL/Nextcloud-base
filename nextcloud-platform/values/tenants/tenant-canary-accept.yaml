@@ -53,6 +53,15 @@ nextcloud:
   trustedDomains:
     - nextcloud-canary-accept.commonground.nu
   
+  # Tenant-specific configs (merged with common.yaml configs)
+  configs:
+    tenant.config.php: |
+      <?php
+      $CONFIG = array (
+        // Required for WebDAV self-check
+        'overwrite.cli.url' => 'https://nextcloud-canary-accept.commonground.nu',
+      );
+  
   podSecurityContext:
     fsGroup: 33
     fsGroupChangePolicy: "OnRootMismatch"

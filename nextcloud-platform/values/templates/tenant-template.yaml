@@ -67,6 +67,15 @@ nextcloud:
   trustedDomains:
     - {{HOSTNAME}}
   
+  # Tenant-specific configs (merged with common.yaml configs)
+  configs:
+    tenant.config.php: |
+      <?php
+      $CONFIG = array (
+        // Required for WebDAV self-check
+        'overwrite.cli.url' => 'https://{{HOSTNAME}}',
+      );
+  
   # Pod security context - www-data is UID/GID 33 in official Nextcloud image
   podSecurityContext:
     fsGroup: 33
