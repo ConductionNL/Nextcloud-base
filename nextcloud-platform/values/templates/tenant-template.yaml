@@ -147,26 +147,39 @@ nextcloud:
         APP_NAME=$1
         VERSION_VAR=$2
         
-        if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
-          log "$APP_NAME already installed"
-          return 0
-        fi
-        
         VERSION=$(eval echo "\$$VERSION_VAR")
         
         if [ -n "$VERSION" ]; then
+          # PINNED VERSION: Download from GitHub releases
           log "Installing $APP_NAME v$VERSION (pinned)..."
+          
+          # Remove bundled version from /apps/ if exists (takes precedence otherwise!)
+          if [ -d "/var/www/html/apps/$APP_NAME" ]; then
+            log "Removing bundled $APP_NAME from /apps/ to use pinned version"
+            rm -rf "/var/www/html/apps/$APP_NAME"
+          fi
+          
+          # Download pinned version to custom_apps
           URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
+          log "Download URL: $URL"
           mkdir -p /var/www/html/custom_apps
+          
           if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
+            rm -rf "/var/www/html/custom_apps/$APP_NAME" 2>/dev/null
             tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
             rm /tmp/$APP_NAME.tar.gz
-            log "$APP_NAME v$VERSION installed from GitHub"
+            chown -R www-data:www-data "/var/www/html/custom_apps/$APP_NAME"
+            log "$APP_NAME v$VERSION installed from GitHub to custom_apps"
           else
-            log "WARNING: GitHub download failed, trying app store..."
-            php occ app:install "$APP_NAME" 2>>"$LOG" || true
+            log "ERROR: GitHub download failed for $URL"
+            return 1
           fi
         else
+          # LATEST: Install from app store (only if not already installed)
+          if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
+            log "$APP_NAME already installed (latest)"
+            return 0
+          fi
           log "Installing $APP_NAME (latest from app store)..."
           php occ app:install "$APP_NAME" 2>>"$LOG" || true
         fi
