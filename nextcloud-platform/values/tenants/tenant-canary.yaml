@@ -111,9 +111,9 @@ extraEnv:
   # ---------------------------------------------------------------------------
   # Uncomment om specifieke versies te pinnen
   - name: OPENCATALOGI_VERSION
-    value: "0.7.6
+    value: "0.7.6"
   - name: OPENCONNECTOR_VERSION
-    value: "0.2.6
+    value: "0.2.6"
   - name: OPENREGISTER_VERSION
     value: "0.2.8"
 
