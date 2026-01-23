@@ -225,6 +225,26 @@ nextcloud:
         ),
         'filelocking.enabled' => true,
       );
+    
+    # Apps paths configuration - enables custom_apps directory for pinned versions
+    apps.config.php: |
+      <?php
+      $CONFIG = array (
+        'apps_paths' => array(
+          // Standard apps directory (read-only, bundled with image)
+          array(
+            'path' => '/var/www/html/apps',
+            'url' => '/apps',
+            'writable' => false,
+          ),
+          // Custom apps directory (writable, for pinned versions)
+          array(
+            'path' => '/var/www/html/custom_apps',
+            'url' => '/custom_apps',
+            'writable' => true,
+          ),
+        ),
+      );
 
 # Nginx configuration (sidecar)
 nginx:
