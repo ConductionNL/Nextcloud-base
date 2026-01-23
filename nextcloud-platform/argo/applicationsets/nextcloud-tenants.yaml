@@ -18,7 +18,7 @@ spec:
   # UITGEZONDERD: templates/tenant-template.yaml (staat in andere folder)
   generators:
     - git:
-        repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
+        repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
         revision: HEAD
         files:
           - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
@@ -58,7 +58,7 @@ spec:
                 nextcloud.platform/environment: "{{tenant.environment}}"
         
         # Our GitOps repo for values files
-        - repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
+        - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
           targetRevision: HEAD
           ref: values
       
