@@ -110,12 +110,12 @@ extraEnv:
   # APP VERSION PINNING (optioneel)
   # ---------------------------------------------------------------------------
   # Uncomment om specifieke versies te pinnen
-  # - name: OPENCATALOGI_VERSION
-  #   value: "1.2.3"
-  # - name: OPENCONNECTOR_VERSION
-  #   value: "2.0.1"
-  # - name: OPENREGISTER_VERSION
-  #   value: "0.2.10-beta.9"
+  - name: OPENCATALOGI_VERSION
+    value: "0.7.6
+  - name: OPENCONNECTOR_VERSION
+    value: "0.2.6
+  - name: OPENREGISTER_VERSION
+    value: "0.2.8"
 
 # =============================================================================
 # LABELS
