@@ -149,7 +149,8 @@ podLabels:
 #   - Geen *_VERSION env var: latest uit app store (default)
 #   - Met *_VERSION env var: download specifieke versie van GitHub
 #
-# Apps worden geïnstalleerd bij pod start (idempotent)
+# BELANGRIJK: Draait in BACKGROUND om container startup niet te blokkeren!
+# Logs: /var/www/html/data/conduction-apps.log
 # =============================================================================
 
 lifecycle:
@@ -157,66 +158,67 @@ lifecycle:
     - /bin/sh
     - -c
     - |
-      # Log file in Nextcloud data directory (persistent + accessible)
-      LOG="/var/www/html/data/conduction-apps.log"
-      
-      log() {
-        echo "$(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$LOG"
-      }
-      
-      log "=== Conduction Apps Installer Started ==="
-      
-      # Wacht tot Nextcloud klaar is
-      until php occ status 2>/dev/null | grep -q "installed: true"; do
-        log "Waiting for Nextcloud to be ready..."
-        sleep 10
-      done
-      
-      log "Nextcloud is ready, checking apps..."
-      
-      # Functie: installeer app (latest of pinned version)
-      install_app() {
-        APP_NAME=$1
-        VERSION_VAR=$2
-        GITHUB_ORG=${3:-"ConductionNL"}
+      # Run in background to not block container startup
+      (
+        LOG="/var/www/html/data/conduction-apps.log"
         
-        # Check of app al geïnstalleerd is
-        if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
-          log "$APP_NAME already installed, skipping"
-          return 0
-        fi
+        log() {
+          echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG" 2>&1
+        }
         
-        # Haal versie op uit environment (indien gezet)
-        VERSION=$(eval echo "\$$VERSION_VAR")
+        log "=== Conduction Apps Installer Started (background) ==="
         
-        if [ -n "$VERSION" ]; then
-          # Pinned version: download van GitHub
-          log "Installing $APP_NAME v$VERSION (pinned)..."
-          URL="https://github.com/$GITHUB_ORG/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
-          
-          mkdir -p /var/www/html/custom_apps
-          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
-            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
-            rm /tmp/$APP_NAME.tar.gz
-            log "$APP_NAME v$VERSION installed from GitHub"
-          else
-            log "WARNING: Failed to download $APP_NAME v$VERSION, trying app store..."
-            php occ app:install "$APP_NAME" 2>>"$LOG" || log "WARNING: Could not install $APP_NAME"
+        # Wacht tot Nextcloud klaar is (max 10 minuten)
+        TIMEOUT=600
+        ELAPSED=0
+        until php occ status 2>/dev/null | grep -q "installed: true"; do
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            log "ERROR: Timeout waiting for Nextcloud"
+            exit 1
           fi
-        else
-          # No version pinned: use app store (latest)
-          log "Installing $APP_NAME (latest from app store)..."
-          php occ app:install "$APP_NAME" 2>>"$LOG" || log "WARNING: Could not install $APP_NAME"
-        fi
+          log "Waiting for Nextcloud to be ready... ($ELAPSED/$TIMEOUT sec)"
+          sleep 15
+          ELAPSED=$((ELAPSED + 15))
+        done
         
-        # Enable app
-        php occ app:enable "$APP_NAME" 2>>"$LOG" || true
-        log "$APP_NAME enabled"
-      }
-      
-      # Installeer Conduction apps
-      install_app "opencatalogi"  "OPENCATALOGI_VERSION"
-      install_app "openconnector" "OPENCONNECTOR_VERSION"
-      install_app "openregister"  "OPENREGISTER_VERSION"
-      
-      log "=== Conduction Apps Installer Complete ==="
+        log "Nextcloud is ready, installing apps..."
+        
+        install_app() {
+          APP_NAME=$1
+          VERSION_VAR=$2
+          GITHUB_ORG=${3:-"ConductionNL"}
+          
+          if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
+            log "$APP_NAME already installed"
+            return 0
+          fi
+          
+          VERSION=$(eval echo "\$$VERSION_VAR")
+          
+          if [ -n "$VERSION" ]; then
+            log "Installing $APP_NAME v$VERSION (pinned)..."
+            URL="https://github.com/$GITHUB_ORG/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
+            mkdir -p /var/www/html/custom_apps
+            if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
+              tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
+              rm /tmp/$APP_NAME.tar.gz
+              log "$APP_NAME v$VERSION installed from GitHub"
+            else
+              log "WARNING: GitHub download failed, trying app store..."
+              php occ app:install "$APP_NAME" 2>>"$LOG" || true
+            fi
+          else
+            log "Installing $APP_NAME (latest)..."
+            php occ app:install "$APP_NAME" 2>>"$LOG" || true
+          fi
+          
+          php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+          log "$APP_NAME enabled"
+        }
+        
+        install_app "opencatalogi"  "OPENCATALOGI_VERSION"
+        install_app "openconnector" "OPENCONNECTOR_VERSION"
+        install_app "openregister"  "OPENREGISTER_VERSION"
+        
+        log "=== Conduction Apps Installer Complete ==="
+      ) &
