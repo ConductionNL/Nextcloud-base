@@ -117,48 +117,57 @@ lifecycle:
     - /bin/sh
     - -c
     - |
-      echo "=== Conduction Apps Installer ===" 
+      # Log file in Nextcloud data directory
+      LOG="/var/www/html/data/conduction-apps.log"
+      
+      log() {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$LOG"
+      }
+      
+      log "=== Conduction Apps Installer Started ==="
       
       # Wacht tot Nextcloud klaar is
       until php occ status 2>/dev/null | grep -q "installed: true"; do
-        echo "Waiting for Nextcloud to be ready..."
+        log "Waiting for Nextcloud to be ready..."
         sleep 10
       done
       
-      echo "Nextcloud is ready, checking apps..."
+      log "Nextcloud is ready, checking apps..."
       
       install_app() {
         APP_NAME=$1
         VERSION_VAR=$2
         
         if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
-          echo "$APP_NAME already installed"
+          log "$APP_NAME already installed"
           return 0
         fi
         
         VERSION=$(eval echo "\$$VERSION_VAR")
         
         if [ -n "$VERSION" ]; then
-          echo "Installing $APP_NAME v$VERSION (pinned)..."
+          log "Installing $APP_NAME v$VERSION (pinned)..."
           URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
           mkdir -p /var/www/html/custom_apps
-          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz; then
-            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/
+          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
+            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
             rm /tmp/$APP_NAME.tar.gz
+            log "$APP_NAME v$VERSION installed from GitHub"
           else
-            echo "Warning: GitHub download failed, trying app store..."
-            php occ app:install "$APP_NAME" || true
+            log "WARNING: GitHub download failed, trying app store..."
+            php occ app:install "$APP_NAME" 2>>"$LOG" || true
           fi
         else
-          echo "Installing $APP_NAME (latest)..."
-          php occ app:install "$APP_NAME" || true
+          log "Installing $APP_NAME (latest)..."
+          php occ app:install "$APP_NAME" 2>>"$LOG" || true
         fi
         
-        php occ app:enable "$APP_NAME" 2>/dev/null || true
+        php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+        log "$APP_NAME enabled"
       }
       
       install_app "opencatalogi"  "OPENCATALOGI_VERSION"
       install_app "openconnector" "OPENCONNECTOR_VERSION"
       install_app "openregister"  "OPENREGISTER_VERSION"
       
-      echo "=== Conduction Apps Installer Complete ==="
+      log "=== Conduction Apps Installer Complete ==="
