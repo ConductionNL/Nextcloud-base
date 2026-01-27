@@ -45,39 +45,78 @@ mariadb:
 
 **Best for:** When you need PostgreSQL features but don't have external PostgreSQL
 
-Each tenant gets their own PostgreSQL pod.
+Each tenant gets their own PostgreSQL pod with optional custom extensions.
+
+### Template
+
+Use `tenant-template-postgres.yaml` which includes:
+- Custom PostgreSQL image with extensions
+- Per-tenant Redis
+- All necessary secret references
+
+```bash
+cp values/templates/tenant-template-postgres.yaml values/tenants/tenant-<name>.yaml
+```
 
 ### Configuration
 
 ```yaml
 # In tenant values file
-database:
-  type: postgres
-
 mariadb:
   enabled: false
 
 postgresql:
   enabled: true
+  image:
+    # Custom image with extensions (recommended)
+    registry: ghcr.io
+    repository: conductionnl/nextcloud-images
+    tag: postgres16-ext-sha-6b56bfeda88356d768179c7b2220fb9ded1b4adf
+    pullPolicy: Always
   auth:
-    database: nextcloud
+    database: nextcloud_<tenant>
     username: nextcloud
     existingSecret: nextcloud-secrets
     secretKeys:
-      password: db-password
+      adminPasswordKey: postgres-password
+      userPasswordKey: db-password
   primary:
     persistence:
       enabled: true
       size: 8Gi
+
+# Per-tenant Redis (included in postgres template)
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: nextcloud-secrets
+    existingSecretPasswordKey: redis-password
+```
+
+### Custom PostgreSQL Image
+
+The custom image (`conductionnl/nextcloud-images:postgres16-ext-*`) includes:
+- PostgreSQL 16
+- Additional extensions for performance
+- Optimized settings for Nextcloud
+
+### Secret Creation
+
+```bash
+cd scripts
+./create-tenant-secret.sh <tenant-name> --postgres
 ```
 
 ### Pros
 - ✅ PostgreSQL features (better JSON support, etc.)
 - ✅ Each tenant fully isolated
+- ✅ Custom extensions available
+- ✅ Per-tenant Redis (no NetworkPolicy needed)
 
 ### Cons
-- ❌ Same resilience concerns as MariaDB
-- ❌ One database pod per tenant
+- ❌ More pods per tenant (PostgreSQL + Redis)
+- ❌ Higher resource usage than shared database
 
 ---
 
@@ -195,11 +234,22 @@ This provides:
 
 | Feature | MariaDB | PostgreSQL In-Cluster | External PostgreSQL |
 |---------|---------|----------------------|---------------------|
+| Template | `tenant-template.yaml` | `tenant-template-postgres.yaml` | (custom) |
 | Setup complexity | Easy | Easy | Medium |
-| Resource efficiency | Low | Low | High |
+| Resource efficiency | Medium | Low (includes Redis) | High |
 | Connection pooling | No | No | Yes (PgBouncer) |
+| Custom extensions | No | Yes | Depends |
+| NetworkPolicy needed | Yes (platform Redis) | No (per-tenant Redis) | Yes |
 | Node upgrade resilience | Medium | Medium | High |
-| Multi-tenant efficiency | Low | Low | High |
+| Multi-tenant efficiency | Medium | Low | High |
 | Managed DB support | No | No | Yes |
-| Recommended for | Dev/Test | Dev/Test | Production |
+| Recommended for | Simple deployments | PostgreSQL features | Production |
+
+## Quick Reference
+
+| I want... | Use this template |
+|-----------|-------------------|
+| Simplest setup | `tenant-template.yaml` (MariaDB) |
+| PostgreSQL with extensions | `tenant-template-postgres.yaml` |
+| Shared database cluster | External PostgreSQL (custom setup) |
 

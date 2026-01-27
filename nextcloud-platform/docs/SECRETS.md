@@ -7,23 +7,59 @@ This document describes how secrets are managed in the Nextcloud platform.
 The platform uses a **no secrets in Git** approach:
 
 - Secrets are never committed to the repository
-- Secrets are generated or fetched in-cluster
-- Two methods are supported:
-  1. External Secrets Operator (recommended)
-  2. Fallback Job (generates secrets if ESO unavailable)
+- `.env` files are in `.gitignore`
+- Multiple methods are supported:
+  1. **Script with .env file** (easiest)
+  2. External Secrets Operator (for production)
+  3. Manual kubectl commands
 
-## Required Secrets
+## Quick Start: Using .env File
 
-Each tenant requires the following secrets:
+```bash
+cd nextcloud-platform/scripts
+
+# Copy the template
+cp env.example .env
+
+# Edit with your credentials
+nano .env
+
+# Create secrets for MariaDB tenant
+./create-tenant-secret.sh my-tenant --mariadb
+
+# Or for PostgreSQL tenant (includes Redis)
+./create-tenant-secret.sh my-tenant --postgres
+
+# Or auto-generate all passwords
+./create-tenant-secret.sh my-tenant --postgres --generate-passwords
+```
+
+## Required Secrets by Database Type
+
+### MariaDB Tenants
 
 | Secret Key | Description | Example |
 |------------|-------------|---------|
 | `nextcloud-username` | Admin username | `admin` |
 | `nextcloud-password` | Admin password | `(generated)` |
-| `s3-access-key` | Ceph RGW access key | `AKIAIOSFODNN7EXAMPLE` |
-| `s3-secret-key` | Ceph RGW secret key | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `db-password` | PostgreSQL password | `(from provider)` |
-| `redis-password` | Redis password (optional) | `(if auth enabled)` |
+| `s3-access-key` | S3/Ceph access key | `AKIAIOSFODNN7EXAMPLE` |
+| `s3-secret-key` | S3/Ceph secret key | `wJalrXUtnFEMI/...` |
+| `mariadb-root-password` | MariaDB root password | `(generated)` |
+| `mariadb-password` | MariaDB user password | `(generated)` |
+| `nextcloud-secret` | Encryption secret | `(generated 64-char)` |
+
+### PostgreSQL Tenants (with per-tenant Redis)
+
+| Secret Key | Description | Example |
+|------------|-------------|---------|
+| `nextcloud-username` | Admin username | `admin` |
+| `nextcloud-password` | Admin password | `(generated)` |
+| `s3-access-key` | S3/Ceph access key | `AKIAIOSFODNN7EXAMPLE` |
+| `s3-secret-key` | S3/Ceph secret key | `wJalrXUtnFEMI/...` |
+| `postgres-password` | PostgreSQL admin password | `(generated)` |
+| `db-username` | PostgreSQL user | `nextcloud` |
+| `db-password` | PostgreSQL user password | `(generated)` |
+| `redis-password` | Redis password | `(generated)` |
 | `nextcloud-secret` | Encryption secret | `(generated 64-char)` |
 
 ## Option A: External Secrets Operator (Recommended)
