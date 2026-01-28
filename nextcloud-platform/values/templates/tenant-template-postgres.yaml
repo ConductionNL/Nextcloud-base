@@ -89,7 +89,7 @@ redis:
     existingSecretPasswordKey: redis-password
   image:
     repository: bitnami/redis
-    tag: "7.2"
+    tag: "7.2-debian-12"
   master:
     persistence:
       enabled: true
