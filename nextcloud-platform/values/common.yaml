@@ -219,15 +219,21 @@ nextcloud:
     
     redis.config.php: |
       <?php
+      // Redis config that works for BOTH:
+      // - Platform Redis (no auth): REDIS_HOST not set → uses default
+      // - Per-tenant Redis (with auth): REDIS_HOST set by Helm chart
+      $redisHost = getenv('REDIS_HOST') ?: 'redis.nextcloud-platform.svc.cluster.local';
+      $redisPassword = getenv('REDIS_HOST_PASSWORD') ?: null;
+      
       $CONFIG = array (
-        // Redis for caching and file locking
         'memcache.local' => '\\OC\\Memcache\\APCu',
         'memcache.distributed' => '\\OC\\Memcache\\Redis',
         'memcache.locking' => '\\OC\\Memcache\\Redis',
         'redis' => array(
-          'host' => 'redis.nextcloud-platform.svc.cluster.local',
+          'host' => $redisHost,
           'port' => 6379,
           'timeout' => 1.5,
+          'password' => $redisPassword,
         ),
         'filelocking.enabled' => true,
       );

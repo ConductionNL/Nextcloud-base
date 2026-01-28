@@ -113,30 +113,14 @@ nextcloud:
   trustedDomains:
     - nextcloud-canary-pg.commonground.nu
   
-  # Override redis config for per-tenant Redis
-  # Note: common.yaml has platform Redis, this overrides it
+  # Tenant-specific configs (merged with common.yaml)
+  # NOTE: redis.config.php in common.yaml automatically uses REDIS_HOST env var
   configs:
     tenant.config.php: |
       <?php
       $CONFIG = array (
         // Required for WebDAV self-check
         'overwrite.cli.url' => 'https://nextcloud-canary-pg.commonground.nu',
-      );
-    
-    # Override redis config for per-tenant Redis
-    redis.config.php: |
-      <?php
-      $CONFIG = array (
-        'memcache.local' => '\\OC\\Memcache\\APCu',
-        'memcache.distributed' => '\\OC\\Memcache\\Redis',
-        'memcache.locking' => '\\OC\\Memcache\\Redis',
-        'redis' => array(
-          'host' => 'nextcloud-redis-master',
-          'port' => 6379,
-          'timeout' => 1.5,
-          'password' => getenv('REDIS_HOST_PASSWORD'),
-        ),
-        'filelocking.enabled' => true,
       );
   
   # Pod security context - www-data is UID/GID 33 in official Nextcloud image
@@ -163,7 +147,10 @@ nextcloud:
         secretKeyRef:
           name: nextcloud-secrets
           key: s3-secret-key
+    # Per-tenant Redis: override host (common.yaml redis.config.php uses this)
     # NOTE: REDIS_HOST_PASSWORD is automatically added by Helm chart when redis.enabled=true
+    - name: REDIS_HOST
+      value: "nextcloud-redis-master"
     # -------------------------------------------------------------------------
     # APP VERSION PINNING (optioneel)
     # -------------------------------------------------------------------------
