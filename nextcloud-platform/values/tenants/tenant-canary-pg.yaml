@@ -88,8 +88,8 @@ redis:
     existingSecret: nextcloud-secrets
     existingSecretPasswordKey: redis-password
   image:
-    repository: bitnami/redis
-    tag: "7.2-debian-12"
+    repository: bitnamilegacy/redis
+    tag: "7.2"
   master:
     persistence:
       enabled: true
