@@ -154,6 +154,12 @@ nextcloud:
       pm.max_spare_servers = 35
       pm.max_requests = 500
       
+      ; PHP-FPM status endpoint (for monitoring)
+      pm.status_path = /fpm-status
+      pm.status_listen = 127.0.0.1:9001
+      ping.path = /fpm-ping
+      ping.response = pong
+      
       ; PHP settings
       php_admin_value[memory_limit] = 2048M
       php_admin_value[upload_max_filesize] = 16G
