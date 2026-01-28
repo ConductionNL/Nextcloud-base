@@ -147,10 +147,7 @@ nextcloud:
         secretKeyRef:
           name: nextcloud-secrets
           key: s3-secret-key
-    # Per-tenant Redis: override host (common.yaml redis.config.php uses this)
-    # NOTE: REDIS_HOST_PASSWORD is automatically added by Helm chart when redis.enabled=true
-    - name: REDIS_HOST
-      value: "nextcloud-redis-master"
+    # NOTE: REDIS_HOST and REDIS_HOST_PASSWORD are automatically added by Helm chart when redis.enabled=true
     # -------------------------------------------------------------------------
     # APP VERSION PINNING (optioneel)
     # -------------------------------------------------------------------------
