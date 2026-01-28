@@ -163,12 +163,7 @@ nextcloud:
         secretKeyRef:
           name: nextcloud-secrets
           key: s3-secret-key
-    # Redis password (for config)
-    - name: REDIS_HOST_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: nextcloud-secrets
-          key: redis-password
+    # NOTE: REDIS_HOST_PASSWORD is automatically added by Helm chart when redis.enabled=true
     # -------------------------------------------------------------------------
     # APP VERSION PINNING (optioneel)
     # -------------------------------------------------------------------------
