@@ -473,9 +473,14 @@ hpa:
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
 
-# Metrics
+# Metrics (Prometheus)
 metrics:
-  enabled: false
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    # namespace: monitoring  # Uncomment if Prometheus is in specific namespace
+    # labels:
+    #   release: prometheus  # Add if your Prometheus uses label selectors
 
 # Redis (external - platform service)
 redis:
