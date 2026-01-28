@@ -203,6 +203,12 @@ nextcloud:
       install_app "openconnector" "OPENCONNECTOR_VERSION"
       install_app "openregister"  "OPENREGISTER_VERSION"
       
+      # Database maintenance - add missing indices and run repairs
+      log "Running database maintenance..."
+      php occ db:add-missing-indices 2>>"$LOG" || true
+      php occ maintenance:repair --include-expensive 2>>"$LOG" || true
+      log "Database maintenance complete"
+      
       log "=== Conduction Apps Post-Install Hook Complete ==="
     post-upgrade: |
       #!/bin/bash
