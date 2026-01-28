@@ -131,10 +131,10 @@ nextcloud:
         'memcache.distributed' => '\\OC\\Memcache\\Redis',
         'memcache.locking' => '\\OC\\Memcache\\Redis',
         'redis' => array(
-          'host' => 'nextcloud-redis-master',  // Per-tenant Redis service
+          'host' => 'nextcloud-redis-master',
           'port' => 6379,
           'timeout' => 1.5,
-          // Password from secret via REDIS_HOST_PASSWORD env var
+          'password' => getenv('REDIS_HOST_PASSWORD'),
         ),
         'filelocking.enabled' => true,
       );
