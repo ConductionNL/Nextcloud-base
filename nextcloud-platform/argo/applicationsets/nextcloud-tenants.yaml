@@ -80,6 +80,12 @@ spec:
           prune: true
           selfHeal: true
           allowEmpty: false
+        # When ArgoCD auto-creates namespaces (CreateNamespace=true),
+        # ensure they carry the platform label required by NetworkPolicies
+        # (e.g. platform Redis ingress allowlist).
+        managedNamespaceMetadata:
+          labels:
+            app.kubernetes.io/part-of: nextcloud-platform
         syncOptions:
           - CreateNamespace=true
           - PrunePropagationPolicy=foreground
