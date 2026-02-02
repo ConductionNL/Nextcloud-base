@@ -13,7 +13,10 @@ spec:
   
   # Source repositories allowed for this project
   sourceRepos:
+    # Allow both SSH and HTTPS repo URLs (Argo matches literally)
     - "git@github.com:ConductionNL/Nextcloud-base.git"
+    - "https://github.com/ConductionNL/Nextcloud-base.git"
+    - "https://github.com/conductionnl/Nextcloud-base.git"
     - "https://nextcloud.github.io/helm/"
   
   # Destination clusters and namespaces
@@ -23,6 +26,11 @@ spec:
       server: https://kubernetes.default.svc
     # Tenant namespaces (nc-* pattern)
     - namespace: "nc-*"
+      server: https://kubernetes.default.svc
+    # Explicit test namespaces (used when tenant.namespace overrides nc-<tenant>)
+    - namespace: test-mariadb
+      server: https://kubernetes.default.svc
+    - namespace: test-postgres
       server: https://kubernetes.default.svc
   
   # Cluster resource whitelist

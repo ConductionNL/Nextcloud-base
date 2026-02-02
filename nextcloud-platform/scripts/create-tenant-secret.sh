@@ -11,6 +11,7 @@
 #   --env-file <path>    Load environment from file (default: .env in script dir)
 #   --generate-passwords Generate all passwords randomly
 #   --dry-run            Show what would be created without applying
+#   --namespace <name>   Kubernetes namespace (default: nc-<tenant>)
 #   --postgres           Create secrets for PostgreSQL setup (incl. redis)
 #   --mariadb            Create secrets for MariaDB setup (default)
 #
@@ -42,6 +43,7 @@ usage() {
     echo "  --env-file <path>    Load from env file (default: .env in script dir)"
     echo "  --generate-passwords Generate all passwords randomly"
     echo "  --dry-run            Show what would be created"
+    echo "  --namespace <name>   Kubernetes namespace (default: nc-<tenant>)"
     echo "  --postgres           PostgreSQL setup (with Redis)"
     echo "  --mariadb            MariaDB setup (default)"
     echo ""
@@ -92,6 +94,7 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 GENERATE_PASSWORDS=false
 DRY_RUN=false
 DB_TYPE="mariadb"
+NAMESPACE_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -106,6 +109,10 @@ while [[ $# -gt 0 ]]; do
         --dry-run)
             DRY_RUN=true
             shift
+            ;;
+        --namespace)
+            NAMESPACE_OVERRIDE="$2"
+            shift 2
             ;;
         --postgres)
             DB_TYPE="postgres"
@@ -154,7 +161,10 @@ if [ -z "$TENANT" ]; then
     usage
 fi
 
-NAMESPACE="nc-${TENANT}"
+# Determine target namespace:
+# - If explicitly passed, use it (for tenant.namespace deployments)
+# - Otherwise keep legacy default: nc-<tenant>
+NAMESPACE="${NAMESPACE_OVERRIDE:-nc-${TENANT}}"
 
 echo ""
 echo -e "${BLUE}========================================${NC}"
