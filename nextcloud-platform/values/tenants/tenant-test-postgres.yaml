@@ -1,0 +1,227 @@
+---
+# =============================================================================
+# TENANT: test-postgres
+# =============================================================================
+
+tenant:
+  name: test-postgres
+  namespace: test-postgres
+  environment: prod
+  wave: "1"
+  hostname: test-postgres.commonground.nu
+
+  s3:
+    bucket: nextcloud
+    prefix: "test-postgres/"
+
+# =============================================================================
+# DATABASE: PostgreSQL (in-cluster, per tenant)
+# =============================================================================
+
+mariadb:
+  enabled: false
+
+postgresql:
+  enabled: true
+  image:
+    registry: ghcr.io
+    repository: conductionnl/nextcloud-images
+    tag: postgres16-ext-sha-6b56bfeda88356d768179c7b2220fb9ded1b4adf
+    pullPolicy: Always
+  auth:
+    database: nextcloud_test_postgres
+    username: nextcloud
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      adminPasswordKey: postgres-password
+      userPasswordKey: db-password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: false
+
+# =============================================================================
+# REDIS: Per-tenant (standalone)
+# =============================================================================
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: nextcloud-secrets
+    existingSecretPasswordKey: redis-password
+  image:
+    repository: bitnamilegacy/redis
+    tag: "7.2"
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  replica:
+    replicaCount: 0
+
+# =============================================================================
+# NEXTCLOUD SETTINGS
+# =============================================================================
+
+nextcloud:
+  host: test-postgres.commonground.nu
+
+  trustedDomains:
+    - test-postgres.commonground.nu
+
+  configs:
+    tenant.config.php: |
+      <?php
+      $CONFIG = array (
+        'overwrite.cli.url' => 'https://test-postgres.commonground.nu',
+      );
+
+  podSecurityContext:
+    fsGroup: 33
+    fsGroupChangePolicy: "OnRootMismatch"
+
+  extraEnv:
+    - name: PHP_MEMORY_LIMIT
+      value: "2048M"
+    - name: PHP_UPLOAD_LIMIT
+      value: "16G"
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: s3-access-key
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: s3-secret-key
+    - name: OPENCATALOGI_VERSION
+      value: "0.7.7"
+    - name: OPENCONNECTOR_VERSION
+      value: "0.2.8-beta.7"
+    - name: OPENREGISTER_VERSION
+      value: "0.2.10-unstable.4"
+
+  hooks:
+    post-installation: |
+      #!/bin/bash
+      LOG="/var/www/html/data/conduction-apps.log"
+
+      log() {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG" 2>&1
+      }
+
+      log "=== Conduction Apps Post-Install Hook Started ==="
+
+      install_app() {
+        APP_NAME=$1
+        VERSION_VAR=$2
+
+        VERSION=$(eval echo "\$$VERSION_VAR")
+
+        if [ -n "$VERSION" ]; then
+          log "Installing $APP_NAME v$VERSION (pinned)..."
+
+          if [ -d "/var/www/html/apps/$APP_NAME" ]; then
+            log "Removing bundled $APP_NAME from /apps/ to use pinned version"
+            rm -rf "/var/www/html/apps/$APP_NAME"
+          fi
+
+          URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
+          log "Download URL: $URL"
+          mkdir -p /var/www/html/custom_apps
+
+          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
+            rm -rf "/var/www/html/custom_apps/$APP_NAME" 2>/dev/null
+            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
+            rm /tmp/$APP_NAME.tar.gz
+            chown -R www-data:www-data "/var/www/html/custom_apps/$APP_NAME"
+            log "$APP_NAME v$VERSION installed from GitHub to custom_apps"
+          else
+            log "ERROR: GitHub download failed for $URL"
+            return 1
+          fi
+        else
+          if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
+            log "$APP_NAME already installed (latest)"
+            return 0
+          fi
+          log "Installing $APP_NAME (latest from app store)..."
+          php occ app:install "$APP_NAME" 2>>"$LOG" || true
+        fi
+
+        php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+
+        if [ -n "$VERSION" ] && [ -d "/var/www/html/apps/$APP_NAME" ]; then
+          log "Removing /apps/$APP_NAME (app:enable downloaded it, but we want custom_apps version)"
+          rm -rf "/var/www/html/apps/$APP_NAME"
+          php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+        fi
+
+        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep "- $APP_NAME:" | sed 's/.*: //')
+        log "$APP_NAME enabled (version: $INSTALLED_VER)"
+      }
+
+      install_app "opencatalogi"  "OPENCATALOGI_VERSION"
+      install_app "openconnector" "OPENCONNECTOR_VERSION"
+      install_app "openregister"  "OPENREGISTER_VERSION"
+
+      log "Running database maintenance..."
+      php occ db:add-missing-indices 2>>"$LOG" || true
+      php occ maintenance:repair --include-expensive 2>>"$LOG" || true
+      log "Database maintenance complete"
+
+      log "=== Conduction Apps Post-Install Hook Complete ==="
+    post-upgrade: |
+      #!/bin/bash
+      echo "$(date '+%Y-%m-%d %H:%M:%S') Post-upgrade hook completed" >> /var/www/html/data/conduction-apps.log
+
+ingress:
+  tls:
+    - secretName: nextcloud-test-postgres-tls
+      hosts:
+        - test-postgres.commonground.nu
+  hosts:
+    - host: test-postgres.commonground.nu
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+replicaCount: 1
+
+hpa:
+  enabled: false
+
+podLabels:
+  nextcloud.platform/tenant: test-postgres
+  nextcloud.platform/wave: "1"
+  nextcloud.platform/database: postgresql

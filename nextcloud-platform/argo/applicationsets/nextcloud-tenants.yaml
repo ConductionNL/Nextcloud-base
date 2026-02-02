@@ -9,6 +9,11 @@ metadata:
   annotations:
     argocd.argoproj.io/compare-options: IgnoreExtraneous
 spec:
+  # Enable Go templating so we can safely default missing keys.
+  # This keeps existing tenants working when tenant.namespace is not set.
+  goTemplate: true
+  # We reference .tenant.namespace with a default; it may be missing for older tenants.
+  goTemplateOptions: ["missingkey=default"]
   # Prevent accidental deletion of tenant applications
   syncPolicy:
     preserveResourcesOnDeletion: true
@@ -26,14 +31,14 @@ spec:
   # Application template
   template:
     metadata:
-      name: "nc-{{tenant.name}}"
+      name: "nc-{{ .tenant.name }}"
       namespace: argocd
       labels:
         app.kubernetes.io/part-of: nextcloud-platform
-        nextcloud.platform/tenant: "{{tenant.name}}"
-        nextcloud.platform/environment: "{{tenant.environment}}"
+        nextcloud.platform/tenant: "{{ .tenant.name }}"
+        nextcloud.platform/environment: "{{ .tenant.environment }}"
       annotations:
-        argocd.argoproj.io/sync-wave: "{{tenant.wave}}"
+        argocd.argoproj.io/sync-wave: "{{ .tenant.wave }}"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
@@ -49,13 +54,13 @@ spec:
             releaseName: "nextcloud"
             valueFiles:
               - "$values/nextcloud-platform/values/common.yaml"
-              - "$values/nextcloud-platform/values/env/{{tenant.environment}}.yaml"
-              - "$values/nextcloud-platform/values/tenants/tenant-{{tenant.name}}.yaml"
+              - "$values/nextcloud-platform/values/env/{{ .tenant.environment }}.yaml"
+              - "$values/nextcloud-platform/values/tenants/tenant-{{ .tenant.name }}.yaml"
             values: |
               fullnameOverride: "nextcloud"
               commonLabels:
-                nextcloud.platform/tenant: "{{tenant.name}}"
-                nextcloud.platform/environment: "{{tenant.environment}}"
+                nextcloud.platform/tenant: "{{ .tenant.name }}"
+                nextcloud.platform/environment: "{{ .tenant.environment }}"
         
         # Our GitOps repo for values files
         - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
@@ -65,7 +70,9 @@ spec:
       # Destination: tenant-specific namespace
       destination:
         server: https://kubernetes.default.svc
-        namespace: "nc-{{tenant.name}}"
+        # Namespace is tenant-configurable (must be unique per tenant).
+        # Example: tenant.namespace: "test-mariadb"
+        namespace: "{{ default (printf \"nc-%s\" .tenant.name) .tenant.namespace }}"
       
       # Sync policy
       syncPolicy:
