@@ -282,7 +282,7 @@ nextcloud:
     # This is the most reliable way to ensure apps are present for existing tenants too.
     before-starting: |
       #!/bin/bash
-      set -euo pipefail
+      set -o pipefail
 
       LOG="/var/www/html/data/conduction-apps.log"
       MARKER="/var/www/html/data/.conduction-apps-installed"
@@ -298,7 +298,7 @@ nextcloud:
       install_app() {
         APP_NAME=$1
         VERSION_VAR=$2
-        VERSION=$(eval echo "\$$VERSION_VAR")
+        VERSION="${!VERSION_VAR-}"
 
         if [ -n "$VERSION" ]; then
           log "Installing $APP_NAME v$VERSION (pinned)..."
@@ -319,7 +319,7 @@ nextcloud:
             log "$APP_NAME v$VERSION installed to custom_apps"
           else
             log "ERROR: GitHub download failed for $URL"
-            return 1
+            return 0
           fi
         else
           if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
@@ -352,7 +352,7 @@ nextcloud:
 
     post-installation: |
       #!/bin/bash
-      set -euo pipefail
+      set -o pipefail
 
       LOG="/var/www/html/data/conduction-apps.log"
       MARKER="/var/www/html/data/.conduction-apps-installed"
@@ -368,7 +368,7 @@ nextcloud:
       install_app() {
         APP_NAME=$1
         VERSION_VAR=$2
-        VERSION=$(eval echo "\$$VERSION_VAR")
+        VERSION="${!VERSION_VAR-}"
 
         if [ -n "$VERSION" ]; then
           log "Installing $APP_NAME v$VERSION (pinned)..."
@@ -390,7 +390,7 @@ nextcloud:
             log "$APP_NAME v$VERSION installed to custom_apps"
           else
             log "ERROR: GitHub download failed for $URL"
-            return 1
+            return 0
           fi
         else
           if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
