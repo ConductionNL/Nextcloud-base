@@ -278,6 +278,9 @@ stringData:
   # S3 storage
   s3-access-key: "${S3_ACCESS_KEY}"
   s3-secret-key: "${S3_SECRET_KEY}"
+  # DB credentials (some chart paths expect these keys even for MariaDB)
+  db-username: "${DB_USERNAME}"
+  db-password: "${MARIADB_PASSWORD}"
   # MariaDB
   mariadb-root-password: "${MARIADB_ROOT_PASSWORD}"
   mariadb-password: "${MARIADB_PASSWORD}"

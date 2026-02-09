@@ -24,7 +24,7 @@ spec:
     # Platform components namespace
     - namespace: nextcloud-platform
       server: https://kubernetes.default.svc
-    # Tenant namespaces (nc-* pattern)
+    # Backward compatible tenant namespaces
     - namespace: "nc-*"
       server: https://kubernetes.default.svc
     # Tenant namespaces by convention: <org>-<env>
