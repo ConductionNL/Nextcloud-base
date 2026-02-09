@@ -32,6 +32,15 @@ tenant:
   wave: "1"                            # 0=canary (eerst), 1+=productie waves
   dbType: postgres                     # mariadb|postgres|external
   # hostname: {{HOSTNAME}}             # optional override; otherwise derived from tenant.name
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+    # versions:
+    #   opencatalogi: "0.7.7"
+    #   openconnector: "0.2.8-beta.7"
+    #   openregister: "0.2.10-unstable.4"
 
 # =============================================================================
 # DATABASE: PostgreSQL (in-cluster, per tenant)

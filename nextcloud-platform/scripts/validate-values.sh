@@ -247,6 +247,63 @@ validate_db_type() {
     esac
 }
 
+# Validate tenant apps model
+validate_apps_enabled() {
+    local file="$1"
+    local count
+    count=$(yq eval '.tenant.apps.enabled | length' "$file" 2>/dev/null)
+
+    if [ "$count" = "null" ] || [ -z "$count" ]; then
+        log_error "$file: tenant.apps.enabled must be a non-empty list"
+        return 1
+    fi
+
+    if ! [[ "$count" =~ ^[0-9]+$ ]] || [ "$count" -lt 1 ]; then
+        log_error "$file: tenant.apps.enabled must be a non-empty list"
+        return 1
+    fi
+
+    return 0
+}
+
+validate_app_versions_format() {
+    local file="$1"
+    local keys key ver
+
+    keys=$(yq eval -o=json '.tenant.apps.versions | keys // []' "$file" 2>/dev/null || echo "[]")
+    # keys is JSON array of strings; extract with yq again for portability
+    local key_count
+    key_count=$(echo "$keys" | yq eval 'length' - 2>/dev/null || echo "0")
+
+    if ! [[ "$key_count" =~ ^[0-9]+$ ]] || [ "$key_count" -eq 0 ]; then
+        return 0
+    fi
+
+    # Version format: without leading 'v', e.g. 0.7.7 or 0.2.10-unstable.4
+    local ver_re='^[0-9]+\\.[0-9]+\\.[0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$'
+
+    for i in $(seq 0 $((key_count-1))); do
+        key=$(echo "$keys" | yq eval ".[$i]" - 2>/dev/null)
+        ver=$(yq eval ".tenant.apps.versions.\"$key\"" "$file" 2>/dev/null)
+
+        if [ "$ver" = "null" ] || [ -z "$ver" ]; then
+            continue
+        fi
+
+        if [[ "$ver" =~ ^v ]]; then
+            log_error "$file: tenant.apps.versions.$key must NOT start with 'v' (got '$ver')"
+            return 1
+        fi
+
+        if ! [[ "$ver" =~ $ver_re ]]; then
+            log_error "$file: tenant.apps.versions.$key has invalid version '$ver' (expected e.g. '0.7.7' or '0.2.10-unstable.4')"
+            return 1
+        fi
+    done
+
+    return 0
+}
+
 # Validate hostname format
 validate_hostname() {
     local file="$1"
@@ -398,6 +455,8 @@ validate_tenant_file() {
     validate_namespace_convention "$file" || ((file_errors++))
     validate_environment "$file" || ((file_errors++))
     validate_db_type "$file" || ((file_errors++))
+    validate_apps_enabled "$file" || ((file_errors++))
+    validate_app_versions_format "$file" || ((file_errors++))
     validate_hostname "$file" || ((file_errors++))
     validate_hostname_convention "$file" || ((file_errors++))
     validate_wave "$file" || ((file_errors++))
