@@ -81,6 +81,13 @@ spec:
       applications:
         - "nc-canary"
       manualSync: true
+    # Allow zuiddrecht tenants anytime (platform launch testing)
+    - kind: allow
+      schedule: "* * * * *"
+      duration: 24h
+      applications:
+        - "nc-zuiddrecht-*"
+      manualSync: true
     # Prod rollouts during business hours only (example)
     - kind: allow
       schedule: "0 6 * * 1-5"
