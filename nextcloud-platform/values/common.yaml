@@ -266,100 +266,99 @@ nextcloud:
         ),
       );
 
-# ===========================================================================
-# CONDUCTION APPS INSTALLER (GitOps)
-# ===========================================================================
-# NOTE: These are Nextcloud Docker entrypoint hook folders as supported by
-# the Nextcloud Helm chart (8.9.0):
-#   /docker-entrypoint-hooks.d/<hook-name>/helm.sh
-#
-# This hook is idempotent and will run at most once per instance (marker file).
-# Optional pinning via env:
-#   OPENCATALOGI_VERSION, OPENCONNECTOR_VERSION, OPENREGISTER_VERSION
-#
-# Log: /var/www/html/data/conduction-apps.log
-hooks:
-  post-installation: |
-    #!/bin/bash
-    set -euo pipefail
+  # ===========================================================================
+  # CONDUCTION APPS INSTALLER (GitOps)
+  # ===========================================================================
+  # Nextcloud Helm chart mounts these scripts into:
+  #   /docker-entrypoint-hooks.d/<hook-name>/helm.sh
+  #
+  # This hook is idempotent and will run at most once per instance (marker file).
+  # Optional pinning via env:
+  #   OPENCATALOGI_VERSION, OPENCONNECTOR_VERSION, OPENREGISTER_VERSION
+  #
+  # Log: /var/www/html/data/conduction-apps.log
+  hooks:
+    post-installation: |
+      #!/bin/bash
+      set -euo pipefail
 
-    LOG="/var/www/html/data/conduction-apps.log"
-    MARKER="/var/www/html/data/.conduction-apps-installed"
+      LOG="/var/www/html/data/conduction-apps.log"
+      MARKER="/var/www/html/data/.conduction-apps-installed"
 
-    log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG" 2>&1; }
+      log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG" 2>&1; }
 
-    if [ -f "$MARKER" ]; then exit 0; fi
-    if [ "${CONDUCTION_APPS_ENABLED:-true}" != "true" ]; then log "Conduction apps disabled (skipping)"; exit 0; fi
-    if [ ! -f /var/www/html/config/config.php ]; then log "Nextcloud not configured yet (skipping)"; exit 0; fi
+      if [ -f "$MARKER" ]; then exit 0; fi
+      if [ "${CONDUCTION_APPS_ENABLED:-true}" != "true" ]; then log "Conduction apps disabled (skipping)"; exit 0; fi
+      if [ ! -f /var/www/html/config/config.php ]; then log "Nextcloud not configured yet (skipping)"; exit 0; fi
 
-    log "=== Conduction Apps Bootstrap Started ==="
+      log "=== Conduction Apps Bootstrap Started ==="
 
-    install_app() {
-      APP_NAME=$1
-      VERSION_VAR=$2
-      VERSION=$(eval echo "\$$VERSION_VAR")
+      install_app() {
+        APP_NAME=$1
+        VERSION_VAR=$2
+        VERSION=$(eval echo "\$$VERSION_VAR")
 
-      if [ -n "$VERSION" ]; then
-        log "Installing $APP_NAME v$VERSION (pinned)..."
+        if [ -n "$VERSION" ]; then
+          log "Installing $APP_NAME v$VERSION (pinned)..."
 
-        if [ -d "/var/www/html/apps/$APP_NAME" ]; then
-          log "Removing bundled $APP_NAME from /apps/ to use pinned version"
-          rm -rf "/var/www/html/apps/$APP_NAME"
-        fi
+          if [ -d "/var/www/html/apps/$APP_NAME" ]; then
+            log "Removing bundled $APP_NAME from /apps/ to use pinned version"
+            rm -rf "/var/www/html/apps/$APP_NAME"
+          fi
 
-        URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
-        log "Download URL: $URL"
-        mkdir -p /var/www/html/custom_apps
+          URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
+          log "Download URL: $URL"
+          mkdir -p /var/www/html/custom_apps
 
-        if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
-          rm -rf "/var/www/html/custom_apps/$APP_NAME" 2>/dev/null
-          tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
-          rm /tmp/$APP_NAME.tar.gz
-          chown -R www-data:www-data "/var/www/html/custom_apps/$APP_NAME"
-          log "$APP_NAME v$VERSION installed to custom_apps"
+          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
+            rm -rf "/var/www/html/custom_apps/$APP_NAME" 2>/dev/null
+            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
+            rm /tmp/$APP_NAME.tar.gz
+            chown -R www-data:www-data "/var/www/html/custom_apps/$APP_NAME"
+            log "$APP_NAME v$VERSION installed to custom_apps"
+          else
+            log "ERROR: GitHub download failed for $URL"
+            return 1
+          fi
         else
-          log "ERROR: GitHub download failed for $URL"
-          return 1
+          if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
+            log "$APP_NAME already installed"
+            return 0
+          fi
+          log "Installing $APP_NAME (latest from app store)..."
+          php occ app:install "$APP_NAME" 2>>"$LOG" || true
         fi
-      else
-        if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
-          log "$APP_NAME already installed"
-          return 0
-        fi
-        log "Installing $APP_NAME (latest from app store)..."
-        php occ app:install "$APP_NAME" 2>>"$LOG" || true
-      fi
 
-      php occ app:enable "$APP_NAME" 2>>"$LOG" || true
-
-      if [ -n "$VERSION" ] && [ -d "/var/www/html/apps/$APP_NAME" ]; then
-        log "Removing /apps/$APP_NAME (prefer custom_apps pinned version)"
-        rm -rf "/var/www/html/apps/$APP_NAME"
         php occ app:enable "$APP_NAME" 2>>"$LOG" || true
-      fi
 
-      INSTALLED_VER=$(php occ app:list 2>/dev/null | grep "- $APP_NAME:" | sed 's/.*: //')
-      log "$APP_NAME enabled (version: $INSTALLED_VER)"
-    }
+        if [ -n "$VERSION" ] && [ -d "/var/www/html/apps/$APP_NAME" ]; then
+          log "Removing /apps/$APP_NAME (prefer custom_apps pinned version)"
+          rm -rf "/var/www/html/apps/$APP_NAME"
+          php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+        fi
 
-    install_app "opencatalogi"  "OPENCATALOGI_VERSION"
-    install_app "openconnector" "OPENCONNECTOR_VERSION"
-    install_app "openregister"  "OPENREGISTER_VERSION"
+        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep "- $APP_NAME:" | sed 's/.*: //')
+        log "$APP_NAME enabled (version: $INSTALLED_VER)"
+      }
 
-    log "Running database maintenance..."
-    php occ db:add-missing-indices 2>>"$LOG" || true
-    php occ maintenance:repair --include-expensive 2>>"$LOG" || true
-    log "Database maintenance complete"
+      install_app "opencatalogi"  "OPENCATALOGI_VERSION"
+      install_app "openconnector" "OPENCONNECTOR_VERSION"
+      install_app "openregister"  "OPENREGISTER_VERSION"
 
-    touch "$MARKER"
-    log "=== Conduction Apps Bootstrap Complete ==="
+      log "Running database maintenance..."
+      php occ db:add-missing-indices 2>>"$LOG" || true
+      php occ maintenance:repair --include-expensive 2>>"$LOG" || true
+      log "Database maintenance complete"
 
-  # Also run on upgrades; marker prevents re-running.
-  post-upgrade: |
-    #!/bin/bash
-    set -euo pipefail
-    LOG="/var/www/html/data/conduction-apps.log"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') post-upgrade hook triggered (see marker) " >> "$LOG" 2>&1
+      touch "$MARKER"
+      log "=== Conduction Apps Bootstrap Complete ==="
+
+    # Also run on upgrades; marker prevents re-running.
+    post-upgrade: |
+      #!/bin/bash
+      set -euo pipefail
+      LOG="/var/www/html/data/conduction-apps.log"
+      echo "$(date '+%Y-%m-%d %H:%M:%S') post-upgrade hook triggered (see marker)" >> "$LOG" 2>&1
 # Nginx configuration (sidecar)
 nginx:
   enabled: true

@@ -9,6 +9,7 @@ secrets.yml
 
 # Local development
 .env
+.chart-cache/
 .env.local
 *.local.yaml
 *.local.yml
