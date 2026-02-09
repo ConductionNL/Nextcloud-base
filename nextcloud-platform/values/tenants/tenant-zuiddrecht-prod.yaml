@@ -19,6 +19,22 @@ tenant:
 # MariaDB (default) - keep enabled
 mariadb:
   enabled: true
+  auth:
+    database: nextcloud
+    username: nextcloud
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
+
+# Disable alternatives
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: false
+  existingSecret:
+    enabled: false
 
 nextcloud:
   host: zuiddrecht.commonground.nu
