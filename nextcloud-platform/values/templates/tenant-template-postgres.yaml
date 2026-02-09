@@ -31,6 +31,7 @@ tenant:
   environment: prod                    # "accept" of "prod"
   wave: "1"                            # 0=canary (eerst), 1+=productie waves
   dbType: postgres                     # mariadb|postgres|external
+  # chartVersion: "8.9.0"              # optional: chart version override for canary/staged rollouts
   # hostname: {{HOSTNAME}}             # optional override; otherwise derived from tenant.name
   apps:
     enabled:

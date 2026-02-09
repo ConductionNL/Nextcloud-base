@@ -49,7 +49,9 @@ spec:
         # Main Nextcloud Helm chart
         - repoURL: "https://nextcloud.github.io/helm/"
           chart: nextcloud
-          targetRevision: "8.9.0"
+          # Default chart version for stable tenants. Canary/staged upgrades can
+          # override per tenant via tenant.chartVersion in the tenant YAML.
+          targetRevision: "{{ default \"8.9.0\" .tenant.chartVersion }}"
           helm:
             releaseName: "nextcloud"
             valueFiles:

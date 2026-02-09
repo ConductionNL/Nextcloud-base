@@ -62,75 +62,52 @@ git commit -m "chore: upgrade Nextcloud to 29.0.0 (chart 5.3.0)"
 git push origin main
 ```
 
-## Canary Rollout
+## Canary Rollout (Canary ring)
 
-The canary tenant (`nc-canary`) is configured with `wave: 0` and will be upgraded first.
+We use a **canary ring**: a small set of tenants that always receives upgrades first.
+
+Recommended convention:
+
+- `canary-accept`
+- `canary-prod`
+
+See `docs/ROLLOUTS.md` for the full promotion workflow (canary → batches).
 
 ### Monitor Canary Sync
 
 ```bash
 # Watch Argo CD sync
-argocd app get nc-canary --refresh
+argocd app get nc-canary-prod --refresh
 
 # Or via kubectl
-kubectl get application nc-canary -n argocd -w
+kubectl get application nc-canary-prod -n argocd -w
 ```
 
 ### Verify Canary Health
 
 ```bash
 # Check pod status
-kubectl get pods -n nc-canary
+kubectl get pods -n canary-prod
 
 # Check Nextcloud status
-kubectl exec -it -n nc-canary deploy/nextcloud -- php occ status
+kubectl exec -it -n canary-prod deploy/nextcloud -c nextcloud -- php occ status
 
 # Check for errors
-kubectl logs -n nc-canary deploy/nextcloud -f
+kubectl logs -n canary-prod deploy/nextcloud -c nextcloud -f
 ```
 
 ### Run Validation Checks on Canary
 
 See [Validation Checks](#validation-checks) below.
 
-## Wave Rollout
+## Batch Rollout (promotion)
 
-After canary validation, other tenants upgrade in waves:
+For a safe rollout to many tenants, we **promote** changes in batches:
 
-| Wave | Description | Tenants |
-|------|-------------|---------|
-| 0 | Canary | nc-canary |
-| 1 | Early adopters | First batch of prod tenants |
-| 2 | Main batch | Most production tenants |
-| 3 | Critical/Large | Large or business-critical tenants |
+- first: canary ring
+- then: stable ring in batches (e.g. 10 tenants per PR)
 
-### Monitoring Wave Progress
-
-```bash
-# List all Nextcloud applications
-argocd app list -l nextcloud.platform/tenant
-
-# Check sync status per wave
-for wave in 0 1 2 3; do
-  echo "=== Wave $wave ==="
-  argocd app list -l argocd.argoproj.io/sync-wave=$wave
-done
-```
-
-### Manual Wave Control
-
-If automatic sync is disabled, trigger waves manually:
-
-```bash
-# Sync wave 1
-argocd app list -l argocd.argoproj.io/sync-wave=1 -o name | xargs -I {} argocd app sync {}
-
-# Wait and verify before next wave
-sleep 300  # 5 minutes
-
-# Sync wave 2
-argocd app list -l argocd.argoproj.io/sync-wave=2 -o name | xargs -I {} argocd app sync {}
-```
+This is documented in `docs/ROLLOUTS.md`.
 
 ## Validation Checks
 
@@ -139,8 +116,8 @@ Run these checks on each wave before proceeding.
 ### 1. Nextcloud Status Check
 
 ```bash
-TENANT=canary  # Change per tenant
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ status
+TENANT_NS=canary-prod  # Change per tenant namespace
+kubectl exec -it -n $TENANT_NS deploy/nextcloud -c nextcloud -- php occ status
 ```
 
 Expected output:
@@ -156,29 +133,29 @@ Expected output:
 
 ```bash
 # Check for missing indices
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ db:add-missing-indices --dry-run
+kubectl exec -it -n $TENANT_NS deploy/nextcloud -c nextcloud -- php occ db:add-missing-indices --dry-run
 
 # Check for missing columns
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ db:add-missing-columns --dry-run
+kubectl exec -it -n $TENANT_NS deploy/nextcloud -c nextcloud -- php occ db:add-missing-columns --dry-run
 
 # Run maintenance repair (dry-run first)
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ maintenance:repair --dry-run
+kubectl exec -it -n $TENANT_NS deploy/nextcloud -c nextcloud -- php occ maintenance:repair --dry-run
 ```
 
 ### 3. S3 Storage Check
 
 ```bash
 # Check S3 connectivity
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ files:scan --dry-run admin
+kubectl exec -it -n $TENANT_NS deploy/nextcloud -c nextcloud -- php occ files:scan --dry-run admin
 ```
 
 ### 4. WebDAV Upload/Download Test
 
 ```bash
 # Set variables
-TENANT=canary
-HOST=canary.nextcloud.example.com
-PASSWORD=$(kubectl get secret -n nc-$TENANT nextcloud-secrets -o jsonpath='{.data.nextcloud-password}' | base64 -d)
+TENANT_NS=canary-prod
+HOST=canary.commonground.nu
+PASSWORD=$(kubectl get secret -n $TENANT_NS nextcloud-secrets -o jsonpath='{.data.nextcloud-password}' | base64 -d)
 
 # Upload test file
 echo "test content $(date)" > /tmp/testfile.txt
@@ -199,17 +176,17 @@ curl -u admin:$PASSWORD -X DELETE \
 
 ```bash
 # Check last cron execution
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ background:job:list
+kubectl exec -it -n $TENANT_NS deploy/nextcloud -c nextcloud -- php occ background:job:list
 
 # Check cron job status
-kubectl get cronjob -n nc-$TENANT
+kubectl get cronjob -n $TENANT_NS
 ```
 
 ### 6. Log Analysis
 
 ```bash
 # Check for errors in last 10 minutes
-kubectl logs -n nc-$TENANT deploy/nextcloud --since=10m | grep -i error
+kubectl logs -n $TENANT_NS deploy/nextcloud -c nextcloud --since=10m | grep -i error
 ```
 
 ## Rollback Procedures

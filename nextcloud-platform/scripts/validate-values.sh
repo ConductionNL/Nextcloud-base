@@ -304,6 +304,28 @@ validate_app_versions_format() {
     return 0
 }
 
+validate_chart_version_format() {
+    local file="$1"
+    local ver
+    ver=$(yq eval '.tenant.chartVersion' "$file" 2>/dev/null)
+
+    if [ "$ver" = "null" ] || [ -z "$ver" ]; then
+        return 0
+    fi
+
+    if [[ "$ver" =~ ^v ]]; then
+        log_error "$file: tenant.chartVersion must NOT start with 'v' (got '$ver')"
+        return 1
+    fi
+
+    if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "$file: tenant.chartVersion '$ver' is invalid (expected e.g. '8.9.0')"
+        return 1
+    fi
+
+    return 0
+}
+
 # Validate hostname format
 validate_hostname() {
     local file="$1"
@@ -457,6 +479,7 @@ validate_tenant_file() {
     validate_db_type "$file" || ((file_errors++))
     validate_apps_enabled "$file" || ((file_errors++))
     validate_app_versions_format "$file" || ((file_errors++))
+    validate_chart_version_format "$file" || ((file_errors++))
     validate_hostname "$file" || ((file_errors++))
     validate_hostname_convention "$file" || ((file_errors++))
     validate_wave "$file" || ((file_errors++))

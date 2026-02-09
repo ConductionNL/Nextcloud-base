@@ -25,6 +25,7 @@ tenant:
   environment: prod                    # "accept" of "prod"
   wave: "1"                            # 0=canary (eerst), 1+=productie waves
   dbType: mariadb                      # mariadb|postgres|external
+  # chartVersion: "8.9.0"              # optional: chart version override for canary/staged rollouts
   # hostname: {{HOSTNAME}}             # optional override; otherwise derived from tenant.name
   apps:
     # List of apps to ensure are installed/enabled (GitOps desired state)
@@ -212,9 +213,9 @@ nextcloud:
         log "$APP_NAME enabled (version: $INSTALLED_VER)"
       }
       
+      install_app "openregister"  "OPENREGISTER_VERSION"
       install_app "opencatalogi"  "OPENCATALOGI_VERSION"
       install_app "openconnector" "OPENCONNECTOR_VERSION"
-      install_app "openregister"  "OPENREGISTER_VERSION"
       
       # Database maintenance - add missing indices and run repairs
       log "Running database maintenance..."
