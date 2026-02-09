@@ -1,0 +1,22 @@
+---
+# Database profile: External PostgreSQL (via PgBouncer)
+# Enable with tenant.dbType: external
+# NOTE: externalDatabase.host/port are typically set in values/env/*.yaml.
+
+mariadb:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: true
+  type: postgresql
+  existingSecret:
+    enabled: true
+    secretName: nextcloud-secrets
+    usernameKey: db-username
+    passwordKey: db-password

@@ -38,7 +38,7 @@ spec:
         nextcloud.platform/tenant: "{{ .tenant.name }}"
         nextcloud.platform/environment: "{{ .tenant.environment }}"
       annotations:
-        argocd.argoproj.io/sync-wave: "{{ .tenant.wave }}"
+        argocd.argoproj.io/sync-wave: "{{ default \"1\" .tenant.wave }}"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
@@ -55,12 +55,44 @@ spec:
             valueFiles:
               - "$values/nextcloud-platform/values/common.yaml"
               - "$values/nextcloud-platform/values/env/{{ .tenant.environment }}.yaml"
+              - "$values/nextcloud-platform/values/db/{{ default \"mariadb\" .tenant.dbType }}.yaml"
               - "$values/nextcloud-platform/values/tenants/tenant-{{ .tenant.name }}.yaml"
             values: |
+              {{- $name := .tenant.name -}}
+              {{- $suffix := regexFind "(accept|test|prod)$" $name -}}
+              {{- $org := regexReplaceAll "-(accept|test|prod)$" $name "" -}}
+              {{- $omgeving := default .tenant.environment $suffix -}}
+              {{- $computedHost := "" -}}
+              {{- if eq $omgeving "prod" -}}
+              {{- $computedHost = printf "%s.commonground.nu" $org -}}
+              {{- else -}}
+              {{- $computedHost = printf "%s.%s.commonground.nu" $org $omgeving -}}
+              {{- end -}}
+              {{- $host := default $computedHost .tenant.hostname -}}
               fullnameOverride: "nextcloud"
               commonLabels:
                 nextcloud.platform/tenant: "{{ .tenant.name }}"
                 nextcloud.platform/environment: "{{ .tenant.environment }}"
+              # Derived defaults (keep tenant files thin)
+              nextcloud:
+                host: "{{ $host }}"
+                trustedDomains:
+                  - "{{ $host }}"
+              ingress:
+                tls:
+                  - secretName: "nextcloud-{{ $name }}-tls"
+                    hosts:
+                      - "{{ $host }}"
+                hosts:
+                  - host: "{{ $host }}"
+                    paths:
+                      - path: /
+                        pathType: Prefix
+              tenant:
+                hostname: "{{ $host }}"
+                s3:
+                  bucket: "nextcloud"
+                  prefix: "{{ $name }}/"
         
         # Our GitOps repo for values files
         - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"

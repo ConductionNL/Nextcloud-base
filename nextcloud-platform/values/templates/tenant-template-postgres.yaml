@@ -14,7 +14,8 @@
 #   2. Vervang overal:
 #      - {{TENANT_NAME}}  ->  conventie: <organisatie>-<omgeving>
 #                           bijv. "alkmaar-accept", "alkmaar-test", "alkmaar-prod"
-#      - {{HOSTNAME}}     ->  domain conventie:
+#      - {{HOSTNAME}}     ->  (optioneel) override van domain conventie
+#                           default (afgeleid uit tenant.name):
 #                           accept/test: <org>.<env>.commonground.nu
 #                           prod       : <org>.commonground.nu
 #      - {{DATABASE_NAME}}->  database naam (bijv. "nextcloud_acme")
@@ -29,11 +30,8 @@ tenant:
   name: {{TENANT_NAME}}
   environment: prod                    # "accept" of "prod"
   wave: "1"                            # 0=canary (eerst), 1+=productie waves
-  hostname: {{HOSTNAME}}
-  
-  s3:
-    bucket: nextcloud
-    prefix: "{{TENANT_NAME}}/"         # Isolatie per tenant in shared bucket
+  dbType: postgres                     # mariadb|postgres|external
+  # hostname: {{HOSTNAME}}             # optional override; otherwise derived from tenant.name
 
 # =============================================================================
 # DATABASE: PostgreSQL (in-cluster, per tenant)

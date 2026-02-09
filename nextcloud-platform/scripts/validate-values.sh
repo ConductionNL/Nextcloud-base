@@ -79,8 +79,6 @@ validate_yaml_syntax() {
 REQUIRED_FIELDS=(
     ".tenant.name"
     ".tenant.environment"
-    ".tenant.hostname"
-    ".tenant.s3.bucket"
 )
 
 # Validate required fields
@@ -226,11 +224,37 @@ validate_environment() {
     esac
 }
 
+# Validate database profile (optional)
+validate_db_type() {
+    local file="$1"
+    local db
+    db=$(yq eval '.tenant.dbType' "$file" 2>/dev/null)
+
+    if [ "$db" = "null" ] || [ -z "$db" ]; then
+        return 0
+    fi
+
+    case "$db" in
+        mariadb|postgres|external)
+            return 0
+            ;;
+        *)
+            log_error "$file: Invalid tenant.dbType '$db'. Must be 'mariadb', 'postgres' or 'external'."
+            return 1
+            ;;
+    esac
+}
+
 # Validate hostname format
 validate_hostname() {
     local file="$1"
     local hostname
     hostname=$(yq eval '.tenant.hostname' "$file" 2>/dev/null)
+
+    # Optional: if not set, hostname will be derived by ArgoCD ApplicationSet
+    if [ "$hostname" = "null" ] || [ -z "$hostname" ]; then
+        return 0
+    fi
     
     # Basic hostname validation (RFC 1123)
     if ! [[ "$hostname" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$ ]]; then
@@ -247,6 +271,11 @@ validate_hostname_convention() {
     local name hostname org suffix expected
     name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
     hostname=$(yq eval '.tenant.hostname' "$file" 2>/dev/null)
+
+    # Optional: if not set, hostname is derived from tenant.name by convention
+    if [ "$hostname" = "null" ] || [ -z "$hostname" ]; then
+        return 0
+    fi
 
     if ! [[ "$name" =~ ^(.+)-(accept|test|prod)$ ]]; then
         # validate_tenant_name_convention will report this
@@ -296,6 +325,11 @@ validate_bucket() {
     local file="$1"
     local bucket
     bucket=$(yq eval '.tenant.s3.bucket' "$file" 2>/dev/null)
+
+    # Optional: bucket is typically global (env/common) and not per-tenant
+    if [ "$bucket" = "null" ] || [ -z "$bucket" ]; then
+        return 0
+    fi
     
     # S3 bucket naming rules
     if ! [[ "$bucket" =~ ^[a-z0-9][a-z0-9.-]*[a-z0-9]$ ]] && ! [[ "$bucket" =~ ^[a-z0-9]$ ]]; then
@@ -361,6 +395,7 @@ validate_tenant_file() {
     validate_tenant_name_convention "$file" || ((file_errors++))
     validate_namespace_convention "$file" || ((file_errors++))
     validate_environment "$file" || ((file_errors++))
+    validate_db_type "$file" || ((file_errors++))
     validate_hostname "$file" || ((file_errors++))
     validate_hostname_convention "$file" || ((file_errors++))
     validate_wave "$file" || ((file_errors++))

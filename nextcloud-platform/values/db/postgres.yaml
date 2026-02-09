@@ -1,0 +1,21 @@
+---
+# Database profile: PostgreSQL (in-cluster)
+# Enable with tenant.dbType: postgres
+# NOTE: You may still need tenant-specific overrides (e.g. postgresql.auth.database) depending on conventions.
+
+mariadb:
+  enabled: false
+
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      adminPasswordKey: db-password
+      userPasswordKey: db-password
+
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: false

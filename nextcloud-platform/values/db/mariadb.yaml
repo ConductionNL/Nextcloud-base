@@ -1,0 +1,21 @@
+---
+# Database profile: MariaDB (default)
+# Included automatically by the ApplicationSet based on tenant.dbType (defaults to "mariadb").
+# Keep tenant files minimal; put DB toggles here.
+
+mariadb:
+  enabled: true
+  auth:
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
+
+postgresql:
+  enabled: false
+
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: false

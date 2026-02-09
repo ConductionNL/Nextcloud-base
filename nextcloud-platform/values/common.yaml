@@ -35,7 +35,11 @@ mariadb:
   auth:
     database: nextcloud
     username: nextcloud
-    # Password from existingSecret
+    # Password from existingSecret (created per-tenant as nextcloud-secrets)
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
   primary:
     persistence:
       enabled: true
@@ -61,7 +65,11 @@ postgresql:
   auth:
     database: nextcloud
     username: nextcloud
-    # Password from existingSecret
+    # Password from existingSecret (created per-tenant as nextcloud-secrets)
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      adminPasswordKey: db-password
+      userPasswordKey: db-password
   primary:
     persistence:
       enabled: true
