@@ -149,6 +149,66 @@ validate_tenant_name() {
     return 0
 }
 
+# Validate tenant naming convention: <org>-<env>
+# env suffix must be one of: accept, test, prod
+validate_tenant_name_convention() {
+    local file="$1"
+    local name env suffix org
+    name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
+    env=$(yq eval '.tenant.environment' "$file" 2>/dev/null)
+
+    if ! [[ "$name" =~ ^(.+)-(accept|test|prod)$ ]]; then
+        log_error "$file: tenant.name '$name' must follow convention '<org>-<accept|test|prod>' (e.g. 'alkmaar-accept')"
+        return 1
+    fi
+
+    org="${BASH_REMATCH[1]}"
+    suffix="${BASH_REMATCH[2]}"
+
+    case "$suffix" in
+        prod)
+            if [ "$env" != "prod" ]; then
+                log_error "$file: tenant.environment must be 'prod' when tenant.name ends with '-prod' (got '$env')"
+                return 1
+            fi
+            ;;
+        accept|test)
+            if [ "$env" != "accept" ]; then
+                log_error "$file: tenant.environment must be 'accept' when tenant.name ends with '-$suffix' (got '$env')"
+                return 1
+            fi
+            ;;
+    esac
+
+    # org must still be a valid k8s-style name segment
+    if ! [[ "$org" =~ ^[a-z][a-z0-9-]*[a-z0-9]$ ]] && ! [[ "$org" =~ ^[a-z]$ ]]; then
+        log_error "$file: organization part '$org' (from tenant.name '$name') is invalid"
+        return 1
+    fi
+
+    return 0
+}
+
+# Validate namespace convention: tenant.namespace (if set) must equal tenant.name
+validate_namespace_convention() {
+    local file="$1"
+    local name namespace
+    name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
+    namespace=$(yq eval '.tenant.namespace' "$file" 2>/dev/null)
+
+    if [ "$namespace" = "null" ] || [ -z "$namespace" ]; then
+        # optional; defaulted by ArgoCD ApplicationSet to tenant.name
+        return 0
+    fi
+
+    if [ "$namespace" != "$name" ]; then
+        log_error "$file: tenant.namespace '$namespace' must equal tenant.name '$name' (namespace per env)"
+        return 1
+    fi
+
+    return 0
+}
+
 # Validate environment
 validate_environment() {
     local file="$1"
@@ -178,6 +238,38 @@ validate_hostname() {
         return 1
     fi
     
+    return 0
+}
+
+# Validate hostname matches commonground.nu convention derived from tenant.name
+validate_hostname_convention() {
+    local file="$1"
+    local name hostname org suffix expected
+    name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
+    hostname=$(yq eval '.tenant.hostname' "$file" 2>/dev/null)
+
+    if ! [[ "$name" =~ ^(.+)-(accept|test|prod)$ ]]; then
+        # validate_tenant_name_convention will report this
+        return 0
+    fi
+
+    org="${BASH_REMATCH[1]}"
+    suffix="${BASH_REMATCH[2]}"
+
+    case "$suffix" in
+        prod)
+            expected="${org}.commonground.nu"
+            ;;
+        accept|test)
+            expected="${org}.${suffix}.commonground.nu"
+            ;;
+    esac
+
+    if [ "$hostname" != "$expected" ]; then
+        log_error "$file: tenant.hostname '$hostname' does not match expected '$expected' (derived from tenant.name '$name')"
+        return 1
+    fi
+
     return 0
 }
 
@@ -266,8 +358,11 @@ validate_tenant_file() {
     validate_required_fields "$file" || ((file_errors++))
     validate_no_disallowed_fields "$file" || ((file_errors++))
     validate_tenant_name "$file" || ((file_errors++))
+    validate_tenant_name_convention "$file" || ((file_errors++))
+    validate_namespace_convention "$file" || ((file_errors++))
     validate_environment "$file" || ((file_errors++))
     validate_hostname "$file" || ((file_errors++))
+    validate_hostname_convention "$file" || ((file_errors++))
     validate_wave "$file" || ((file_errors++))
     validate_bucket "$file" || ((file_errors++))
     check_for_secrets "$file" || true  # Warnings only

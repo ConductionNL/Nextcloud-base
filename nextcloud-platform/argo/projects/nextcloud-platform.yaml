@@ -27,10 +27,12 @@ spec:
     # Tenant namespaces (nc-* pattern)
     - namespace: "nc-*"
       server: https://kubernetes.default.svc
-    # Explicit test namespaces (used when tenant.namespace overrides nc-<tenant>)
-    - namespace: test-mariadb
+    # Tenant namespaces by convention: <org>-<env>
+    - namespace: "*-accept"
       server: https://kubernetes.default.svc
-    - namespace: test-postgres
+    - namespace: "*-test"
+      server: https://kubernetes.default.svc
+    - namespace: "*-prod"
       server: https://kubernetes.default.svc
   
   # Cluster resource whitelist

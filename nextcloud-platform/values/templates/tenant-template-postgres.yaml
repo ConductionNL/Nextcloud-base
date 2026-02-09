@@ -12,11 +12,15 @@
 # STAPPEN:
 #   1. Kopieer naar: values/tenants/tenant-<jouw-naam>.yaml
 #   2. Vervang overal:
-#      - {{TENANT_NAME}}  ->  tenant identifier (bijv. "acme")
-#      - {{HOSTNAME}}     ->  volledige hostname (bijv. "acme.nextcloud.commonground.nu")
+#      - {{TENANT_NAME}}  ->  conventie: <organisatie>-<omgeving>
+#                           bijv. "alkmaar-accept", "alkmaar-test", "alkmaar-prod"
+#      - {{HOSTNAME}}     ->  domain conventie:
+#                           accept/test: <org>.<env>.commonground.nu
+#                           prod       : <org>.commonground.nu
 #      - {{DATABASE_NAME}}->  database naam (bijv. "nextcloud_acme")
-#   3. Pas environment aan: "prod" of "accept"
-#   4. Maak secret aan: ./scripts/create-tenant-secret.sh {{TENANT_NAME}} --postgres
+#   3. Pas environment aan: "accept" of "prod"
+#      - accept voor zowel "-accept" als "-test" tenants
+#   4. Maak secret aan: ./scripts/create-tenant-secret.sh {{TENANT_NAME}} --postgres --namespace {{TENANT_NAME}}
 #   5. Commit & push - ArgoCD pikt de nieuwe tenant automatisch op
 #
 # =============================================================================

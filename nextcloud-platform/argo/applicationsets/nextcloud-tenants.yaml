@@ -71,8 +71,9 @@ spec:
       destination:
         server: https://kubernetes.default.svc
         # Namespace is tenant-configurable (must be unique per tenant).
-        # Example: tenant.namespace: "test-mariadb"
-        namespace: "{{ default (printf \"nc-%s\" .tenant.name) .tenant.namespace }}"
+        # Convention: <organisatie>-<omgeving> (e.g. "alkmaar-accept", "alkmaar-prod")
+        # Default: tenant.name (so tenant.name should follow the same convention)
+        namespace: "{{ default .tenant.name .tenant.namespace }}"
       
       # Sync policy
       syncPolicy:

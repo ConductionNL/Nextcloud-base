@@ -7,10 +7,14 @@
 # STAPPEN:
 #   1. Kopieer naar: values/tenants/tenant-<jouw-naam>.yaml
 #   2. Vervang overal:
-#      - {{TENANT_NAME}}  ->  tenant identifier (bijv. "acme")
-#      - {{HOSTNAME}}     ->  volledige hostname (bijv. "acme.nextcloud.commonground.nu")
-#   3. Pas environment aan: "prod" of "accept"
-#   4. Maak secret aan: scripts/create-tenant-secret.sh nc-{{TENANT_NAME}}
+#      - {{TENANT_NAME}}  ->  conventie: <organisatie>-<omgeving>
+#                           bijv. "alkmaar-accept", "alkmaar-test", "alkmaar-prod"
+#      - {{HOSTNAME}}     ->  domain conventie:
+#                           accept/test: <org>.<env>.commonground.nu
+#                           prod       : <org>.commonground.nu
+#   3. Pas environment aan: "accept" of "prod"
+#      - accept voor zowel "-accept" als "-test" tenants
+#   4. Maak secret aan: scripts/create-tenant-secret.sh {{TENANT_NAME}} --namespace {{TENANT_NAME}}
 #   5. Commit & push - ArgoCD pikt de nieuwe tenant automatisch op
 #
 # =============================================================================
