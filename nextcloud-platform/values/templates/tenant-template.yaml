@@ -24,7 +24,7 @@ tenant:
   name: {{TENANT_NAME}}
   environment: prod                    # "accept" of "prod"
   wave: "1"                            # 0=canary (eerst), 1+=productie waves
-  # dbType: mariadb                    # optional: mariadb|postgres|external (default mariadb)
+  dbType: mariadb                      # mariadb|postgres|external
   # hostname: {{HOSTNAME}}             # optional override; otherwise derived from tenant.name
 
 # =============================================================================

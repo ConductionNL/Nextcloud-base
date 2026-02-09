@@ -3,3 +3,4 @@ tenant:
   name: zuiddrecht-prod
   environment: prod
   wave: "1"
+  dbType: mariadb

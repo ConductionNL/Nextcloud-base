@@ -79,6 +79,7 @@ validate_yaml_syntax() {
 REQUIRED_FIELDS=(
     ".tenant.name"
     ".tenant.environment"
+    ".tenant.dbType"
 )
 
 # Validate required fields

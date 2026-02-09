@@ -3,3 +3,4 @@ tenant:
   name: zuiddrecht-accept
   environment: accept
   wave: "1"
+  dbType: mariadb
