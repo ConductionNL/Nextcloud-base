@@ -69,6 +69,8 @@ spec:
               {{- $computedHost = printf "%s.%s.commonground.nu" $org $omgeving -}}
               {{- end -}}
               {{- $host := default $computedHost .tenant.hostname -}}
+              {{- $apps := default (list "opencatalogi" "openconnector" "openregister") .tenant.apps.enabled -}}
+              {{- $appsStr := join " " $apps -}}
               fullnameOverride: "nextcloud"
               commonLabels:
                 nextcloud.platform/tenant: "{{ .tenant.name }}"
@@ -78,6 +80,15 @@ spec:
                 host: "{{ $host }}"
                 trustedDomains:
                   - "{{ $host }}"
+                extraEnv:
+                  - name: CONDUCTION_APPS
+                    value: "{{ $appsStr }}"
+                  - name: OPENCATALOGI_VERSION
+                    value: "{{ default "" .tenant.apps.versions.opencatalogi }}"
+                  - name: OPENCONNECTOR_VERSION
+                    value: "{{ default "" .tenant.apps.versions.openconnector }}"
+                  - name: OPENREGISTER_VERSION
+                    value: "{{ default "" .tenant.apps.versions.openregister }}"
               ingress:
                 tls:
                   - secretName: "nextcloud-{{ $name }}-tls"

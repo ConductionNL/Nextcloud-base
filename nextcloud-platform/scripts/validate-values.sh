@@ -80,6 +80,7 @@ REQUIRED_FIELDS=(
     ".tenant.name"
     ".tenant.environment"
     ".tenant.dbType"
+    ".tenant.apps.enabled"
 )
 
 # Validate required fields
