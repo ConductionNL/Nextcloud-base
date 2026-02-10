@@ -15,6 +15,52 @@ We keep this in-repo because it is **platform governance**: it defines how the p
 - **Promotion**: explicitly widening the change from canary → batches → all tenants.
 - **GitOps rule**: desired state lives in Git; Argo CD applies it. No manual `occ` installs or in-cluster hotfixes.
 
+### Change classification (checks and balances)
+
+Every change must be classified in one of two types before merge:
+
+1. **Platform change** (high blast radius, must pass canary ring first)
+2. **Tenant additive change** (low blast radius, can be applied directly)
+
+#### Platform change (must pass canary)
+
+Treat as platform change when a PR modifies any shared behavior or rollout mechanics, including:
+
+- `values/common.yaml`
+- `values/env/*.yaml`
+- `values/db/*.yaml`
+- `values/templates/*`
+- `argo/applicationsets/*`
+- `argo/projects/*`
+- chart/version rollout mechanics (including `tenant.chartVersion` policy)
+- platform-level components under `platform/**`
+
+**Required flow:**
+
+1. Canary PR (only canary tenants / ring)
+2. Canary validation (health + smoke)
+3. Batched promotion PRs for stable tenants
+
+#### Tenant additive change (direct apply allowed)
+
+Treat as tenant additive when a PR only updates tenant-specific desired state, for example:
+
+- add a new tenant file
+- change one/few tenant app declarations (`tenant.apps.*`)
+- tenant-specific hostname/namespace fields
+
+These changes can be merged directly without full canary promotion, as long as:
+
+- the change is isolated to tenant files (`values/tenants/tenant-*.yaml`)
+- validation scripts pass
+- blast radius stays small (recommended: small batches)
+
+#### Safety defaults for PR reviews
+
+- If in doubt, classify as **platform change**.
+- Large multi-tenant updates should still be batched, even when additive.
+- Rollback must be possible by reverting a single PR batch.
+
 ### Why this is “blue/green-like” (and what it is not)
 
 Nextcloud upgrades often touch schema/data. Running two versions **in parallel on the same DB/PVC** is not safe.

@@ -73,6 +73,7 @@ spec:
               {{- $host := default $computedHost .tenant.hostname -}}
               {{- $apps := default (list "opencatalogi" "openconnector" "openregister") .tenant.apps.enabled -}}
               {{- $appsStr := join " " $apps -}}
+              {{- $appapiEnabled := default false .tenant.features.appapi -}}
               fullnameOverride: "nextcloud"
               commonLabels:
                 nextcloud.platform/tenant: "{{ .tenant.name }}"
@@ -91,6 +92,20 @@ spec:
                     value: "{{ default "" .tenant.apps.versions.openconnector }}"
                   - name: OPENREGISTER_VERSION
                     value: "{{ default "" .tenant.apps.versions.openregister }}"
+                  - name: APPAPI_ENABLED
+                    value: '{{ ternary "true" "false" $appapiEnabled }}'
+                  - name: APPAPI_DAEMON_MODE
+                    value: '{{ default "manual-install" .tenant.appapi.mode }}'
+                  - name: APPAPI_DAEMON_NAME
+                    value: '{{ default "manual_install" .tenant.appapi.name }}'
+                  - name: APPAPI_DAEMON_DISPLAY_NAME
+                    value: '{{ default "Manual Install" .tenant.appapi.displayName }}'
+                  - name: APPAPI_DAEMON_PROTOCOL
+                    value: '{{ default "http" .tenant.appapi.protocol }}'
+                  - name: APPAPI_DAEMON_HOST
+                    value: '{{ default "null" .tenant.appapi.host }}'
+                  - name: APPAPI_NEXTCLOUD_URL
+                    value: '{{ default (printf "https://%s" $host) .tenant.appapi.nextcloudUrl }}'
               ingress:
                 tls:
                   - secretName: "nextcloud-{{ $name }}-tls"

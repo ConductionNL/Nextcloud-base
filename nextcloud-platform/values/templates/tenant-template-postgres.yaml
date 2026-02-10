@@ -33,6 +33,15 @@ tenant:
   dbType: postgres                     # mariadb|postgres|external
   # chartVersion: "8.9.0"              # optional: chart version override for canary/staged rollouts
   # hostname: {{HOSTNAME}}             # optional override; otherwise derived from tenant.name
+  features:
+    appapi: false                      # set true to enable AppAPI profile defaults
+  # appapi:                            # optional overrides when features.appapi=true
+  #   mode: "manual-install"           # manual-install|docker-install
+  #   name: "manual_install"
+  #   displayName: "Manual Install"
+  #   protocol: "http"
+  #   host: "null"                     # for docker-install e.g. "nextcloud-appapi-dsp:2375"
+  #   nextcloudUrl: "https://{{HOSTNAME}}"
   apps:
     enabled:
       - opencatalogi

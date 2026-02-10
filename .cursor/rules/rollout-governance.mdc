@@ -1,0 +1,20 @@
+---
+description: Enforce rollout governance and change classification
+alwaysApply: true
+---
+
+# Nextcloud rollout governance
+
+When assisting in this repository, always classify requested changes first:
+
+1. **Platform change**: shared files/behavior, high blast radius.
+2. **Tenant additive change**: tenant-specific, low blast radius.
+
+## Required behavior
+
+- If a change touches shared platform files (`values/common.yaml`, `values/env/*`, `values/db/*`, `values/templates/*`, `argo/applicationsets/*`, `argo/projects/*`, `platform/**`), treat it as **platform change**.
+- For platform changes, propose and follow: **canary ring first**, then batched promotion.
+- If a change only touches tenant files (`values/tenants/tenant-*.yaml`), treat it as **tenant additive** and keep scope minimal.
+- When uncertain, default to **platform change** (safer path).
+- Avoid broad, multi-tenant blast-radius changes in one step; prefer explicit batches.
+
