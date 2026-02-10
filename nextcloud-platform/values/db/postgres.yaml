@@ -1,17 +1,26 @@
 ---
 # Database profile: PostgreSQL (in-cluster)
 # Enable with tenant.dbType: postgres
-# NOTE: You may still need tenant-specific overrides (e.g. postgresql.auth.database) depending on conventions.
+# Uses a custom Postgres image with extensions.
 
 mariadb:
   enabled: false
 
 postgresql:
   enabled: true
+  image:
+    registry: ghcr.io
+    repository: conductionnl/nextcloud-images
+    tag: postgres16-ext-sha-6b56bfeda88356d768179c7b2220fb9ded1b4adf
+    pullPolicy: Always
   auth:
+    database: nextcloud
+    username: nextcloud
     existingSecret: nextcloud-secrets
     secretKeys:
-      adminPasswordKey: db-password
+      # Keep admin password separate from the Nextcloud DB user password.
+      # These keys are created by scripts/create-tenant-secret.sh --postgres
+      adminPasswordKey: postgres-password
       userPasswordKey: db-password
 
 internalDatabase:

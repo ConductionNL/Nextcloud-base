@@ -1,0 +1,14 @@
+---
+tenant:
+  name: softwarecatalogus-test
+  # Use accept env values for both -accept and -test tenants
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  namespace: softwarecatalogus-test
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+

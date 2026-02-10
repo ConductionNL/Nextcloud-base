@@ -239,6 +239,7 @@ if [ ${#missing_vars[@]} -gt 0 ]; then
 fi
 
 # Set defaults
+# Default admin login (keep as "admin" unless SMTP/password reset is configured)
 ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
 DB_USERNAME="${DB_USERNAME:-nextcloud}"
 

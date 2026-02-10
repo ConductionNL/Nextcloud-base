@@ -1,0 +1,11 @@
+* text=auto
+
+# Keep bash/YAML/Markdown consistent across Windows/Linux.
+*.sh   text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.md   text eol=lf
+
+# PowerShell scripts should remain CRLF-friendly on Windows.
+*.ps1  text eol=crlf
+

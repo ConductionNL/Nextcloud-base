@@ -1,0 +1,11 @@
+---
+tenant:
+  name: docudesk-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  namespace: docudesk-prod
+  apps:
+    enabled:
+      - openregister
+
