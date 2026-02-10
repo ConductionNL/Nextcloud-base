@@ -84,6 +84,18 @@ kubectl get pods -n nc-canary -w
 kubectl logs -n nc-canary -l app.kubernetes.io/name=nextcloud -f
 ```
 
+## Optional: Trigger Argo Sync Immediately
+
+If you don’t want to wait for Argo CD’s refresh interval, you can force a hard refresh + sync:
+
+```bash
+# Sync a single tenant (assumes app name "nc-<tenant>")
+bash ./scripts/argocd-sync.sh canary --wait
+
+# Or sync by pattern (bash glob)
+bash ./scripts/argocd-sync.sh --pattern "nc-*-prod" --wait
+```
+
 ## Step 6: Access Nextcloud
 
 Once pods are running (takes 2-5 minutes):
