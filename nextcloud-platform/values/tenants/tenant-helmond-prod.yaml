@@ -1,0 +1,11 @@
+---
+tenant:
+  name: helmond-prod
+  environment: prod
+  wave: "1"
+  dbType: mariadb
+  apps:
+    enabled:
+      - openregister
+      - opencatalogi
+      - openconnector
