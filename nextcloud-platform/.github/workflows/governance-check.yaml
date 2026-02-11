@@ -1,0 +1,109 @@
+---
+name: Governance Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  classify-and-guard:
+    name: Classify Change And Enforce Guards
+    runs-on: ubuntu-latest
+    outputs:
+      classification: ${{ steps.classify.outputs.classification }}
+      changed_tenant_count: ${{ steps.classify.outputs.changed_tenant_count }}
+      changed_tenants: ${{ steps.classify.outputs.changed_tenants }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure scripts executable
+        run: chmod +x scripts/classify-change.sh scripts/validate-values.sh scripts/smoke-checks.sh
+
+      - name: Classify change scope
+        id: classify
+        run: |
+          OUTPUT="$(./scripts/classify-change.sh "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
+          echo "$OUTPUT"
+
+          echo "$OUTPUT" | awk -F= '/^classification=/{print $0}' >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" | awk -F= '/^changed_tenant_count=/{print $0}' >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" | awk -F= '/^changed_tenants=/{print $0}' >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" | awk -F= '/^changed_files_count=/{print $0}' >> "$GITHUB_OUTPUT"
+
+      - name: Enforce PR labels by classification
+        env:
+          CLASSIFICATION: ${{ steps.classify.outputs.classification }}
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          classification = os.environ["CLASSIFICATION"]
+          labels = set(json.loads(os.environ["LABELS_JSON"] or "[]"))
+
+          required = {
+              "platform": {"change/platform"},
+              "tenant-additive": {"change/tenant-additive"},
+              "mixed": {"change/platform"},
+          }[classification]
+
+          if not labels.intersection(required):
+              print(f"Missing required label for classification '{classification}'. Required one of: {sorted(required)}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Label check passed for classification '{classification}'.")
+          PY
+
+      - name: Limit tenant-only PR batch size
+        if: steps.classify.outputs.classification == 'tenant-additive'
+        env:
+          COUNT: ${{ steps.classify.outputs.changed_tenant_count }}
+        run: |
+          MAX=5
+          if [ "${COUNT}" -gt "${MAX}" ]; then
+            echo "Tenant-additive PR touches ${COUNT} tenants (> ${MAX}). Split into smaller batches or classify as platform change." >&2
+            exit 1
+          fi
+          echo "Tenant batch size OK (${COUNT}/${MAX})."
+
+      - name: Validate changed tenant values
+        if: steps.classify.outputs.changed_tenant_count != '0'
+        run: |
+          mapfile -t TENANTS < <(echo "${{ steps.classify.outputs.changed_tenants }}" | tr ',' '\n' | sed '/^$/d')
+          ARGS=()
+          for t in "${TENANTS[@]}"; do
+            ARGS+=("values/tenants/tenant-${t}.yaml")
+          done
+          ./scripts/validate-values.sh "${ARGS[@]}"
+
+      - name: Smoke-check changed tenants
+        if: steps.classify.outputs.changed_tenant_count != '0'
+        run: |
+          mapfile -t TENANTS < <(echo "${{ steps.classify.outputs.changed_tenants }}" | tr ',' '\n' | sed '/^$/d')
+          for t in "${TENANTS[@]}"; do
+            echo "Running smoke-check for tenant: ${t}"
+            ./scripts/smoke-checks.sh --tenant "${t}"
+          done
+
+      - name: Write governance summary
+        run: |
+          {
+            echo "## Governance Check Summary"
+            echo ""
+            echo "- Classification: \`${{ steps.classify.outputs.classification }}\`"
+            echo "- Changed tenants: \`${{ steps.classify.outputs.changed_tenant_count }}\`"
+            if [ -n "${{ steps.classify.outputs.changed_tenants }}" ]; then
+              echo "- Tenant list: \`${{ steps.classify.outputs.changed_tenants }}\`"
+            fi
+            echo ""
+            echo "Required label policy:"
+            echo "- platform/mixed -> \`change/platform\`"
+            echo "- tenant-additive -> \`change/tenant-additive\`"
+          } >> "$GITHUB_STEP_SUMMARY"

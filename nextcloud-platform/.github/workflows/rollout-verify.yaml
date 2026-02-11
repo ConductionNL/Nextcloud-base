@@ -1,0 +1,90 @@
+---
+name: Rollout Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenants_csv:
+        description: "Comma-separated tenant names to verify (e.g. canary-prod,acme-accept)"
+        required: false
+        default: ""
+      run_cluster_checks:
+        description: "Run live cluster checks (requires secret KUBECONFIG_B64)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify rollout stage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+          pip install yamllint
+          chmod +x scripts/validate-values.sh scripts/smoke-checks.sh
+
+      - name: Validate tenant value files
+        run: ./scripts/validate-values.sh
+
+      - name: Smoke-check selected tenants
+        if: inputs.tenants_csv != ''
+        run: |
+          mapfile -t TENANTS < <(echo "${{ inputs.tenants_csv }}" | tr ',' '\n' | sed '/^$/d')
+          for t in "${TENANTS[@]}"; do
+            echo "Running smoke checks for tenant: ${t}"
+            ./scripts/smoke-checks.sh --tenant "${t}"
+          done
+
+      - name: Configure kubectl from secret
+        if: inputs.run_cluster_checks == true
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+        run: |
+          if [ -z "${KUBECONFIG_B64:-}" ]; then
+            echo "KUBECONFIG_B64 is not configured; skipping cluster checks setup."
+            echo "HAS_KUBECONFIG=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "$KUBECONFIG_B64" | base64 -d > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+          echo "HAS_KUBECONFIG=true" >> "$GITHUB_ENV"
+
+      - name: Live Argo health checks
+        if: inputs.run_cluster_checks == true && inputs.tenants_csv != ''
+        run: |
+          if [ "${HAS_KUBECONFIG:-false}" != "true" ]; then
+            echo "Skipping live cluster checks (no kubeconfig)."
+            exit 0
+          fi
+          mapfile -t TENANTS < <(echo "${{ inputs.tenants_csv }}" | tr ',' '\n' | sed '/^$/d')
+          for t in "${TENANTS[@]}"; do
+            APP="nc-${t}"
+            echo "Checking app: ${APP}"
+            kubectl -n argocd get application "${APP}" -o jsonpath='{.status.sync.status}{" "}{.status.health.status}{"\n"}'
+          done
+
+      - name: Verification summary
+        run: |
+          {
+            echo "## Rollout Verify Summary"
+            echo ""
+            echo "- Tenant scope: \`${{ inputs.tenants_csv || 'all (values validation only)' }}\`"
+            echo "- Cluster checks requested: \`${{ inputs.run_cluster_checks }}\`"
+            echo "- Cluster checks require secret \`KUBECONFIG_B64\`"
+            echo ""
+            echo "Next step:"
+            echo "- If all checks pass, promote next ring/batch."
+            echo "- If checks fail, rollback by reverting the batch PR."
+          } >> "$GITHUB_STEP_SUMMARY"
