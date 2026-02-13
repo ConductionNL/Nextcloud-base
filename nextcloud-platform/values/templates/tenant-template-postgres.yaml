@@ -44,9 +44,9 @@ tenant:
   #   nextcloudUrl: "https://{{HOSTNAME}}"
   apps:
     enabled:
+      - openregister
       - opencatalogi
       - openconnector
-      - openregister
     # versions:
     #   opencatalogi: "0.7.7"
     #   openconnector: "0.2.8-beta.7"

@@ -18,10 +18,15 @@
 # Example:
 #   cp env.example .env
 #   # Edit .env with your values
-#   ./create-tenant-secret.sh
+#   ./create-tenant-secret.sh zuiddrecht-prod --mariadb --namespace zuiddrecht-prod
 #
-#   # Or specify tenant on command line:
-#   ./create-tenant-secret.sh canary --postgres --generate-passwords
+#   # PostgreSQL tenant (with Redis), generate random passwords:
+#   ./create-tenant-secret.sh softwarecatalogus-test --postgres --namespace softwarecatalogus-test --generate-passwords
+#
+# Troubleshooting:
+#   If pods started before the secret existed, they may stay in
+#   CreateContainerConfigError (secret not found). Recreate affected pods once:
+#   kubectl delete pod -n <namespace> -l app.kubernetes.io/instance=nextcloud
 
 set -euo pipefail
 
@@ -61,9 +66,13 @@ usage() {
     echo "  DB_PASSWORD          Nextcloud user password"
     echo "  REDIS_PASSWORD       Redis password"
     echo ""
-    echo "Example:"
+    echo "Examples:"
     echo "  cp env.example .env && nano .env"
-    echo "  $0"
+    echo "  $0 zuiddrecht-prod --mariadb --namespace zuiddrecht-prod"
+    echo "  $0 softwarecatalogus-test --postgres --namespace softwarecatalogus-test --generate-passwords"
+    echo ""
+    echo "If pods are stuck on missing secret after creation:"
+    echo "  kubectl delete pod -n <namespace> -l app.kubernetes.io/instance=nextcloud"
     exit 1
 }
 

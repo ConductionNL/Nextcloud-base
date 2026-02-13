@@ -6,7 +6,7 @@ tenant:
   dbType: mariadb
   apps:
     enabled:
+      - openregister
       - opencatalogi
       - openconnector
-      - openregister
 

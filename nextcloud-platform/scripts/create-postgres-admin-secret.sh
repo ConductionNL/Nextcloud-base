@@ -11,6 +11,11 @@
 #   export POSTGRES_ADMIN_USER='postgres'
 #   export POSTGRES_ADMIN_PASSWORD='your-admin-password'
 #   ./scripts/create-postgres-admin-secret.sh
+#
+# Notes:
+#   - This creates one shared admin secret in namespace "nextcloud-platform".
+#   - It is not a per-tenant secret.
+#   - Per-tenant runtime secrets are created with create-tenant-secret.sh.
 
 set -euo pipefail
 

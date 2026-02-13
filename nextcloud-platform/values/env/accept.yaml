@@ -32,7 +32,7 @@ nextcloud:
 # Use staging Let's Encrypt issuer to avoid rate limits
 ingress:
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 
 # S3 configuration for accept environment (Fuga Cloud)
 s3:

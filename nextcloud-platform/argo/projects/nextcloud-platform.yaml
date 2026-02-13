@@ -88,10 +88,26 @@ spec:
       applications:
         - "nc-zuiddrecht-*"
       manualSync: true
-    # Prod rollouts during business hours only (example)
+    # Block automatic tenant syncs during office hours (weekdays, UTC).
+    # Manual sync is allowed, so tenant additions can still be rolled out explicitly.
+    # 07:00-17:00 UTC ~= office hours in NL.
+    - kind: deny
+      schedule: "0 7 * * 1-5"
+      duration: 10h
+      applications:
+        - "nc-*"
+      manualSync: true
+    # Allow tenant syncs outside office hours on weekdays.
     - kind: allow
-      schedule: "0 6 * * 1-5"
-      duration: 12h
+      schedule: "0 17 * * 1-5"
+      duration: 14h
+      applications:
+        - "nc-*"
+      manualSync: true
+    # Allow tenant syncs all weekend.
+    - kind: allow
+      schedule: "0 0 * * 6,0"
+      duration: 24h
       applications:
         - "nc-*"
       manualSync: true

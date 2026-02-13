@@ -137,27 +137,38 @@ git push origin main
 
 ### 5. Sync Argo CD
 
-The ApplicationSet will automatically detect the new tenant file and create the Application.
-You can trigger a manual sync:
+After push, Argo CD should detect the new tenant file and create a new `Application`.
+
+In practice, if you want immediate reconcile (recommended), run:
 
 ```bash
-# Refresh ApplicationSet
-argocd appset get nextcloud-tenants --refresh
+# 1) Re-apply ApplicationSet definition from Git
+kubectl -n argocd apply -f nextcloud-platform/argo/applicationsets/nextcloud-tenants.yaml
 
-# Or wait for automatic sync (default: 3 minutes)
+# 2) Force ApplicationSet refresh
+kubectl -n argocd annotate applicationset nextcloud-tenants \
+  argocd.argoproj.io/application-set-refresh="true" --overwrite
+
+# 3) Check if the tenant Application appears
+kubectl -n argocd get applications | grep nc-<tenant-name>
 ```
+
+Expected timing:
+
+- Usually visible within **seconds to 1 minute**
+- If not visible after **2-3 minutes**, go to Troubleshooting below
 
 ### 6. Verify Deployment
 
 ```bash
 # Check application status
-kubectl get applications -n argocd | grep nc-<tenant-name>
+kubectl -n argocd get applications | grep nc-<tenant-name>
 
 # Check pods
-kubectl get pods -n nc-<tenant-name>
+kubectl get pods -n <tenant-namespace>
 
 # Verify Nextcloud is running
-kubectl exec -n nc-<tenant-name> deploy/nextcloud -c nextcloud -- php occ status
+kubectl exec -n <tenant-namespace> deploy/nextcloud -c nextcloud -- php occ status
 ```
 
 ## Troubleshooting
@@ -173,9 +184,40 @@ Secrets are missing. See Step 3 above.
 
 ### Application not appearing in Argo CD
 
-- Check the tenant YAML filename matches pattern `tenant-*.yaml`
-- Verify the file is in `nextcloud-platform/values/tenants/`
-- Check ApplicationSet logs: `kubectl logs -n argocd -l app.kubernetes.io/name=argocd-applicationset-controller`
+Use this order (most common causes first):
+
+1. **Confirm file was pushed to `main`**
+   - Argo only watches Git (not your local files).
+
+2. **Confirm tenant file is valid**
+   - Filename must match `tenant-*.yaml`
+   - Location must be `nextcloud-platform/values/tenants/`
+   - Validate:
+     ```bash
+     ./nextcloud-platform/scripts/validate-values.sh \
+       nextcloud-platform/values/tenants/tenant-<name>.yaml
+     ```
+
+3. **Force ApplicationSet reconcile**
+   ```bash
+   kubectl -n argocd apply -f nextcloud-platform/argo/applicationsets/nextcloud-tenants.yaml
+   kubectl -n argocd annotate applicationset nextcloud-tenants \
+     argocd.argoproj.io/application-set-refresh="true" --overwrite
+   ```
+
+4. **Check ApplicationSet status message**
+   ```bash
+   kubectl -n argocd get applicationset nextcloud-tenants \
+     -o jsonpath='{.status.conditions[*].message}{"\n"}'
+   ```
+
+5. **Check controller logs (if still missing)**
+   ```bash
+   kubectl logs -n argocd -l app.kubernetes.io/name=argocd-applicationset-controller
+   ```
+
+6. **Check sync window**
+   - Outside allowed sync window, app may exist but not progress/sync yet.
 
 ## Checklist
 
