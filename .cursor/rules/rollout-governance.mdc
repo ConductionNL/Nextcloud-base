@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Nextcloud rollout governance
 
-When assisting in this repository, always classify requested changes first:
+Classify every request before doing anything:
 
 1. **Platform change**: shared files/behavior, high blast radius.
 2. **Tenant additive change**: tenant-specific, low blast radius.
@@ -17,4 +17,28 @@ When assisting in this repository, always classify requested changes first:
 - If a change only touches tenant files (`values/tenants/tenant-*.yaml`), treat it as **tenant additive** and keep scope minimal.
 - When uncertain, default to **platform change** (safer path).
 - Avoid broad, multi-tenant blast-radius changes in one step; prefer explicit batches.
+
+## Hard office-hours guardrail (strict)
+
+- Office hours are **Mon-Fri 07:00-17:00 UTC**.
+- During office hours, you may change **only** tenant files: `values/tenants/tenant-*.yaml`.
+- During office hours, do **not** edit platform/shared files, including:
+  - `values/common.yaml`
+  - `values/env/*`
+  - `values/db/*`
+  - `values/templates/*`
+  - `argo/applicationsets/*`
+  - `argo/projects/*`
+  - `platform/**`
+  - `.github/workflows/*`
+  - `.cursor/rules/*`
+- During office hours, do **not** trigger broad reconcile actions for platform scope (for example ApplicationSet-wide refreshes or syncs that affect many tenants).
+
+## Conflict handling (must block)
+
+- If a requested action conflicts with office-hours guardrails, **stop** and refuse the change in that window.
+- Offer only two paths:
+  1. Schedule/apply the change after office hours, or
+  2. Continue only with explicit user approval that this is an emergency platform change.
+- Never bypass this rule implicitly. No exceptions by assumption.
 

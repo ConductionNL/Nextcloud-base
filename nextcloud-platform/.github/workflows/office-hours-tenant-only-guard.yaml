@@ -1,0 +1,80 @@
+---
+name: Office Hours Tenant-Only Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-office-hours-scope:
+    name: Enforce Tenant-Only During Office Hours
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine change range
+        id: range
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          fi
+          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "head=${HEAD}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce office-hours tenant-only policy
+        shell: bash
+        env:
+          BASE: ${{ steps.range.outputs.base }}
+          HEAD: ${{ steps.range.outputs.head }}
+        run: |
+          set -euo pipefail
+
+          HOUR_UTC="$(date -u +%H)"
+          DOW_UTC="$(date -u +%u)" # 1=Mon ... 7=Sun
+          IN_OFFICE_HOURS=false
+          if [ "${DOW_UTC}" -ge 1 ] && [ "${DOW_UTC}" -le 5 ] && [ "${HOUR_UTC}" -ge 7 ] && [ "${HOUR_UTC}" -lt 17 ]; then
+            IN_OFFICE_HOURS=true
+          fi
+
+          echo "UTC weekday=${DOW_UTC}, hour=${HOUR_UTC}, office_hours=${IN_OFFICE_HOURS}"
+
+          if [ "${BASE}" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES="$(git show --pretty='' --name-only "${HEAD}")"
+          else
+            CHANGED_FILES="$(git diff --name-only "${BASE}" "${HEAD}")"
+          fi
+
+          echo "Changed files:"
+          echo "${CHANGED_FILES}"
+
+          if [ "${IN_OFFICE_HOURS}" != "true" ]; then
+            echo "Outside office hours, guard allows platform changes."
+            exit 0
+          fi
+
+          BAD_FILES="$(echo "${CHANGED_FILES}" | sed '/^$/d' | grep -vE '^nextcloud-platform/values/tenants/tenant-.*\.yaml$' || true)"
+          if [ -n "${BAD_FILES}" ]; then
+            echo "Office-hours policy violation: only tenant files are allowed during Mon-Fri 07:00-17:00 UTC." >&2
+            echo "Disallowed changed files:" >&2
+            echo "${BAD_FILES}" >&2
+            exit 1
+          fi
+
+          echo "Office-hours policy check passed: tenant-only changes."
+
