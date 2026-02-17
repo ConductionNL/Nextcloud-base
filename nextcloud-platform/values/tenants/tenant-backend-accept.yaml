@@ -4,7 +4,7 @@ tenant:
   environment: accept
   wave: "1"
   dbType: postgres
-  namespace: vng-accept-test
+  namespace: vng-backend-accept
   hostname: backend.accept.opencatalogi.nl
   apps:
     enabled:
