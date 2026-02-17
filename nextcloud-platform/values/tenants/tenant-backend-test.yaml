@@ -1,0 +1,16 @@
+---
+tenant:
+  name: backend-test
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  namespace: vng-backend-test
+  hostname: backend.test.opencatalogi.nl
+  apps:
+    enabled:
+      - opencatalogi
+      - openregister
+    versions:
+      opencatalogi: "0.7.8-beta.13"
+      openregister: "0.2.12-unstable.1"
+
