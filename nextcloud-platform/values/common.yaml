@@ -334,7 +334,7 @@ nextcloud:
             return 0
           fi
         else
-          if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
+          if php occ app:list 2>/dev/null | grep -q -- "- $APP_NAME:"; then
             return 0
           fi
           log "Installing $APP_NAME (latest from app store)..."
@@ -348,7 +348,7 @@ nextcloud:
           php occ app:enable "$APP_NAME" 2>>"$LOG" || true
         fi
 
-        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep "- $APP_NAME:" | sed 's/.*: //')
+        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep -- "- $APP_NAME:" | sed 's/.*: //')
         log "$APP_NAME enabled (version: $INSTALLED_VER)"
       }
 
@@ -426,7 +426,7 @@ nextcloud:
             return 0
           fi
         else
-          if php occ app:list 2>/dev/null | grep -q "- $APP_NAME:"; then
+          if php occ app:list 2>/dev/null | grep -q -- "- $APP_NAME:"; then
             log "$APP_NAME already installed"
             return 0
           fi
@@ -442,7 +442,7 @@ nextcloud:
           php occ app:enable "$APP_NAME" 2>>"$LOG" || true
         fi
 
-        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep "- $APP_NAME:" | sed 's/.*: //')
+        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep -- "- $APP_NAME:" | sed 's/.*: //')
         log "$APP_NAME enabled (version: $INSTALLED_VER)"
       }
 
