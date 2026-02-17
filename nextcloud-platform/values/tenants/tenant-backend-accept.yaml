@@ -1,6 +1,6 @@
 ---
 tenant:
-  name: backend-accept
+  name: vng-backend-accept
   environment: accept
   wave: "1"
   dbType: postgres
