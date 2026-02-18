@@ -1,0 +1,11 @@
+---
+tenant:
+  name: noordwijk-accept
+  environment: accept
+  wave: "1"
+  dbType: mariadb
+  apps:
+    enabled:
+      - openregister
+      - opencatalogi
+      - openconnector
