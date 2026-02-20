@@ -1,0 +1,24 @@
+---
+tenant:
+  name: vng-backend-green
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  namespace: vng-backend-green
+  phpMemoryLimit: "2048M"
+  hostname: backend.green.opencatalogi.nl
+resources:
+  limits:
+    memory: 4Gi
+nextcloud:
+  extraEnv:
+    - name: PHP_MEMORY_LIMIT
+      value: "4096M"
+  apps:
+    enabled:
+      - opencatalogi
+      - openregister
+    # versions:
+    #   opencatalogi: "0.7.8-beta.13"
+    #   openregister: "0.2.12-unstable.1"
+
