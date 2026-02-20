@@ -264,6 +264,8 @@ echo ""
 # Create namespace if it doesn't exist
 if [ "$DRY_RUN" = false ]; then
     kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+    # Keep namespace label aligned with redis/network policies.
+    kubectl label namespace "$NAMESPACE" app.kubernetes.io/part-of=nextcloud-platform --overwrite >/dev/null
 fi
 
 # Build secret based on DB type
