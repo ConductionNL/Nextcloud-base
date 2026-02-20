@@ -29,15 +29,21 @@ TARGET=""
 PRUNE=false
 WAIT=false
 TIMEOUT_SECONDS=600
+REFRESH_APPSET=false
+APPSET_NAME="nextcloud-tenants"
+WAIT_FOR_APP_SECONDS=120
 
 usage() {
   echo "Usage:"
   echo "  $0 <tenant|app> [--wait] [--timeout <seconds>] [--prune] [--argocd-ns <ns>]"
+  echo "     [--refresh-appset] [--appset-name <name>] [--wait-for-app <seconds>]"
   echo "  $0 --pattern \"nc-*-prod\" [--wait] [--timeout <seconds>] [--prune] [--argocd-ns <ns>]"
+  echo "     [--refresh-appset] [--appset-name <name>] [--wait-for-app <seconds>]"
   echo ""
   echo "Examples:"
   echo "  $0 zuiddrecht-accept --wait"
   echo "  $0 nc-zuiddrecht-accept"
+  echo "  $0 noordwijk-accept --refresh-appset --wait-for-app 180 --wait"
   echo "  $0 --pattern \"nc-*-test\" --wait"
 }
 
@@ -49,6 +55,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --pattern)
       PATTERN="$2"
+      shift 2
+      ;;
+    --refresh-appset)
+      REFRESH_APPSET=true
+      shift
+      ;;
+    --appset-name)
+      APPSET_NAME="$2"
+      shift 2
+      ;;
+    --wait-for-app)
+      WAIT_FOR_APP_SECONDS="$2"
       shift 2
       ;;
     --prune)
@@ -119,6 +137,61 @@ list_apps_by_pattern() {
       done
 }
 
+refresh_applicationset() {
+  local appset="$1"
+  echo "Refreshing ApplicationSet $appset..."
+  kubectl -n "$ARGOCD_NS" annotate applicationset "$appset" \
+    argocd.argoproj.io/application-set-refresh=true \
+    --overwrite >/dev/null
+}
+
+wait_for_app_exists() {
+  local app="$1"
+  local timeout="$2"
+  local start
+  start="$(date +%s)"
+
+  while true; do
+    if app_exists "$app"; then
+      return 0
+    fi
+
+    local now elapsed
+    now="$(date +%s)"
+    elapsed=$((now - start))
+    if [[ "$timeout" -gt 0 && "$elapsed" -ge "$timeout" ]]; then
+      return 1
+    fi
+
+    sleep 3
+  done
+}
+
+wait_for_pattern_matches() {
+  local pattern="$1"
+  local timeout="$2"
+  local start
+  start="$(date +%s)"
+
+  while true; do
+    local matches
+    matches="$(list_apps_by_pattern "$pattern" || true)"
+    if [[ -n "$matches" ]]; then
+      echo "$matches"
+      return 0
+    fi
+
+    local now elapsed
+    now="$(date +%s)"
+    elapsed=$((now - start))
+    if [[ "$timeout" -gt 0 && "$elapsed" -ge "$timeout" ]]; then
+      return 1
+    fi
+
+    sleep 3
+  done
+}
+
 hard_refresh() {
   local app="$1"
   kubectl -n "$ARGOCD_NS" annotate application "$app" \
@@ -171,11 +244,25 @@ wait_for_sync() {
 
 require_kubectl
 
+if [[ "$REFRESH_APPSET" == "true" ]]; then
+  refresh_applicationset "$APPSET_NAME"
+fi
+
 APPS=()
 if [[ -n "$PATTERN" ]]; then
+  MATCHES=""
+  if [[ "$REFRESH_APPSET" == "true" ]]; then
+    if ! MATCHES="$(wait_for_pattern_matches "$PATTERN" "$WAIT_FOR_APP_SECONDS")"; then
+      echo "No applications match pattern after waiting ${WAIT_FOR_APP_SECONDS}s: $PATTERN (namespace: $ARGOCD_NS)" >&2
+      exit 1
+    fi
+  else
+    MATCHES="$(list_apps_by_pattern "$PATTERN" || true)"
+  fi
+
   while read -r app; do
     [[ -n "$app" ]] && APPS+=("$app")
-  done < <(list_apps_by_pattern "$PATTERN")
+  done <<< "$MATCHES"
 
   if [[ ${#APPS[@]} -eq 0 ]]; then
     echo "No applications match pattern: $PATTERN (namespace: $ARGOCD_NS)" >&2
@@ -184,8 +271,17 @@ if [[ -n "$PATTERN" ]]; then
 else
   APP="$(resolve_app_name "$TARGET")"
   if ! app_exists "$APP"; then
-    echo "Application not found: $APP (namespace: $ARGOCD_NS)" >&2
-    exit 1
+    if [[ "$REFRESH_APPSET" == "true" ]]; then
+      echo "Waiting for application to appear: $APP (${WAIT_FOR_APP_SECONDS}s max)..."
+      if ! wait_for_app_exists "$APP" "$WAIT_FOR_APP_SECONDS"; then
+        echo "Application not found after waiting ${WAIT_FOR_APP_SECONDS}s: $APP (namespace: $ARGOCD_NS)" >&2
+        exit 1
+      fi
+    else
+      echo "Application not found: $APP (namespace: $ARGOCD_NS)" >&2
+      echo "Tip: add --refresh-appset to force generation for newly added tenants." >&2
+      exit 1
+    fi
   fi
   APPS+=("$APP")
 fi
