@@ -10,9 +10,10 @@ tenant:
 resources:
   limits:
     memory: 2Gi
-extraEnv:
-  - name: PHP_MEMORY_LIMIT
-    value: "2048M"
+nextcloud:
+  extraEnv:
+    - name: PHP_MEMORY_LIMIT
+      value: "2048M"
   apps:
     enabled:
       - opencatalogi
