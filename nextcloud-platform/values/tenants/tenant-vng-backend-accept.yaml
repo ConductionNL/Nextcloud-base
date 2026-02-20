@@ -9,16 +9,16 @@ tenant:
   hostname: backend.accept.opencatalogi.nl
 resources:
   limits:
-    memory: 2Gi
+    memory: 4Gi
 nextcloud:
   extraEnv:
     - name: PHP_MEMORY_LIMIT
-      value: "2048M"
+      value: "4096M"
   apps:
     enabled:
       - opencatalogi
       - openregister
-    versions:
-      opencatalogi: "0.7.8-beta.13"
-      openregister: "0.2.12-unstable.1"
+    # versions:
+    #   opencatalogi: "0.7.8-beta.13"
+    #   openregister: "0.2.12-unstable.1"
 
