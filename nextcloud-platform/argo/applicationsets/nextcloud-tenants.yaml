@@ -74,6 +74,7 @@ spec:
               {{- $apps := default (list "opencatalogi" "openconnector" "openregister") .tenant.apps.enabled -}}
               {{- $appsStr := join " " $apps -}}
               {{- $appapiEnabled := default false .tenant.features.appapi -}}
+              {{- $phpMemoryLimit := default "2048M" .tenant.phpMemoryLimit -}}
               fullnameOverride: "nextcloud"
               commonLabels:
                 nextcloud.platform/tenant: "{{ .tenant.name }}"
@@ -84,6 +85,8 @@ spec:
                 trustedDomains:
                   - "{{ $host }}"
                 extraEnv:
+                  - name: PHP_MEMORY_LIMIT
+                    value: "{{ $phpMemoryLimit }}"
                   - name: CONDUCTION_APPS
                     value: "{{ $appsStr }}"
                   - name: OPENCATALOGI_VERSION

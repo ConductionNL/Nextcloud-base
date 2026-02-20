@@ -5,7 +5,11 @@ tenant:
   wave: "1"
   dbType: postgres
   namespace: vng-backend-test
+  phpMemoryLimit: "2048M"
   hostname: backend.test.opencatalogi.nl
+resources:
+  limits:
+    memory: 2Gi
   apps:
     enabled:
       - opencatalogi
