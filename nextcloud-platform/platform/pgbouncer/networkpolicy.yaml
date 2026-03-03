@@ -15,23 +15,14 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow PostgreSQL connections from Nextcloud tenant namespaces
+    # Allow PostgreSQL connections from all Nextcloud tenant namespaces.
+    # Argo CD sets app.kubernetes.io/part-of: nextcloud-platform on every
+    # tenant namespace via managedNamespaceMetadata, so no manual updates
+    # are needed when adding new tenants.
     - from:
         - namespaceSelector:
             matchLabels:
               app.kubernetes.io/part-of: nextcloud-platform
-        - namespaceSelector:
-            matchExpressions:
-              - key: kubernetes.io/metadata.name
-                operator: In
-                values:
-                  - nc-canary
-                  - nc-canary-2
-                  - nc-canary-accept
-                  - nc-example
-                  # Add more tenant namespaces as needed
-                  # IMPORTANT: Update this list when adding new tenants!
-                  # See docs/ADDING-TENANT.md for details
       ports:
         - protocol: TCP
           port: 5432

@@ -1,0 +1,70 @@
+Guide the user through adding a new tenant to the Nextcloud platform. The argument is the tenant name: $ARGUMENTS
+
+## Rules
+
+Adding a tenant config file is **allowed at any time, including office hours and weekends**.
+
+No NetworkPolicy changes are required when adding a tenant — the ApplicationSet automatically labels every tenant namespace with `app.kubernetes.io/part-of: nextcloud-platform`, and the Redis/PgBouncer NetworkPolicies already allow all namespaces with that label.
+
+Check the current UTC time with `date -u` before starting so the user is aware of the context.
+
+## Checklist
+
+Work through these steps in order.
+
+### 1. Determine tenant details
+If not fully provided in `$ARGUMENTS`, ask the user for:
+- **Tenant name** — convention: `{organisation}-{environment}` (e.g., `alkmaar-accept`, `alkmaar-prod`)
+- **Environment** — `accept` or `prod` (use `accept` for both `-accept` and `-test` tenants)
+- **Database type** — `mariadb`, `postgres`, or `external` (external uses shared PgBouncer)
+- **Wave** — 0 for canary, 1+ for standard tenants
+- **Hostname** — leave blank to use the derived default (`{org}.commonground.nu` for prod, `{org}.{env}.commonground.nu` for accept/test)
+- **Apps to install** — default: opencatalogi, openconnector, openregister
+- **S3_ACCESS_KEY** — the S3/Ceph access key for this tenant (cannot be auto-generated)
+- **S3_SECRET_KEY** — the S3/Ceph secret key for this tenant (cannot be auto-generated)
+
+### 2. Create the tenant values file
+The repo is under `nextcloud-platform/` within the working directory.
+
+- Source template: `nextcloud-platform/values/templates/tenant-template.yaml` (for mariadb) or `nextcloud-platform/values/templates/tenant-template-postgres.yaml` (for postgres/external)
+- Destination: `nextcloud-platform/values/tenants/tenant-{name}.yaml`
+
+Read the template, then create the new tenant file with all `{{TENANT_NAME}}` and `{{HOSTNAME}}` placeholders replaced with actual values. Set environment, wave, dbType, and apps correctly. Remove comments that are not relevant to this tenant's configuration.
+
+The Kubernetes namespace equals the tenant name exactly (e.g., `zuiddrecht-prod`), auto-created and auto-labeled by Argo CD.
+
+### 3. Generate the Kubernetes secret
+Run the secret creation script directly. All passwords are auto-generated; only S3 credentials need to be supplied by the user.
+
+```bash
+S3_ACCESS_KEY="{s3-access-key}" S3_SECRET_KEY="{s3-secret-key}" \
+  ./nextcloud-platform/scripts/create-tenant-secret.sh {tenant-name} \
+  --{dbType} \
+  --namespace {tenant-name} \
+  --generate-passwords
+```
+
+Run this command and show the full output to the user. The script will print all generated credentials — remind the user to **save them securely now**, as they cannot be retrieved from the cluster later.
+
+If the script fails because `kubectl` is not configured or the cluster is unreachable, explain the error and show the user the exact command to run manually once they have cluster access.
+
+### 4. Validate
+Run validation to catch issues early:
+```bash
+./nextcloud-platform/scripts/validate-values.sh
+```
+Fix any errors before proceeding.
+
+### 5. Commit
+Stage only the new tenant file:
+- `nextcloud-platform/values/tenants/tenant-{name}.yaml`
+
+Suggest a commit message: `feat: add tenant {name}`
+
+Remind the user: Argo CD will automatically detect the new tenant file and create the Application. No manual Argo CD steps are required unless they want to trigger an immediate sync (use `/sync-tenant {name}` with `--refresh-appset` since it is a new app).
+
+### 6. Summary
+Provide a summary of:
+- What was created
+- Whether the secret was successfully applied to the cluster, or still needs to be done manually
+- The expected Argo CD behaviour after pushing

@@ -75,44 +75,51 @@ spec:
       kind: "*"
   
   # Sync windows for controlled rollouts
+  # All times are Amsterdam local time (Europe/Amsterdam handles CET/CEST automatically).
   syncWindows:
-    # Allow canary (wave 0) anytime
+    # Canary (wave 0) can sync anytime — fast feedback loop
     - kind: allow
       schedule: "* * * * *"
       duration: 24h
+      timeZone: Europe/Amsterdam
       applications:
         - "nc-canary"
       manualSync: true
-    # Allow zuiddrecht tenants anytime (platform launch testing)
+    # Zuiddrecht can sync anytime (platform launch testing)
     - kind: allow
       schedule: "* * * * *"
       duration: 24h
+      timeZone: Europe/Amsterdam
       applications:
         - "nc-zuiddrecht-*"
       manualSync: true
-    # Block automatic tenant syncs during office hours (weekdays, UTC).
-    # Manual sync is allowed, so tenant additions can still be rolled out explicitly.
-    # 07:00-17:00 UTC ~= office hours in NL.
+    # Block automatic syncs during Amsterdam office hours (Mon–Fri 07:00–17:00).
+    # manualSync: true so tenant additions can still be triggered manually.
     - kind: deny
       schedule: "0 7 * * 1-5"
       duration: 10h
+      timeZone: Europe/Amsterdam
       applications:
         - "nc-*"
       manualSync: true
-    # Allow tenant syncs outside office hours on weekdays.
+    # Allow syncs Mon–Thu evenings only (17:00–07:00 Amsterdam).
+    # Friday evening and weekends are intentionally excluded.
     - kind: allow
-      schedule: "0 17 * * 1-5"
+      schedule: "0 17 * * 1-4"
       duration: 14h
+      timeZone: Europe/Amsterdam
       applications:
         - "nc-*"
       manualSync: true
-    # Allow tenant syncs all weekend.
-    - kind: allow
-      schedule: "0 0 * * 6,0"
-      duration: 24h
+    # Block Friday evening through Monday morning.
+    # 67h from Friday 17:00 covers the full weekend until Monday 08:00.
+    - kind: deny
+      schedule: "0 17 * * 5"
+      duration: 67h
+      timeZone: Europe/Amsterdam
       applications:
         - "nc-*"
-      manualSync: true
+      manualSync: false
   
   # Roles for project access
   roles:

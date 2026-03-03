@@ -1,0 +1,11 @@
+tenant:
+  name: roosendaal-prod
+  environment: prod
+  wave: "1"
+  dbType: mariadb
+  hostname: roosendaal.migrate.commonground.nu  # temp: remove after migration to roosendaal.commonground.nu
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
