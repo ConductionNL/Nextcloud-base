@@ -5,22 +5,21 @@
 # Multiple replicas for HA
 replicaCount: 2
 
-# Production resources
+# Production resources – no requests, only limits
 resources:
-  requests:
-    cpu: 500m
-    memory: 1Gi
   limits:
     cpu: 4
     memory: 4Gi
 
-# HPA enabled in prod
+# HPA is managed via the tenant-hpa chart (AverageValue, no requests needed).
+# The chart's native HPA (AverageUtilization) requires requests, so it stays off.
 hpa:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
+  enabled: false
+
+# Zero-downtime rolling updates: new pod must be ready before old pod is removed.
+strategy:
+  maxSurge: 1
+  maxUnavailable: 0
 
 # Production logging - DON'T mount as ConfigMap, let Nextcloud handle it
 # Configure logging via occ commands after install:
@@ -79,21 +78,9 @@ podLabels:
 # Frequent cron in prod
 cronjob:
   schedule: "*/5 * * * *"
-  sidecar:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 512Mi
-      limits:
-        cpu: 300m
-        memory: 1Gi
 
-# Nginx container must have CPU requests for HPA CPU metrics to work.
 nginx:
   resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
     limits:
       cpu: 500m
       memory: 512Mi

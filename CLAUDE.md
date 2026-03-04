@@ -105,6 +105,12 @@ GitHub Actions runs on every push/PR (`.github/workflows/validate.yaml`):
 
 No NetworkPolicy changes needed (see Platform Shared Services above).
 
+## Resource Policy
+
+**No requests, only limits** for background/non-critical containers (cron jobs, sidecars). Kubernetes schedules freely and throttles CPU when under pressure — preferred over reserving capacity that sits idle. Only set requests on containers where guaranteed scheduling matters (main Nextcloud pod, nginx).
+
+This is set globally in `values/common.yaml` and should not be overridden with requests in env or tenant files.
+
 ## Conduction Apps
 
 Three apps (opencatalogi, openconnector, openregister) are auto-installed in Nextcloud via hooks in `values/common.yaml`. They run idempotently using a state file at `/var/www/html/data/.conduction-apps-state`. Installation logs are at `/var/www/html/data/conduction-apps.log`.

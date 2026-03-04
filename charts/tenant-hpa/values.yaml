@@ -1,0 +1,11 @@
+# Default values – override via ApplicationSet inline values
+hpa:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  # AverageValue: absolute metric per pod, no resource requests needed.
+  # Targets ~50% of prod limits (cpu: 4, memory: 4Gi).
+  cpuAverageValue: "2000m"
+  memoryAverageValue: "2Gi"
+  scaleDown:
+    stabilizationWindowSeconds: 300  # 5 min – avoid flapping

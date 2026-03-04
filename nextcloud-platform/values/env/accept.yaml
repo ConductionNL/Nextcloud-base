@@ -5,11 +5,8 @@
 # Lower replicas for test environment
 replicaCount: 1
 
-# Smaller resources for test
+# Smaller resources for test – no requests, only limits
 resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
   limits:
     cpu: 1
     memory: 1Gi

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: tenant-hpa
+description: Per-tenant HPA for Nextcloud using AverageValue metrics (no requests required)
+type: application
+version: 1.0.0

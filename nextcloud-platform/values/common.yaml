@@ -46,9 +46,6 @@ mariadb:
       size: 8Gi
       storageClass: ""  # Use default, or set to cephfs
     resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
       limits:
         cpu: 500m
         memory: 512Mi
@@ -76,9 +73,6 @@ postgresql:
       size: 8Gi
       storageClass: ""
     resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
       limits:
         cpu: 500m
         memory: 512Mi
@@ -635,6 +629,13 @@ cronjob:
   successfulJobsHistoryLimit: 3
   cronjob:
     priorityClassName: ""  # Disable - not available in cluster
+  # No requests – Kubernetes schedules freely and throttles CPU if needed.
+  # Only limits are set to cap runaway jobs. Prefer throttle over OOM.
+  sidecar:
+    resources:
+      limits:
+        cpu: 300m
+        memory: 1Gi
 
 # Probes
 livenessProbe:
@@ -661,11 +662,8 @@ startupProbe:
   failureThreshold: 60
   successThreshold: 1
 
-# Resources
+# Resources – no requests, only limits (prefer throttle over reservation)
 resources:
-  requests:
-    cpu: 250m
-    memory: 512Mi
   limits:
     cpu: 2
     memory: 2Gi

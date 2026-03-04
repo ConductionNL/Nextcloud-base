@@ -92,9 +92,6 @@ postgresql:
       enabled: true
       size: 8Gi
     resources:
-      requests:
-        cpu: 250m
-        memory: 512Mi
       limits:
         cpu: 1000m
         memory: 1Gi
@@ -126,9 +123,6 @@ redis:
       enabled: true
       size: 2Gi
     resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
       limits:
         cpu: 500m
         memory: 256Mi
@@ -311,9 +305,6 @@ ingress:
 # RESOURCES
 # =============================================================================
 resources:
-  requests:
-    cpu: 250m
-    memory: 512Mi
   limits:
     cpu: 2
     memory: 2Gi
