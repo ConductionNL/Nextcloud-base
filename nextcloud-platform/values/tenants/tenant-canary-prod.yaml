@@ -4,6 +4,7 @@ tenant:
   environment: prod
   wave: "0"
   dbType: mariadb
+replicaCount: 1  # canary: no HA needed, avoids RWO PVC race on fresh install
   apps:
     enabled:
       - opencatalogi
