@@ -2,8 +2,8 @@
 # Environment-specific values for PRODUCTION environment
 # Merged with common.yaml and tenant values
 
-# Multiple replicas for HA
-replicaCount: 2
+# RS=1 until ephemeral-code HA is implemented (RWO PVC blocks multi-node RS=2)
+replicaCount: 1
 
 # Production resources – no requests, only limits
 resources:
@@ -15,11 +15,6 @@ resources:
 # The chart's native HPA (AverageUtilization) requires requests, so it stays off.
 hpa:
   enabled: false
-
-# Zero-downtime rolling updates: new pod must be ready before old pod is removed.
-strategy:
-  maxSurge: 1
-  maxUnavailable: 0
 
 # Production logging - DON'T mount as ConfigMap, let Nextcloud handle it
 # Configure logging via occ commands after install:

@@ -4,6 +4,8 @@ tenant:
   environment: prod
   wave: "0"
   dbType: mariadb
+# Canary: test RS=2 HA here before rolling to prod tenants
+replicaCount: 2
   apps:
     enabled:
       - opencatalogi
