@@ -1,7 +1,7 @@
 ---
 tenant:
-  name: canary
-  environment: accept
+  name: canary-prod
+  environment: prod
   wave: "0"
   dbType: mariadb
   apps:

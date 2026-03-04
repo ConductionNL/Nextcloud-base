@@ -1,0 +1,11 @@
+---
+tenant:
+  name: canary-accept
+  environment: accept
+  wave: "0"
+  dbType: mariadb
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister

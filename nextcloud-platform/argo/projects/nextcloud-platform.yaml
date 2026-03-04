@@ -83,7 +83,7 @@ spec:
       duration: 24h
       timeZone: Europe/Amsterdam
       applications:
-        - "nc-canary"
+        - "nc-canary-*"
       manualSync: true
     # Zuiddrecht can sync anytime (platform launch testing)
     - kind: allow
