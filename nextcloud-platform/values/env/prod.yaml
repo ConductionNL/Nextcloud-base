@@ -85,6 +85,10 @@ nginx:
       cpu: 500m
       memory: 512Mi
 
+# Pin pods to dedicated Nextcloud nodes (worker.gardener.cloud/pool=nextcloud)
+nodeSelector:
+  worker.gardener.cloud/pool: nextcloud
+
 # Pod anti-affinity for HA
 affinity:
   podAntiAffinity:
