@@ -26,10 +26,10 @@ If not fully provided in `$ARGUMENTS`, ask the user for:
 - **S3_SECRET_KEY** — the S3/Ceph secret key for this tenant (cannot be auto-generated)
 
 ### 2. Create the tenant values file
-Scripts and values are under the `nextcloud-platform/` directory within the repo.
+Scripts and values are relative to the working directory (`nextcloud-platform/`).
 
-- Source template: `nextcloud-platform/values/templates/tenant-template.yaml` (for mariadb) or `nextcloud-platform/values/templates/tenant-template-postgres.yaml` (for postgres/external)
-- Destination: `nextcloud-platform/values/tenants/tenant-{name}.yaml`
+- Source template: `values/templates/tenant-template.yaml` (for mariadb) or `values/templates/tenant-template-postgres.yaml` (for postgres/external)
+- Destination: `values/tenants/tenant-{name}.yaml`
 
 Read the template, then create the new tenant file with all `{{TENANT_NAME}}` and `{{HOSTNAME}}` placeholders replaced with actual values. Set environment, wave, dbType, and apps correctly. Remove comments that are not relevant to this tenant's configuration.
 
@@ -45,7 +45,7 @@ Run the secret creation script directly. All passwords are auto-generated; only 
 
 ```bash
 S3_ACCESS_KEY="{s3-access-key}" S3_SECRET_KEY="{s3-secret-key}" \
-  ./nextcloud-platform/scripts/create-tenant-secret.sh {tenant-name} \
+  ./scripts/create-tenant-secret.sh {tenant-name} \
   --{dbType} \
   --namespace {tenant-name} \
   --generate-passwords
@@ -58,13 +58,13 @@ If the script fails because `kubectl` is not configured or the cluster is unreac
 ### 4. Validate
 Run validation to catch issues early:
 ```bash
-./nextcloud-platform/scripts/validate-values.sh
+./scripts/validate-values.sh
 ```
 A migration hostname produces a **warning** (not an error) — this is expected and safe to proceed. Fix any **errors** before proceeding.
 
 ### 5. Commit
 Stage only the new tenant file:
-- `nextcloud-platform/values/tenants/tenant-{name}.yaml`
+- `values/tenants/tenant-{name}.yaml`
 
 Suggest a commit message: `add tenant: {name}` (or `add tenant: {name} (migrate domain)` if using a temporary hostname)
 

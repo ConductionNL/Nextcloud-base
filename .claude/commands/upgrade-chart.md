@@ -2,7 +2,7 @@ Guide the user through a Nextcloud Helm chart upgrade using the wave-based rollo
 
 ## Rules
 
-A chart version upgrade modifies `nextcloud-platform/values/common.yaml` — this is a **platform change**.
+A chart version upgrade modifies `values/common.yaml` — this is a **platform change**.
 
 **Platform changes are only allowed Monday–Thursday between 17:00 and 07:00 Amsterdam time. They are never allowed on Friday evenings, Saturdays, or Sundays — unless mwest2020 has explicitly given permission.**
 
@@ -14,7 +14,7 @@ First, check the current Amsterdam time with `TZ=Europe/Amsterdam date`. Evaluat
 ## Steps
 
 ### 1. Check current version
-Read `nextcloud-platform/values/common.yaml` and show the current `chart.version` value. If a target version was not provided in `$ARGUMENTS`, ask the user which version to upgrade to.
+Read `values/common.yaml` and show the current `chart.version` value. If a target version was not provided in `$ARGUMENTS`, ask the user which version to upgrade to.
 
 ### 2. Pre-upgrade checklist
 Ask the user to confirm the following before making any changes:
@@ -25,20 +25,20 @@ Ask the user to confirm the following before making any changes:
 ### 3. Identify the canary tenant
 The canary is the tenant with `wave: "0"` in its values file. Run:
 ```bash
-grep -r 'wave: "0"' nextcloud-platform/values/tenants/
+grep -r 'wave: "0"' values/tenants/
 ```
 Show the user which tenant(s) are wave 0.
 
 ### 4. Update the chart version
-Edit `nextcloud-platform/values/common.yaml`: change `chart.version` to the target version.
+Edit `values/common.yaml`: change `chart.version` to the target version.
 
 Show the diff before saving.
 
 ### 5. Validate
 Run:
 ```bash
-./nextcloud-platform/scripts/validate-values.sh
-./nextcloud-platform/scripts/smoke-checks.sh
+./scripts/validate-values.sh
+./scripts/smoke-checks.sh
 ```
 Fix any issues before proceeding.
 

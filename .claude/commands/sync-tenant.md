@@ -37,17 +37,17 @@ Determine whether to sync a single tenant or multiple:
 
 For a single existing tenant:
 ```bash
-./nextcloud-platform/scripts/argocd-sync.sh {tenant-name} --wait
+./scripts/argocd-sync.sh {tenant-name} --wait
 ```
 
 For a new tenant not yet in Argo CD:
 ```bash
-./nextcloud-platform/scripts/argocd-sync.sh {tenant-name} --refresh-appset --wait-for-app 180 --wait
+./scripts/argocd-sync.sh {tenant-name} --refresh-appset --wait-for-app 180 --wait
 ```
 
 For a pattern:
 ```bash
-./nextcloud-platform/scripts/argocd-sync.sh --pattern "nc-{pattern}" --wait
+./scripts/argocd-sync.sh --pattern "nc-{pattern}" --wait
 ```
 
 Run the command and report the output. If the script fails because `kubectl` is not configured or the application is not found, explain the error clearly.
