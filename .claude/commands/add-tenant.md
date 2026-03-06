@@ -18,18 +18,25 @@ If not fully provided in `$ARGUMENTS`, ask the user for:
 - **Environment** — `accept` or `prod` (use `accept` for both `-accept` and `-test` tenants)
 - **Database type** — `mariadb`, `postgres`, or `external` (external uses shared PgBouncer)
 - **Wave** — 0 for canary, 1+ for standard tenants
-- **Hostname** — leave blank to use the derived default (`{org}.commonground.nu` for prod, `{org}.{env}.commonground.nu` for accept/test)
+- **Hostname** — two options:
+  - **Migration tenant (recommended for new prod onboarding)**: use `{org}.migrate.commonground.nu` — temporary domain to validate before cutover. Validation warns, does not error. After sign-off, remove the hostname override to fall back to the derived default.
+  - **Direct**: leave blank to use the derived default (`{org}.commonground.nu` for prod, `{org}.{env}.commonground.nu` for accept/test)
 - **Apps to install** — default: opencatalogi, openconnector, openregister
 - **S3_ACCESS_KEY** — the S3/Ceph access key for this tenant (cannot be auto-generated)
 - **S3_SECRET_KEY** — the S3/Ceph secret key for this tenant (cannot be auto-generated)
 
 ### 2. Create the tenant values file
-The repo is under `nextcloud-platform/` within the working directory.
+Scripts and values are under the `nextcloud-platform/` directory within the repo.
 
 - Source template: `nextcloud-platform/values/templates/tenant-template.yaml` (for mariadb) or `nextcloud-platform/values/templates/tenant-template-postgres.yaml` (for postgres/external)
 - Destination: `nextcloud-platform/values/tenants/tenant-{name}.yaml`
 
 Read the template, then create the new tenant file with all `{{TENANT_NAME}}` and `{{HOSTNAME}}` placeholders replaced with actual values. Set environment, wave, dbType, and apps correctly. Remove comments that are not relevant to this tenant's configuration.
+
+If using a migration hostname, add it explicitly with a cutover comment:
+```yaml
+hostname: {org}.migrate.commonground.nu  # temp: remove after migration to {org}.commonground.nu
+```
 
 The Kubernetes namespace equals the tenant name exactly (e.g., `zuiddrecht-prod`), auto-created and auto-labeled by Argo CD.
 
@@ -53,13 +60,13 @@ Run validation to catch issues early:
 ```bash
 ./nextcloud-platform/scripts/validate-values.sh
 ```
-Fix any errors before proceeding.
+A migration hostname produces a **warning** (not an error) — this is expected and safe to proceed. Fix any **errors** before proceeding.
 
 ### 5. Commit
 Stage only the new tenant file:
 - `nextcloud-platform/values/tenants/tenant-{name}.yaml`
 
-Suggest a commit message: `feat: add tenant {name}`
+Suggest a commit message: `add tenant: {name}` (or `add tenant: {name} (migrate domain)` if using a temporary hostname)
 
 Remind the user: Argo CD will automatically detect the new tenant file and create the Application. No manual Argo CD steps are required unless they want to trigger an immediate sync (use `/sync-tenant {name}` with `--refresh-appset` since it is a new app).
 
@@ -68,3 +75,4 @@ Provide a summary of:
 - What was created
 - Whether the secret was successfully applied to the cluster, or still needs to be done manually
 - The expected Argo CD behaviour after pushing
+- If using a migration hostname: remind the user that after sign-off, the cutover is to remove the `hostname:` line from the tenant file and push — Argo CD will update the Ingress automatically.

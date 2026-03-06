@@ -369,6 +369,16 @@ validate_hostname_convention() {
     case "$suffix" in
         prod)
             expected="${org}.commonground.nu"
+            migrate="${org}.migrate.commonground.nu"
+            if [ "$hostname" = "$expected" ]; then
+                return 0
+            elif [ "$hostname" = "$migrate" ]; then
+                log_warning "$file: tenant.hostname '$hostname' is a temporary migration domain — remember to cut over to '$expected'"
+                return 0
+            else
+                log_error "$file: tenant.hostname '$hostname' does not match expected '$expected' or migration domain '$migrate' (derived from tenant.name '$name')"
+                return 1
+            fi
             ;;
         accept|test)
             expected="${org}.${suffix}.commonground.nu"
