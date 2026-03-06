@@ -111,7 +111,9 @@ spec:
       applications:
         - "nc-*"
       manualSync: true
-    # Block Friday evening through Monday morning.
+    # Block Friday evening through Monday morning (auto-sync only).
+    # manualSync: true allows operators to manually sync a tenant at any time
+    # (e.g. new tenant onboarding). Platform-wide rollouts still require Mon–Thu window.
     # 67h from Friday 17:00 covers the full weekend until Monday 08:00.
     - kind: deny
       schedule: "0 17 * * 5"
@@ -119,7 +121,7 @@ spec:
       timeZone: Europe/Amsterdam
       applications:
         - "nc-*"
-      manualSync: false
+      manualSync: true
   
   # Roles for project access
   roles:
