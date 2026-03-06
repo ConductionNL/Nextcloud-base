@@ -22,8 +22,7 @@ If not fully provided in `$ARGUMENTS`, ask the user for:
   - **Migration tenant (recommended for new prod onboarding)**: use `{org}.migrate.commonground.nu` — temporary domain to validate before cutover. Validation warns, does not error. After sign-off, remove the hostname override to fall back to the derived default.
   - **Direct**: leave blank to use the derived default (`{org}.commonground.nu` for prod, `{org}.{env}.commonground.nu` for accept/test)
 - **Apps to install** — default: opencatalogi, openconnector, openregister
-- **S3_ACCESS_KEY** — the S3/Ceph access key for this tenant (cannot be auto-generated)
-- **S3_SECRET_KEY** — the S3/Ceph secret key for this tenant (cannot be auto-generated)
+- **S3_ACCESS_KEY** / **S3_SECRET_KEY** — read from `scripts/.env` (gitignored). Check that file first before asking the user.
 
 ### 2. Create the tenant values file
 Scripts and values are relative to the working directory (`nextcloud-platform/`).
@@ -41,11 +40,11 @@ hostname: {org}.migrate.commonground.nu  # temp: remove after migration to {org}
 The Kubernetes namespace equals the tenant name exactly (e.g., `zuiddrecht-prod`), auto-created and auto-labeled by Argo CD.
 
 ### 3. Generate the Kubernetes secret
-Run the secret creation script directly. All passwords are auto-generated; only S3 credentials need to be supplied by the user.
+S3 credentials are in `scripts/.env` (gitignored). Source the file, then run:
 
 ```bash
-S3_ACCESS_KEY="{s3-access-key}" S3_SECRET_KEY="{s3-secret-key}" \
-  ./scripts/create-tenant-secret.sh {tenant-name} \
+set -a && source scripts/.env && set +a
+./scripts/create-tenant-secret.sh {tenant-name} \
   --{dbType} \
   --namespace {tenant-name} \
   --generate-passwords
