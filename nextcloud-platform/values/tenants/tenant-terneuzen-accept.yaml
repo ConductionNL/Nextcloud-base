@@ -1,0 +1,10 @@
+tenant:
+  name: terneuzen-accept
+  environment: accept
+  wave: "1"
+  dbType: mariadb
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
