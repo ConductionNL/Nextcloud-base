@@ -1,0 +1,12 @@
+tenant:
+  name: lansingerland-prod
+  environment: prod
+  wave: "1"
+  dbType: mariadb
+  features:
+    appapi: false
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
