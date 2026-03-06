@@ -9,7 +9,7 @@
 #   export POSTGRES_HOST='pg.nextcloud-platform.svc.cluster.local'
 #   export POSTGRES_PORT='5432'
 #   export POSTGRES_ADMIN_USER='postgres'
-#   export POSTGRES_ADMIN_PASSWORD='Hv7nW2kQ9mR4xL6pT3cY8jBs'
+#   export POSTGRES_ADMIN_PASSWORD="$(openssl rand -hex 16)"
 #   ./scripts/create-postgres-admin-secret.sh
 #
 # Notes:
@@ -56,7 +56,7 @@ if [ ${#missing_vars[@]} -gt 0 ]; then
     echo "  export POSTGRES_HOST='pg.nextcloud-platform.svc.cluster.local'"
     echo "  export POSTGRES_PORT='5432'  # optional, default 5432"
     echo "  export POSTGRES_ADMIN_USER='postgres'"
-    echo "  export POSTGRES_ADMIN_PASSWORD='Hv7nW2kQ9mR4xL6pT3cY8jBs'"
+    echo "  export POSTGRES_ADMIN_PASSWORD='$(openssl rand -hex 16)'"
     exit 1
 fi
 

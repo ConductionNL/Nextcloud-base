@@ -57,7 +57,7 @@ if [ ${#missing_vars[@]} -gt 0 ]; then
     echo "Set them with:"
     echo "  export POSTGRES_HOST='pg.nextcloud-platform.svc.cluster.local'"
     echo "  export POSTGRES_USER='nextcloud'"
-    echo "  export POSTGRES_PASSWORD='Xk9mR3vQ7nL2wP5yT8cB4jZs'"
+    echo "  export POSTGRES_PASSWORD='$(openssl rand -hex 16)'"
     exit 1
 fi
 
