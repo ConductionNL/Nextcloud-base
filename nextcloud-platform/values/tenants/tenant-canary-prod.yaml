@@ -3,6 +3,7 @@ tenant:
   name: canary-prod
   environment: prod
   wave: "0"
+  canary: true
   dbType: mariadb
   apps:
     enabled:
@@ -10,5 +11,9 @@ tenant:
       - openconnector
       - openregister
 
-# Canary: test RS=2 HA here before rolling to prod tenants
+# Canary: RS=2 HA via Cinder multi-attach (tier-1m)
 replicaCount: 2
+
+persistence:
+  accessMode: ReadWriteMany
+  storageClass: cinder-rwx
