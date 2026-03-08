@@ -14,6 +14,14 @@ tenant:
 # Canary: RS=2 HA via Cinder multi-attach (tier-1m)
 replicaCount: 2
 
+# RWX allows RollingUpdate — no downtime during pod restarts
+nextcloud:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
 persistence:
   accessMode: ReadWriteMany
   storageClass: cinder-rwx
