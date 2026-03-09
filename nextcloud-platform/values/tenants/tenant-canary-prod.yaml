@@ -11,8 +11,9 @@ tenant:
       - openconnector
       - openregister
 
-# Canary: RS=2 HA via Cinder multi-attach (tier-1m)
-replicaCount: 2
+# Canary: RWX PVC kept for HA investigation; RS=1 until cluster filesystem solved
+# (RS=2 + concurrent ext4 = corruption, confirmed 2026-03-09)
+replicaCount: 1
 
 # RWX allows RollingUpdate — no downtime during pod restarts
 nextcloud:
