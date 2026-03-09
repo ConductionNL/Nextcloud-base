@@ -171,6 +171,48 @@ kubectl get pods -n <tenant-namespace>
 kubectl exec -n <tenant-namespace> deploy/nextcloud -c nextcloud -- php occ status
 ```
 
+## Cutting Over from a Migration Hostname
+
+When a tenant was onboarded with a temporary `{org}.migrate.commonground.nu` hostname, the final
+step is cutting over to the canonical domain.
+
+### Why this is needed
+
+Nextcloud writes `trusted_domains` and `overwrite.cli.url` to `config/config.php` in the persistent
+volume during initial installation. The Helm chart does not patch this file post-install. When you
+remove the `tenant.hostname` migrate override, the startup probe starts sending
+`Host: {org}.commonground.nu` — but `config.php` only trusts the old migrate domain, causing HTTP 400.
+
+### Cutover procedure
+
+1. **Remove the migrate hostname** from the tenant values file:
+   ```yaml
+   # Remove this line:
+   hostname: {org}.migrate.commonground.nu
+   ```
+   Commit and push. Argo CD will sync and roll the pod with the new probe hostname.
+
+2. **Run the cutover script** to patch the live pod:
+   ```bash
+   ./scripts/cutover-tenant.sh {tenant-name}
+   ```
+   This adds the canonical hostname to `trusted_domains` and updates `overwrite.cli.url`.
+
+3. **Verify** the pod becomes healthy:
+   ```bash
+   kubectl get pods -n {tenant-name} -w
+   curl -sI https://{org}.commonground.nu/status.php
+   ```
+
+Or use the skill: `/cutover-tenant {tenant-name}`
+
+### What the script does
+
+- Derives the canonical hostname from the tenant name (mirrors ApplicationSet logic)
+- Adds `{org}.commonground.nu` to `trusted_domains` at index 1 (preserves `localhost` at index 0)
+- Sets `overwrite.cli.url` to `https://{org}.commonground.nu`
+- Prints the verified final config
+
 ## Troubleshooting
 
 ### "Redis server went away" or connection errors
