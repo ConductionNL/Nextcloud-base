@@ -1,0 +1,93 @@
+---
+tenant:
+  name: epe-accept
+  environment: accept
+  wave: "1"
+  dbType: mariadb
+  features:
+    appapi: false
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+
+mariadb:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/mariadb
+    tag: "11.2"
+  auth:
+    database: nextcloud
+    username: nextcloud
+    existingSecret: nextcloud-secrets
+    secretKeys:
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: false
+  existingSecret:
+    enabled: false
+
+nextcloud:
+  host: epe.accept.commonground.nu
+  trustedDomains:
+    - epe.accept.commonground.nu
+  configs:
+    tenant.config.php: |
+      <?php
+      $CONFIG = array (
+        'overwrite.cli.url' => 'https://epe.accept.commonground.nu',
+      );
+  podSecurityContext:
+    fsGroup: 33
+    fsGroupChangePolicy: "OnRootMismatch"
+  extraEnv:
+    - name: PHP_MEMORY_LIMIT
+      value: "2048M"
+    - name: PHP_UPLOAD_LIMIT
+      value: "16G"
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: s3-access-key
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: s3-secret-key
+
+ingress:
+  tls:
+    - secretName: nextcloud-epe-accept-tls
+      hosts:
+        - epe.accept.commonground.nu
+  hosts:
+    - host: epe.accept.commonground.nu
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+replicaCount: 1
+
+hpa:
+  enabled: false
+
+podLabels:
+  nextcloud.platform/tenant: epe-accept
+  nextcloud.platform/wave: "1"
