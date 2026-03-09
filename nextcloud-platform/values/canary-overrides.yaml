@@ -18,14 +18,26 @@
 #   [ ] Remove entry from this file
 # =============================================================================
 
+# ---------------------------------------------------------------------------
+# Phase 1 PoC: stateless pods — emptyDir per pod, no shared PVC
+# Status: IN VALIDATION on canary-prod (since 2026-03-09)
+# Reason: ext4 Cinder multi-attach causes inode corruption with RS>1.
+#         emptyDir per pod eliminates shared state, unlocks RS=2.
+# Note: sizeLimit (spec: 2Gi) requires chart-level emptyDir support —
+#       not yet exposed by upstream nextcloud/nextcloud Helm chart.
+#       Track as follow-up; no hard limit for PoC is acceptable.
+# Graduate to: common.yaml when Phase 2 custom image is confirmed stable
+# ---------------------------------------------------------------------------
+persistence:
+  enabled: false
+
 nextcloud:
   # ---------------------------------------------------------------------------
-  # Volume permissions fix for Cinder RWX volumes
-  # Status: IN VALIDATION on canary-prod (since 2026-03-07)
-  # Reason: Cinder CSI fsGroupPolicy: ReadWriteOnceWithFSType means Kubernetes
-  #         skips fsGroup chown for ReadWriteMany volumes. This initContainer
-  #         does it manually so the nextcloud container starts as www-data.
-  # Graduate to: common.yaml once HA is rolled out to all prod tenants
+  # Volume permissions fix — originally for Cinder RWX fsGroup issue.
+  # With emptyDir, Kubernetes applies fsGroup correctly so this is a fast
+  # no-op (stat check exits immediately). Kept because common.yaml still
+  # ships it for prod tenants on cinder-rwx; removing here would cause a
+  # merge conflict. Will clean up when Phase 2 graduates.
   # ---------------------------------------------------------------------------
   extraInitContainers:
     - name: volume-permissions
