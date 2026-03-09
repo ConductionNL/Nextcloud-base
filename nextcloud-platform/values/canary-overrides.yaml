@@ -33,6 +33,41 @@ persistence:
 
 nextcloud:
   # ---------------------------------------------------------------------------
+  # Stateless identity: instanceid, passwordsalt, secret must survive pod
+  # restarts — injected from nextcloud-secrets so they never regenerate.
+  # Captured from first successful install on 2026-03-09.
+  # Graduate to: per-tenant secret pattern in Phase 2 (create-tenant-secret.sh
+  # should generate and store these at tenant creation time).
+  # ---------------------------------------------------------------------------
+  extraEnv:
+    - name: NEXTCLOUD_INSTANCEID
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: nextcloud-instanceid
+    - name: NEXTCLOUD_PASSWORDSALT
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: nextcloud-passwordsalt
+    - name: NEXTCLOUD_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-secrets
+          key: nextcloud-secret
+  configs:
+    identity.config.php: |
+      <?php
+      $CONFIG = array (
+        'installed' => true,
+        'instanceid' => getenv('NEXTCLOUD_INSTANCEID'),
+        'passwordsalt' => getenv('NEXTCLOUD_PASSWORDSALT'),
+        'secret' => getenv('NEXTCLOUD_SECRET'),
+        'trusted_domains' => ['canary.commonground.nu'],
+        'overwrite.cli.url' => 'https://canary.commonground.nu',
+      );
+
+  # ---------------------------------------------------------------------------
   # Volume permissions fix — originally for Cinder RWX fsGroup issue.
   # With emptyDir, Kubernetes applies fsGroup correctly so this is a fast
   # no-op (stat check exits immediately). Kept because common.yaml still
