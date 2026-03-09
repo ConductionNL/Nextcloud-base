@@ -93,15 +93,15 @@ spec:
       applications:
         - "nc-zuiddrecht-*"
       manualSync: true
-    # Block automatic syncs during Amsterdam office hours (Mon–Fri 07:00–17:00).
-    # manualSync: false so operators can always trigger manual syncs (e.g. new tenant onboarding).
+    # Block AUTOMATIC syncs during Amsterdam office hours (Mon–Fri 07:00–17:00).
+    # manualSync: true = deny only auto-syncs; operators can still trigger manual syncs.
     - kind: deny
       schedule: "0 7 * * 1-5"
       duration: 10h
       timeZone: Europe/Amsterdam
       applications:
         - "nc-*"
-      manualSync: false
+      manualSync: true
     # Allow auto-syncs Mon–Thu evenings only (17:00–07:00 Amsterdam).
     # Friday evening and weekends are intentionally excluded.
     - kind: allow
@@ -111,16 +111,16 @@ spec:
       applications:
         - "nc-*"
       manualSync: true
-    # Block auto-syncs Friday evening through Monday morning.
-    # manualSync: false so operators can always trigger manual syncs.
-    # 67h from Friday 17:00 covers the full weekend until Monday 08:00.
+    # Block AUTOMATIC syncs Friday evening through Monday morning.
+    # manualSync: true = deny only auto-syncs; manual syncs still allowed (with explicit approval).
+    # 67h from Friday 17:00 covers the full weekend until Monday 12:00.
     - kind: deny
       schedule: "0 17 * * 5"
       duration: 67h
       timeZone: Europe/Amsterdam
       applications:
         - "nc-*"
-      manualSync: false
+      manualSync: true
   
   # Roles for project access
   roles:
