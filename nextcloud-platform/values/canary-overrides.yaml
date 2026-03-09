@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# CANARY OVERRIDES — loaded only when tenant.canary: true
+# =============================================================================
+# This file is the staging area for features being validated on canary-prod
+# before graduating to common.yaml or env/prod.yaml.
+#
+# Rules:
+#   - Never put production-ready settings here
+#   - Each entry must have a comment explaining what it is and when it graduates
+#   - Loaded 4th in the values merge order (after db/, before tenants/)
+#   - Gated by the ApplicationSet: only applied when .tenant.canary == true
+#
+# Graduation checklist:
+#   [ ] Validated on canary-prod for at least one full week
+#   [ ] No regressions in logs, metrics, or health checks
+#   [ ] Move entry to common.yaml or env/prod.yaml
+#   [ ] Remove entry from this file
+# =============================================================================
+
+nextcloud:
+  # ---------------------------------------------------------------------------
+  # Volume permissions fix for Cinder RWX volumes
+  # Status: IN VALIDATION on canary-prod (since 2026-03-07)
+  # Reason: Cinder CSI fsGroupPolicy: ReadWriteOnceWithFSType means Kubernetes
+  #         skips fsGroup chown for ReadWriteMany volumes. This initContainer
+  #         does it manually so the nextcloud container starts as www-data.
+  # Graduate to: common.yaml once HA is rolled out to all prod tenants
+  # ---------------------------------------------------------------------------
+  extraInitContainers:
+    - name: volume-permissions
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          if [ "$(stat -c '%u' /var/www/html)" != "33" ]; then
+            echo "Fixing /var/www/html ownership (owned by $(stat -c '%u:%g' /var/www/html), expected 33:33)"
+            chown -R 33:33 /var/www/html
+            echo "Done"
+          else
+            echo "/var/www/html already owned by www-data (33), skipping"
+          fi
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
+      volumeMounts:
+        - name: nextcloud-main
+          mountPath: /var/www/html

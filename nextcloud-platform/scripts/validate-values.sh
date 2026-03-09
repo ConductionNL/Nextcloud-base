@@ -532,6 +532,33 @@ main() {
         validate_tenant_file "$file"
         echo ""
     done
+
+    # Check shared values files for canary-only settings (guardrail)
+    if command -v conftest &>/dev/null; then
+        echo "=========================================="
+        echo "Shared Values Guardrails (conftest)"
+        echo "=========================================="
+        local shared_files=()
+        for f in \
+            "${REPO_ROOT}/values/common.yaml" \
+            "${REPO_ROOT}/values/env/prod.yaml" \
+            "${REPO_ROOT}/values/env/accept.yaml"; do
+            [ -f "$f" ] && shared_files+=("$f")
+        done
+        if [ ${#shared_files[@]} -gt 0 ]; then
+            if conftest test "${shared_files[@]}" \
+                --policy "${REPO_ROOT}/policy/" \
+                --namespace values 2>&1; then
+                log_success "Shared values guardrails passed"
+            else
+                log_error "Shared values guardrails FAILED — dangerous settings found in shared files"
+                ((ERRORS++))
+            fi
+        fi
+        echo ""
+    else
+        echo -e "${YELLOW}⚠${NC}  conftest not installed — skipping shared values guardrails (install: https://www.conftest.dev)"
+    fi
     
     echo "=========================================="
     echo "Validation Summary"

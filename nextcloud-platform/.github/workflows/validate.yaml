@@ -237,6 +237,17 @@ jobs:
           tar xzf conftest_0.48.0_Linux_x86_64.tar.gz
           sudo mv conftest /usr/local/bin/
 
+      - name: Check values guardrails (blocking)
+        run: |
+          # Hard gate: dangerous HA/storage settings must not be in shared values files.
+          # Uses the values-guardrails.rego policy (package values).
+          conftest test \
+            values/common.yaml \
+            values/env/prod.yaml \
+            values/env/accept.yaml \
+            --policy policy/ \
+            --namespace values
+
       - name: Create OPA policies
         run: |
           mkdir -p policy
