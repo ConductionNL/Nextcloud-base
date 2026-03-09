@@ -1,11 +1,10 @@
----
 tenant:
-  name: noordwijk-accept
-  environment: accept
-  wave: "1"
+  name: oc-test-prod
+  environment: prod
+  wave: "0"
   dbType: mariadb
   apps:
     enabled:
-      - openregister
       - opencatalogi
       - openconnector
+      - openregister
