@@ -13,4 +13,4 @@ image:
   registry: ghcr.io
   repository: conductionnl/nextcloud-images
   tag: "fpm-soap"
-  digest: "sha256:cc7aee9ba818928cc2d764ea59de24eff9a73d7d938bff2a00a20226433e921e"
+  digest: "sha256:d18f842b1c8f105236b962e4c463d7f909d6cf374ae03e1f6f610389e92e2cf8"
