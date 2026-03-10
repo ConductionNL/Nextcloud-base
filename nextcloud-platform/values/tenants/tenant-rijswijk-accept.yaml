@@ -10,6 +10,7 @@ tenant:
       - openregister
 
 image:
-  repository: ghcr.io/conductionnl/nextcloud-images
+  registry: ghcr.io
+  repository: conductionnl/nextcloud-images
   tag: "fpm-soap"
   digest: "sha256:75f410c680acdd73aa679485ee089e69e28c166a6d76c8cbcc2419a778949641"
