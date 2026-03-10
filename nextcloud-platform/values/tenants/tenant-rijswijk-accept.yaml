@@ -1,0 +1,15 @@
+tenant:
+  name: rijswijk-accept
+  environment: accept
+  wave: "1"
+  dbType: mariadb
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+
+image:
+  repository: ghcr.io/conductionnl/nextcloud-images
+  tag: "fpm-soap"
+  digest: "sha256:75f410c680acdd73aa679485ee089e69e28c166a6d76c8cbcc2419a778949641"
