@@ -3,7 +3,6 @@ tenant:
   environment: prod
   wave: "1"
   dbType: mariadb
-  hostname: noordwijk.migrate.commonground.nu  # temp: remove after migration to noordwijk.commonground.nu
   apps:
     enabled:
       - openregister
