@@ -58,7 +58,7 @@ spec:
               - "$values/nextcloud-platform/values/common.yaml"
               - "$values/nextcloud-platform/values/env/{{ .tenant.environment }}.yaml"
               - "$values/nextcloud-platform/values/db/{{ default \"mariadb\" .tenant.dbType }}.yaml"
-              {{- if .tenant.canary }}
+              {{- if eq (toString .tenant.canary) "true" }}
               - "$values/nextcloud-platform/values/canary-overrides.yaml"
               {{- end }}
               - "$values/nextcloud-platform/values/tenants/tenant-{{ .tenant.name }}.yaml"
