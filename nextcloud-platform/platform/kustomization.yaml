@@ -8,3 +8,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namespace: nextcloud-platform
+
+resources:
+  # SA + RBAC for secret operations (used by pgbouncer-secret-check and tenant jobs)
+  # ClusterSecretStore is excluded — requires ESO CRD which is not installed
+  - externalsecrets/rbac.yaml
