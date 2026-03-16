@@ -1,3 +1,4 @@
+{{- if eq (default "mariadb" .Values.tenant.dbType) "postgres" }}
 ---
 # Job to automatically create PostgreSQL database for tenant
 # Runs as Argo CD PreSync hook - creates DB before Nextcloud starts
@@ -127,4 +128,4 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-
+{{- end }}

@@ -6,6 +6,7 @@ tenant:
   name: ""
   environment: "accept"
   namespace: ""
+  dbType: "mariadb"
 
 # Secret store reference
 secretStore:

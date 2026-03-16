@@ -18,10 +18,6 @@ spec:
     repoURL: "git@github.com:ConductionNL/Nextcloud-base.git"
     targetRevision: HEAD
     path: "nextcloud-platform/platform"
-    directory:
-      recurse: false
-      include: "kustomization.yaml"
-  
   destination:
     server: https://kubernetes.default.svc
     namespace: nextcloud-platform
