@@ -1,17 +1,12 @@
 ---
-# Platform components - only Redis for now
-# Other components (PgBouncer, ESO) can be added later
+# Root kustomization for the nextcloud-platform Application.
+# Platform components (redis, pgbouncer, externalsecrets) are managed by
+# their own dedicated Argo CD Applications — do not add them here to avoid
+# SharedResourceWarning conflicts.
+# Add only resources that have no dedicated component app.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namespace: nextcloud-platform
 
-resources:
-  # Redis for caching and file locking
-  - redis/deployment.yaml
-  - redis/service.yaml
-  - redis/configmap.yaml
-
-commonLabels:
-  app.kubernetes.io/part-of: nextcloud-platform
-  app.kubernetes.io/managed-by: argocd
+resources: []
