@@ -46,12 +46,33 @@ nextcloud:
   # ---------------------------------------------------------------------------
   configs:
     # ---------------------------------------------------------------------------
-    # CAN_INSTALL — required for stateless/emptyDir pods.
-    # The Docker entrypoint treats a fresh emptyDir (no config.php) as a
-    # reinstall attempt and refuses without this file. With emptyDir, every
-    # pod restart IS a fresh start, so this file must always be present.
-    # Graduate to: remove when Phase 2 custom image handles this natively.
+    # config.php bootstrap — prevents the Docker entrypoint from running the
+    # installer on every pod restart (emptyDir is always fresh on restart).
+    # With RS>1, only one pod should ever install; the others must skip it.
+    # DB credentials come from env vars injected by the Helm chart so no
+    # secrets are stored in the ConfigMap.
+    # IMPORTANT: on a completely fresh deployment (wiped MariaDB) one pod will
+    # still run the installer (this config.php is writable via subPath, so the
+    # entrypoint will overwrite it on first install). Subsequent pod restarts
+    # always get this ConfigMap version back, which skips reinstall.
+    # Graduate to: custom Nextcloud image that handles stateless init natively.
     # ---------------------------------------------------------------------------
+    config.php: |
+      <?php
+      $CONFIG = array (
+        'installed'       => true,
+        'datadirectory'   => '/var/www/html/data',
+        'dbtype'          => 'mysql',
+        'dbtableprefix'   => 'oc_',
+        'mysql.utf8mb4'   => true,
+        'dbhost'          => getenv('MYSQL_HOST')     ?: 'nextcloud-mariadb',
+        'dbname'          => getenv('MYSQL_DATABASE') ?: 'nextcloud',
+        'dbuser'          => getenv('MYSQL_USER')     ?: 'nextcloud',
+        'dbpassword'      => getenv('MYSQL_PASSWORD') ?: '',
+      );
+
+    # CAN_INSTALL kept as belt-and-suspenders for any edge case where
+    # config.php does not exist yet (e.g. race on very first deployment).
     CAN_INSTALL: ""
 
     identity.config.php: |
