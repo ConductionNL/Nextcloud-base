@@ -45,6 +45,15 @@ nextcloud:
   # should generate and store these at tenant creation time).
   # ---------------------------------------------------------------------------
   configs:
+    # ---------------------------------------------------------------------------
+    # CAN_INSTALL — required for stateless/emptyDir pods.
+    # The Docker entrypoint treats a fresh emptyDir (no config.php) as a
+    # reinstall attempt and refuses without this file. With emptyDir, every
+    # pod restart IS a fresh start, so this file must always be present.
+    # Graduate to: remove when Phase 2 custom image handles this natively.
+    # ---------------------------------------------------------------------------
+    CAN_INSTALL: ""
+
     identity.config.php: |
       <?php
       $CONFIG = array (
