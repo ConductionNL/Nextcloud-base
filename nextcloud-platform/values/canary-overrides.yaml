@@ -45,34 +45,8 @@ nextcloud:
   # should generate and store these at tenant creation time).
   # ---------------------------------------------------------------------------
   configs:
-    # ---------------------------------------------------------------------------
-    # config.php bootstrap — prevents the Docker entrypoint from running the
-    # installer on every pod restart (emptyDir is always fresh on restart).
-    # With RS>1, only one pod should ever install; the others must skip it.
-    # DB credentials come from env vars injected by the Helm chart so no
-    # secrets are stored in the ConfigMap.
-    # IMPORTANT: on a completely fresh deployment (wiped MariaDB) one pod will
-    # still run the installer (this config.php is writable via subPath, so the
-    # entrypoint will overwrite it on first install). Subsequent pod restarts
-    # always get this ConfigMap version back, which skips reinstall.
-    # Graduate to: custom Nextcloud image that handles stateless init natively.
-    # ---------------------------------------------------------------------------
-    config.php: |
-      <?php
-      $CONFIG = array (
-        'installed'       => true,
-        'datadirectory'   => '/var/www/html/data',
-        'dbtype'          => 'mysql',
-        'dbtableprefix'   => 'oc_',
-        'mysql.utf8mb4'   => true,
-        'dbhost'          => getenv('MYSQL_HOST')     ?: 'nextcloud-mariadb',
-        'dbname'          => getenv('MYSQL_DATABASE') ?: 'nextcloud',
-        'dbuser'          => getenv('MYSQL_USER')     ?: 'nextcloud',
-        'dbpassword'      => getenv('MYSQL_PASSWORD') ?: '',
-      );
-
-    # CAN_INSTALL kept as belt-and-suspenders for any edge case where
-    # config.php does not exist yet (e.g. race on very first deployment).
+    # CAN_INSTALL — allows the Docker entrypoint to proceed when the config/
+    # directory has content but no config.php (always the case with emptyDir).
     CAN_INSTALL: ""
 
     identity.config.php: |
@@ -121,6 +95,68 @@ nextcloud:
           ],
         ],
       ];
+
+  # ---------------------------------------------------------------------------
+  # pre-installation hook — stateless RS>1 coordinator.
+  # Runs inside the Docker entrypoint flow, before occ maintenance:install.
+  # Checks if the DB already has Nextcloud tables (i.e. another pod installed).
+  # If yes: writes config.php with installed=true so occ skips reinstall.
+  # If no:  does nothing, lets the normal install proceed.
+  # This turns the entrypoint's retry loop into a self-healing mechanism:
+  # secondary pods keep retrying until the primary pod finishes installing,
+  # then pick up the populated DB and skip the installer cleanly.
+  # Graduate to: custom Nextcloud image or Helm pre-install Job in Phase 2.
+  # ---------------------------------------------------------------------------
+  hooks:
+    pre-installation: |
+      #!/bin/bash
+      set -euo pipefail
+      LOG="/tmp/nc-pre-install.log"
+      log() { echo "$(date -Iseconds) $*" | tee -a "$LOG"; }
+
+      log "pre-installation: checking DB state..."
+
+      DB_HOST="${MYSQL_HOST:-nextcloud-mariadb}"
+      DB_NAME="${MYSQL_DATABASE:-nextcloud}"
+      DB_USER="${MYSQL_USER:-nextcloud}"
+      DB_PASS="${MYSQL_PASSWORD:-}"
+
+      HAS_TABLES=$(php -r "
+        try {
+          \$pdo = new PDO(
+            'mysql:host=${DB_HOST};dbname=${DB_NAME};charset=utf8mb4',
+            '${DB_USER}', '${DB_PASS}',
+            [PDO::ATTR_TIMEOUT => 3]
+          );
+          \$r = \$pdo->query(\"SHOW TABLES LIKE 'oc_users'\");
+          echo \$r && \$r->rowCount() > 0 ? 'yes' : 'no';
+        } catch(Exception \$e) {
+          echo 'no';
+        }
+      " 2>/dev/null || echo 'no')
+
+      if [ "\$HAS_TABLES" = "yes" ]; then
+        log "DB already installed — writing bootstrap config.php to skip reinstall"
+        mkdir -p /var/www/html/config
+        cat > /var/www/html/config/config.php << PHPEOF
+      <?php
+      \$CONFIG = array (
+        'installed'     => true,
+        'datadirectory' => '/var/www/html/data',
+        'dbtype'        => 'mysql',
+        'dbtableprefix' => 'oc_',
+        'mysql.utf8mb4' => true,
+        'dbhost'        => '${DB_HOST}',
+        'dbname'        => '${DB_NAME}',
+        'dbuser'        => '${DB_USER}',
+        'dbpassword'    => '${DB_PASS}',
+        'version'       => '32.0.5.0',
+      );
+      PHPEOF
+        log "config.php written — occ maintenance:install will skip"
+      else
+        log "DB is empty or unreachable — proceeding with fresh install"
+      fi
 
   # ---------------------------------------------------------------------------
   # Volume permissions fix — originally for Cinder RWX fsGroup issue.
