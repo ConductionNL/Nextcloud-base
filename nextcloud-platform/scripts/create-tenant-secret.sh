@@ -82,6 +82,16 @@ generate_password() {
     openssl rand -base64 48 | tr -dc 'a-zA-Z0-9!@#$%^&*()' | head -c "$length"
 }
 
+# Generate Nextcloud instanceid (format: oc + 10 lowercase alphanumeric chars)
+generate_instanceid() {
+    echo "oc$(openssl rand -base64 12 | tr -dc 'a-z0-9' | head -c 10)"
+}
+
+# Generate Nextcloud passwordsalt (30-char base64-safe string)
+generate_salt() {
+    openssl rand -base64 24 | tr -dc 'a-zA-Z0-9+/' | head -c 30
+}
+
 # Load .env file
 load_env_file() {
     local env_file="$1"
@@ -193,6 +203,11 @@ fi
 if [ -z "${S3_SECRET_KEY:-}" ]; then
     missing_vars+=("S3_SECRET_KEY")
 fi
+
+# Always generate Nextcloud identity values — never user-supplied, must be
+# stable across pod restarts (critical for emptyDir/stateless tenants).
+NEXTCLOUD_INSTANCEID="$(generate_instanceid)"
+NEXTCLOUD_PASSWORDSALT="$(generate_salt)"
 
 # Generate or validate passwords based on DB type
 if [ "$GENERATE_PASSWORDS" = true ]; then

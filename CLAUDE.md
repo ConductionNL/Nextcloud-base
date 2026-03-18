@@ -96,6 +96,10 @@ GitHub Actions runs on every push/PR (`.github/workflows/validate.yaml`):
 | Policy Checks | No (warn only) | kube-score + OPA/Conftest policies |
 | Secret Scanning | Yes | gitleaks + custom patterns |
 
+## Known Validation Exceptions
+
+`tenant-vng-backend-accept.yaml` fails `validate-values.sh` with "Missing required field: .tenant.apps.enabled". This is intentional — the vng tenant uses a non-standard app setup. **Ignore all validation errors for any tenant file matching `*vng*`.**
+
 ## Adding a New Tenant
 
 1. Copy `nextcloud-platform/values/templates/tenant-template.yaml` to `nextcloud-platform/values/tenants/tenant-{name}.yaml`

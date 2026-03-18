@@ -34,27 +34,16 @@ persistence:
 nextcloud:
   # ---------------------------------------------------------------------------
   # Stateless identity: instanceid, passwordsalt, secret must survive pod
-  # restarts — injected from nextcloud-secrets so they never regenerate.
+  # restarts — injected via ApplicationSet extraEnv (NEXTCLOUD_INSTANCEID etc.)
+  # so they never regenerate on emptyDir restarts.
   # Captured from first successful install on 2026-03-09.
+  # NOTE: extraEnv is intentionally NOT set here — Helm replaces arrays, so
+  #       only the ApplicationSet's inline values: block is authoritative for
+  #       nextcloud.extraEnv. Canary identity vars are gated there on
+  #       tenant.canary == true.
   # Graduate to: per-tenant secret pattern in Phase 2 (create-tenant-secret.sh
   # should generate and store these at tenant creation time).
   # ---------------------------------------------------------------------------
-  extraEnv:
-    - name: NEXTCLOUD_INSTANCEID
-      valueFrom:
-        secretKeyRef:
-          name: nextcloud-secrets
-          key: nextcloud-instanceid
-    - name: NEXTCLOUD_PASSWORDSALT
-      valueFrom:
-        secretKeyRef:
-          name: nextcloud-secrets
-          key: nextcloud-passwordsalt
-    - name: NEXTCLOUD_SECRET
-      valueFrom:
-        secretKeyRef:
-          name: nextcloud-secrets
-          key: nextcloud-secret
   configs:
     identity.config.php: |
       <?php
@@ -66,6 +55,42 @@ nextcloud:
         'trusted_domains' => ['canary.commonground.nu'],
         'overwrite.cli.url' => 'https://canary.commonground.nu',
       );
+
+    # ---------------------------------------------------------------------------
+    # S3 primary objectstore — Fuga Cloud / Ceph RGW
+    # Status: IN VALIDATION on canary-prod
+    # Reason: eliminates local PVC dependency; required for stateless HA pods.
+    # Prefix isolates each tenant's objects within the shared 'nextcloud' bucket.
+    # autocreate: false — bucket already exists.
+    # use_path_style: true — required for Ceph/Fuga (no virtual-hosted-style).
+    # Credentials come from nextcloud-secrets via S3_ACCESS_KEY / S3_SECRET_KEY
+    # env vars injected by the ApplicationSet.
+    # MIGRATION NOTE: 26 existing root-level objects (no prefix) were written by
+    # the manual occ-configured objectstore. Before applying this config, copy
+    # those objects to the canary-prod/ prefix in S3, OR do a clean reinstall
+    # (wipe MariaDB + remove 'installed' from identity.config.php). See runbook.
+    # Graduate to: env/prod.yaml when validated; replace hardcoded endpoint/bucket
+    # with env vars injected per-tenant from the ApplicationSet.
+    # ---------------------------------------------------------------------------
+    objectstore.config.php: |
+      <?php
+      $CONFIG = [
+        'objectstore' => [
+          'class'     => '\\OC\\Files\\ObjectStore\\S3',
+          'arguments' => [
+            'bucket'         => 'nextcloud',
+            'prefix'         => getenv('NEXTCLOUD_OBJECTSTORE_PREFIX') ?: 'canary-prod/',
+            'key'            => getenv('S3_ACCESS_KEY'),
+            'secret'         => getenv('S3_SECRET_KEY'),
+            'hostname'       => 'core.fuga.cloud',
+            'port'           => 8080,
+            'use_ssl'        => true,
+            'use_path_style' => true,
+            'autocreate'     => false,
+            'region'         => 'us-east-1',
+          ],
+        ],
+      ];
 
   # ---------------------------------------------------------------------------
   # Volume permissions fix — originally for Cinder RWX fsGroup issue.

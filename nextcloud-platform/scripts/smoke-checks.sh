@@ -33,17 +33,17 @@ PASSED=0
 
 log_error() {
     echo -e "${RED}✗ ERROR:${NC} $1" >&2
-    ((ERRORS++))
+    ERRORS=$(( ERRORS + 1 ))
 }
 
 log_warning() {
     echo -e "${YELLOW}⚠ WARNING:${NC} $1" >&2
-    ((WARNINGS++))
+    WARNINGS=$(( WARNINGS + 1 ))
 }
 
 log_success() {
     echo -e "${GREEN}✓${NC} $1"
-    ((PASSED++))
+    PASSED=$(( PASSED + 1 ))
 }
 
 log_info() {
@@ -251,20 +251,7 @@ check_values_consistency() {
         log_warning "Chart version not pinned in common.yaml"
     fi
     
-    # Check all tenants have S3 bucket set
-    for tenant_file in "${TENANT_DIR}"/tenant-*.yaml; do
-        if [ -f "$tenant_file" ]; then
-            local tenant_name
-            tenant_name=$(basename "$tenant_file" .yaml | sed 's/tenant-//')
-            local bucket
-            bucket=$(yq eval '.tenant.s3.bucket' "$tenant_file" 2>/dev/null)
-            if [ -n "$bucket" ] && [ "$bucket" != "null" ]; then
-                log_success "Tenant $tenant_name has S3 bucket: $bucket"
-            else
-                log_error "Tenant $tenant_name missing S3 bucket configuration"
-            fi
-        fi
-    done
+    # S3 bucket is set centrally by the ApplicationSet (not per-tenant file) — no check needed here.
 }
 
 # Main

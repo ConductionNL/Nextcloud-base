@@ -112,6 +112,44 @@ spec:
                     value: '{{ default "null" .tenant.appapi.host }}'
                   - name: APPAPI_NEXTCLOUD_URL
                     value: '{{ default (printf "https://%s" $host) .tenant.appapi.nextcloudUrl }}'
+                  # Stateless identity — injected so pods survive restarts without a PVC.
+                  # Only needed while canary-overrides ships identity.config.php.
+                  # Graduate: move to per-tenant secret pattern in Phase 2.
+                  {{- if eq (toString .tenant.canary) "true" }}
+                  - name: NEXTCLOUD_INSTANCEID
+                    valueFrom:
+                      secretKeyRef:
+                        name: nextcloud-secrets
+                        key: nextcloud-instanceid
+                  - name: NEXTCLOUD_PASSWORDSALT
+                    valueFrom:
+                      secretKeyRef:
+                        name: nextcloud-secrets
+                        key: nextcloud-passwordsalt
+                  - name: NEXTCLOUD_SECRET
+                    valueFrom:
+                      secretKeyRef:
+                        name: nextcloud-secrets
+                        key: nextcloud-secret
+                  {{- end }}
+                  # S3 objectstore credentials — optional so accept tenants without S3
+                  # keys in their secret don't fail to start.
+                  - name: S3_ACCESS_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: nextcloud-secrets
+                        key: s3-access-key
+                        optional: true
+                  - name: S3_SECRET_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: nextcloud-secrets
+                        key: s3-secret-key
+                        optional: true
+                  # Per-tenant objectstore prefix — consumed by objectstore.config.php
+                  # (currently canary-overrides only; graduates to env/prod.yaml).
+                  - name: NEXTCLOUD_OBJECTSTORE_PREFIX
+                    value: "{{ $name }}/"
               ingress:
                 tls:
                   - secretName: "nextcloud-{{ $name }}-tls"

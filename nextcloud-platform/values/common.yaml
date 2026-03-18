@@ -232,7 +232,8 @@ nextcloud:
         'simpleSignUpLink.shown' => false,
         
         // Cleanup settings
-        'trashbin_retention_obligation' => 'auto',
+        'trashbin_retention_obligation' => 'auto, 1',
+        'versions_retention_obligation' => 'auto, 1',
         'activity_expire_days' => 2,
         
         // Kubernetes: skip permission check (handled by fsGroup)
