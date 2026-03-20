@@ -1,6 +1,6 @@
 ---
 tenant:
-  name: gooiemeren-accept
+  name: gooisemeren-accept
   environment: accept
   wave: "1"
   dbType: mariadb
