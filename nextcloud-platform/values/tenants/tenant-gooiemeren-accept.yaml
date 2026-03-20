@@ -1,0 +1,15 @@
+---
+tenant:
+  name: gooiemeren-accept
+  environment: accept
+  wave: "1"
+  dbType: mariadb
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+    versions:
+      opencatalogi: "0.7.8"
+      openconnector: "0.2.8"
+      openregister: "0.2.11"

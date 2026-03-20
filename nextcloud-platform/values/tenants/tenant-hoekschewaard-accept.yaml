@@ -1,0 +1,15 @@
+---
+tenant:
+  name: hoekschewaard-accept
+  environment: accept
+  wave: "1"
+  dbType: mariadb
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+    versions:
+      opencatalogi: "0.7.6"
+      openconnector: "0.2.8-beta.7"
+      openregister: "0.2.9"
