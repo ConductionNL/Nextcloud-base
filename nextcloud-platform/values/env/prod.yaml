@@ -7,6 +7,9 @@ replicaCount: 1
 
 # Production resources – no requests, only limits
 resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
   limits:
     cpu: 4
     memory: 6Gi
@@ -76,6 +79,9 @@ cronjob:
 
 nginx:
   resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
     limits:
       cpu: 500m
       memory: 512Mi
