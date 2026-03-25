@@ -3,8 +3,6 @@ tenant:
   environment: prod
   wave: "1"
   dbType: mariadb
-  # Temporary hostname during migration — remove this line to cut over to gooisemeren.commonground.nu
-  hostname: gooisemeren.migrate.commonground.nu
   features:
     appapi: false
   apps:
