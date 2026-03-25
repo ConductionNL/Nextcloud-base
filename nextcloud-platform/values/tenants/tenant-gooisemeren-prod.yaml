@@ -1,0 +1,18 @@
+tenant:
+  name: gooisemeren-prod
+  environment: prod
+  wave: "1"
+  dbType: mariadb
+  # Temporary hostname during migration — remove this line to cut over to gooisemeren.commonground.nu
+  hostname: gooisemeren.migrate.commonground.nu
+  features:
+    appapi: false
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+    versions:
+      opencatalogi: "0.7.8"
+      openconnector: "0.2.8"
+      openregister: "0.2.11"
