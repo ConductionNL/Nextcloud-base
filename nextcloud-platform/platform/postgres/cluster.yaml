@@ -1,0 +1,62 @@
+---
+# Central PostgreSQL cluster for all external-db Nextcloud tenants.
+# Managed by CloudNativePG (CNPG). PgBouncer proxies tenant connections.
+#
+# Superuser secret is auto-created by CNPG as: nextcloud-pg-superuser
+# After cluster is healthy, create the postgres-admin secret:
+#   ./scripts/create-postgres-admin-secret.sh
+# with POSTGRES_HOST=nextcloud-pg-rw.nextcloud-platform.svc.cluster.local
+# and credentials from: kubectl get secret nextcloud-pg-superuser -n nextcloud-platform
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: nextcloud-pg
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: nextcloud-pg
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: nextcloud-platform
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+
+  # Superuser access required for tenant database provisioning
+  enableSuperuserAccess: true
+
+  bootstrap:
+    initdb:
+      database: postgres
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+
+  storage:
+    size: 50Gi
+
+  postgresql:
+    parameters:
+      max_connections: "500"
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      work_mem: "4MB"
+      maintenance_work_mem: "64MB"
+      wal_buffers: "16MB"
+      checkpoint_completion_target: "0.9"
+      log_min_duration_statement: "1000"
+
+  # Spread across zones for HA
+  affinity:
+    podAntiAffinityType: preferred
+    topologyKey: topology.kubernetes.io/zone
+
+  # No requests, only limits (platform policy)
+  resources:
+    limits:
+      cpu: "2"
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  monitoring:
+    enablePodMonitor: false
