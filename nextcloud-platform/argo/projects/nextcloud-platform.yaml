@@ -73,6 +73,8 @@ spec:
       kind: "*"
     - group: monitoring.coreos.com
       kind: "*"
+    - group: postgresql.cnpg.io
+      kind: "*"
   
   # Sync windows for controlled rollouts
   # All times are Amsterdam local time (Europe/Amsterdam handles CET/CEST automatically).
