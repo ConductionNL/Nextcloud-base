@@ -3,6 +3,8 @@ tenant:
   environment: prod
   wave: "1"
   dbType: mariadb
+  # Temporary hostname during migration — remove this line to cut over to moerdijk.commonground.nu
+  hostname: moerdijk.migrate.commonground.nu
   features:
     appapi: false
   apps:
