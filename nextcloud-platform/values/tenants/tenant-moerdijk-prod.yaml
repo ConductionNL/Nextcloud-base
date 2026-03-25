@@ -1,16 +1,14 @@
 tenant:
-  name: roosendaal-prod
+  name: moerdijk-prod
   environment: prod
   wave: "1"
   dbType: mariadb
+  features:
+    appapi: false
   apps:
     enabled:
       - opencatalogi
       - openconnector
       - openregister
-cronjob:
-  sidecar:
-    resources:
-      limits:
-        memory: 3Gi
+
 
