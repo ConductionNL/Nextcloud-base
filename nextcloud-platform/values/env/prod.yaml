@@ -9,7 +9,7 @@ replicaCount: 1
 resources:
   limits:
     cpu: 4
-    memory: 4Gi
+    memory: 6Gi
 
 # HPA is managed via the tenant-hpa chart (AverageValue, no requests needed).
 # The chart's native HPA (AverageUtilization) requires requests, so it stays off.
@@ -114,3 +114,34 @@ topologySpreadConstraints:
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
+
+# PHP memory limit for prod — higher than common.yaml (2048M) to match 6Gi container limit.
+# Overrides only www.conf; other phpConfigs keys from common.yaml are unaffected (map merge).
+nextcloud:
+  phpConfigs:
+    www.conf: |
+      [www]
+      user = www-data
+      group = www-data
+      listen = 127.0.0.1:9000
+
+      pm = dynamic
+      pm.max_children = 50
+      pm.start_servers = 5
+      pm.min_spare_servers = 5
+      pm.max_spare_servers = 35
+      pm.max_requests = 500
+
+      ; PHP-FPM status endpoint (for monitoring)
+      pm.status_path = /fpm-status
+      pm.status_listen = 127.0.0.1:9001
+      ping.path = /fpm-ping
+      ping.response = pong
+
+      ; PHP settings
+      php_admin_value[memory_limit] = 4096M
+      php_admin_value[upload_max_filesize] = 16G
+      php_admin_value[post_max_size] = 16G
+      php_admin_value[max_execution_time] = 3600
+      php_admin_value[max_input_time] = 3600
+      php_admin_value[output_buffering] = Off
