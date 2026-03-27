@@ -8,9 +8,4 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
-cronjob:
-  sidecar:
-    resources:
-      limits:
-        memory: 3Gi
 
