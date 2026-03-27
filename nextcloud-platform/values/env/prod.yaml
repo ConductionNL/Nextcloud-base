@@ -76,6 +76,10 @@ podLabels:
 # Frequent cron in prod
 cronjob:
   schedule: "*/5 * * * *"
+  sidecar:
+    resources:
+      limits:
+        memory: 2Gi
 
 nginx:
   resources:
