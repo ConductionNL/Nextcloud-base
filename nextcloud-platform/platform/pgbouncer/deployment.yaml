@@ -104,6 +104,12 @@ spec:
           volumeMounts:
             - name: pgbouncer-conf
               mountPath: /opt/bitnami/pgbouncer/conf
+            - name: pgbouncer-logs
+              mountPath: /opt/bitnami/pgbouncer/logs
+            - name: pgbouncer-tmp
+              mountPath: /opt/bitnami/pgbouncer/tmp
+            - name: tmp
+              mountPath: /tmp
           
           livenessProbe:
             tcpSocket:
@@ -163,6 +169,12 @@ spec:
       
       volumes:
         - name: pgbouncer-conf
+          emptyDir: {}
+        - name: pgbouncer-logs
+          emptyDir: {}
+        - name: pgbouncer-tmp
+          emptyDir: {}
+        - name: tmp
           emptyDir: {}
 
       nodeSelector:
