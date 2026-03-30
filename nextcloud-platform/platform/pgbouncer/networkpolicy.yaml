@@ -46,10 +46,15 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow DNS (no 'to' = any destination; needed because CoreDNS is reached
-    # via ClusterIP which some CNIs evaluate before DNAT, making namespaceSelector
-    # ineffective for kube-dns traffic)
-    - ports:
+    # Allow DNS. Must use explicit ipBlock 0.0.0.0/0 — Calico/Gardener does not
+    # honour 'no to clause' or 'namespaceSelector: {}' for ClusterIP destinations
+    # (policy evaluated before DNAT). Mirrors Gardener's own allow-to-dns pattern.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - ipBlock:
+            cidr: ::/0
+      ports:
         - protocol: UDP
           port: 53
         - protocol: TCP
