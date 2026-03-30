@@ -71,6 +71,8 @@ spec:
                   name: postgres-admin
                   key: password
             # PgBouncer settings
+            - name: PGBOUNCER_PORT
+              value: "5432"
             - name: PGBOUNCER_AUTH_TYPE
               value: "md5"
             - name: PGBOUNCER_AUTH_QUERY
