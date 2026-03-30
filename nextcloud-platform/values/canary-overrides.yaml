@@ -96,67 +96,6 @@ nextcloud:
         ],
       ];
 
-  # ---------------------------------------------------------------------------
-  # pre-installation hook — stateless RS>1 coordinator.
-  # Runs inside the Docker entrypoint flow, before occ maintenance:install.
-  # Checks if the DB already has Nextcloud tables (i.e. another pod installed).
-  # If yes: writes config.php with installed=true so occ skips reinstall.
-  # If no:  does nothing, lets the normal install proceed.
-  # This turns the entrypoint's retry loop into a self-healing mechanism:
-  # secondary pods keep retrying until the primary pod finishes installing,
-  # then pick up the populated DB and skip the installer cleanly.
-  # Graduate to: custom Nextcloud image or Helm pre-install Job in Phase 2.
-  # ---------------------------------------------------------------------------
-  hooks:
-    pre-installation: |
-      #!/bin/bash
-      set -euo pipefail
-      LOG="/tmp/nc-pre-install.log"
-      log() { echo "$(date -Iseconds) $*" | tee -a "$LOG"; }
-
-      log "pre-installation: checking DB state..."
-
-      DB_HOST="${MYSQL_HOST:-nextcloud-mariadb}"
-      DB_NAME="${MYSQL_DATABASE:-nextcloud}"
-      DB_USER="${MYSQL_USER:-nextcloud}"
-      DB_PASS="${MYSQL_PASSWORD:-}"
-
-      HAS_TABLES=$(php -r "
-        try {
-          \$pdo = new PDO(
-            'mysql:host=${DB_HOST};dbname=${DB_NAME};charset=utf8mb4',
-            '${DB_USER}', '${DB_PASS}',
-            [PDO::ATTR_TIMEOUT => 3]
-          );
-          \$r = \$pdo->query(\"SHOW TABLES LIKE 'oc_users'\");
-          echo \$r && \$r->rowCount() > 0 ? 'yes' : 'no';
-        } catch(Exception \$e) {
-          echo 'no';
-        }
-      " 2>/dev/null || echo 'no')
-
-      if [ "\$HAS_TABLES" = "yes" ]; then
-        log "DB already installed — writing bootstrap config.php to skip reinstall"
-        mkdir -p /var/www/html/config
-        cat > /var/www/html/config/config.php << PHPEOF
-      <?php
-      \$CONFIG = array (
-        'installed'     => true,
-        'datadirectory' => '/var/www/html/data',
-        'dbtype'        => 'mysql',
-        'dbtableprefix' => 'oc_',
-        'mysql.utf8mb4' => true,
-        'dbhost'        => '${DB_HOST}',
-        'dbname'        => '${DB_NAME}',
-        'dbuser'        => '${DB_USER}',
-        'dbpassword'    => '${DB_PASS}',
-        'version'       => '32.0.5.0',
-      );
-      PHPEOF
-        log "config.php written — occ maintenance:install will skip"
-      else
-        log "DB is empty or unreachable — proceeding with fresh install"
-      fi
 
   # ---------------------------------------------------------------------------
   # Volume permissions fix — originally for Cinder RWX fsGroup issue.
@@ -185,3 +124,61 @@ nextcloud:
       volumeMounts:
         - name: nextcloud-main
           mountPath: /var/www/html
+
+# ---------------------------------------------------------------------------
+# pre-installation hook — checks DB state on pod start, writes bootstrap
+# config.php if Nextcloud is already installed so occ skips reinstall.
+# Top-level key (not under nextcloud:) — chart mounts at
+# /docker-entrypoint-hooks.d/pre-installation/helm.sh
+# Graduate to: custom Nextcloud image in Phase 2.
+# ---------------------------------------------------------------------------
+hooks:
+  pre-installation: |
+    #!/bin/bash
+    set -euo pipefail
+    LOG="/tmp/nc-pre-install.log"
+    log() { echo "$(date -Iseconds) $*" | tee -a "$LOG"; }
+
+    log "pre-installation: checking DB state..."
+
+    DB_HOST="${MYSQL_HOST:-nextcloud-mariadb}"
+    DB_NAME="${MYSQL_DATABASE:-nextcloud}"
+    DB_USER="${MYSQL_USER:-nextcloud}"
+    DB_PASS="${MYSQL_PASSWORD:-}"
+
+    HAS_TABLES=$(php -r "
+      try {
+        \$pdo = new PDO(
+          'mysql:host=${DB_HOST};dbname=${DB_NAME};charset=utf8mb4',
+          '${DB_USER}', '${DB_PASS}',
+          [PDO::ATTR_TIMEOUT => 3]
+        );
+        \$r = \$pdo->query(\"SHOW TABLES LIKE 'oc_users'\");
+        echo \$r && \$r->rowCount() > 0 ? 'yes' : 'no';
+      } catch(Exception \$e) {
+        echo 'no';
+      }
+    " 2>/dev/null || echo 'no')
+
+    if [ "\$HAS_TABLES" = "yes" ]; then
+      log "DB already installed — writing bootstrap config.php to skip reinstall"
+      mkdir -p /var/www/html/config
+      cat > /var/www/html/config/config.php << PHPEOF
+    <?php
+    \$CONFIG = array (
+      'installed'     => true,
+      'datadirectory' => '/var/www/html/data',
+      'dbtype'        => 'mysql',
+      'dbtableprefix' => 'oc_',
+      'mysql.utf8mb4' => true,
+      'dbhost'        => '${DB_HOST}',
+      'dbname'        => '${DB_NAME}',
+      'dbuser'        => '${DB_USER}',
+      'dbpassword'    => '${DB_PASS}',
+      'version'       => '32.0.5.0',
+    );
+    PHPEOF
+      log "config.php written — occ maintenance:install will skip"
+    else
+      log "DB is empty or unreachable — proceeding with fresh install"
+    fi
