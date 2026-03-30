@@ -100,6 +100,10 @@ spec:
             capabilities:
               drop:
                 - ALL
+
+          volumeMounts:
+            - name: pgbouncer-conf
+              mountPath: /opt/bitnami/pgbouncer/conf
           
           livenessProbe:
             tcpSocket:
@@ -157,6 +161,10 @@ spec:
               drop:
                 - ALL
       
+      volumes:
+        - name: pgbouncer-conf
+          emptyDir: {}
+
       nodeSelector:
         kubernetes.io/os: linux
       
