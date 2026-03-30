@@ -46,19 +46,20 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow DNS
-    - to:
-        - namespaceSelector: {}
-      ports:
+    # Allow DNS (no 'to' = any destination; needed because CoreDNS is reached
+    # via ClusterIP which some CNIs evaluate before DNAT, making namespaceSelector
+    # ineffective for kube-dns traffic)
+    - ports:
         - protocol: UDP
           port: 53
         - protocol: TCP
           port: 53
-    # Allow connection to CNPG PostgreSQL in nextcloud-platform namespace
+    # Allow connection to CNPG PostgreSQL (nextcloud-pg-rw ClusterIP).
+    # Uses ipBlock because the CNI evaluates NetworkPolicy before DNAT,
+    # making namespaceSelector ineffective for ClusterIP destinations.
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: nextcloud-platform
+        - ipBlock:
+            cidr: 100.64.0.0/10
       ports:
         - protocol: TCP
           port: 5432
