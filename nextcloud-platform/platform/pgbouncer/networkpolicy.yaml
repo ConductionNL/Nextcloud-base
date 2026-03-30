@@ -13,7 +13,6 @@ spec:
       app.kubernetes.io/name: pgbouncer
   policyTypes:
     - Ingress
-    - Egress
   ingress:
     # Allow PostgreSQL connections from all Nextcloud tenant namespaces.
     # Argo CD sets app.kubernetes.io/part-of: nextcloud-platform on every
@@ -34,56 +33,3 @@ spec:
       ports:
         - protocol: TCP
           port: 9127
-  egress:
-    # Allow connections to external PostgreSQL
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-      ports:
-        - protocol: TCP
-          port: 5432
-    # Allow DNS. Must use explicit ipBlock 0.0.0.0/0 — Calico/Gardener does not
-    # honour 'no to clause' or 'namespaceSelector: {}' for ClusterIP destinations
-    # (policy evaluated before DNAT). Mirrors Gardener's own allow-to-dns pattern.
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-        - ipBlock:
-            cidr: ::/0
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    # Allow connection to CNPG PostgreSQL (nextcloud-pg-rw ClusterIP).
-    # Uses ipBlock because the CNI evaluates NetworkPolicy before DNAT,
-    # making namespaceSelector ineffective for ClusterIP destinations.
-    - to:
-        - ipBlock:
-            cidr: 100.64.0.0/10
-      ports:
-        - protocol: TCP
-          port: 5432
-    # Allow connection to internal PostgreSQL if used (legacy database namespace)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              name: database
-      ports:
-        - protocol: TCP
-          port: 5432
-    # Allow Kubernetes API server access for PreSync hook jobs.
-    # The kubernetes.default.svc ClusterIP lives in the default namespace.
-    # PreSync Job pods inherit the pgbouncer NetworkPolicy via kustomize commonLabels.
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: default
-      ports:
-        - protocol: TCP
-          port: 443
-
