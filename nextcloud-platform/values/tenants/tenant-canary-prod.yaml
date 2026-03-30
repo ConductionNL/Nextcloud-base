@@ -11,17 +11,9 @@ tenant:
       - openconnector
       - openregister
 
-# Phase 1 PoC: stateless emptyDir + RS=2 (started 2026-03-09)
-# Graduation criteria: 7 days clean, see specs/canary-gate/spec.md
-replicaCount: 2
+# Phase 1 PoC: stateless emptyDir RS=1 (RS=2 blocked by CAN_INSTALL race — investigate next)
+# Graduation criteria: 7 days clean at RS=1, then fix RS=2 before Phase 2
+replicaCount: 1
 
 persistence:
   enabled: false
-
-# RollingUpdate: maxSurge=1 maxUnavailable=0 → zero downtime with RS=2
-nextcloud:
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
