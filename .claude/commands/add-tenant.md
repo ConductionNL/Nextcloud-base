@@ -27,14 +27,28 @@ If not fully provided in `$ARGUMENTS`, ask the user for:
 ### 2. Create the tenant values file
 Scripts and values are relative to the working directory (`nextcloud-platform/`).
 
-- Source template: `values/templates/tenant-template.yaml` (for mariadb) or `values/templates/tenant-template-postgres.yaml` (for postgres/external)
 - Destination: `values/tenants/tenant-{name}.yaml`
 
-Read the template, then create the new tenant file with all `{{TENANT_NAME}}` and `{{HOSTNAME}}` placeholders replaced with actual values. Set environment, wave, dbType, and apps correctly. Remove comments that are not relevant to this tenant's configuration.
+**Write only the minimal `tenant:` block.** Everything else (mariadb config, hooks, ingress, resources, podLabels, etc.) is already defined in `common.yaml` and the env/db values files — do NOT copy those sections into the tenant file.
 
-If using a migration hostname, add it explicitly with a cutover comment:
+The standard minimal file looks like this:
 ```yaml
-hostname: {org}.migrate.commonground.nu  # temp: remove after migration to {org}.commonground.nu
+---
+tenant:
+  name: {tenant-name}
+  environment: prod          # or accept
+  wave: "1"                  # "0" for canary
+  dbType: mariadb            # mariadb|postgres|external
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+```
+
+If using a migration hostname, add it inside the `tenant:` block with a cutover comment:
+```yaml
+  hostname: {org}.migrate.commonground.nu  # temp: remove after migration to {org}.commonground.nu
 ```
 
 The Kubernetes namespace equals the tenant name exactly (e.g., `zuiddrecht-prod`), auto-created and auto-labeled by Argo CD.
