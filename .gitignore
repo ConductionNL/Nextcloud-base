@@ -1,0 +1,21 @@
+# Secrets - NEVER commit these
+*.secret
+*.key
+*.pem
+*.crt
+secrets/
+secrets.yaml
+secrets.yml
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

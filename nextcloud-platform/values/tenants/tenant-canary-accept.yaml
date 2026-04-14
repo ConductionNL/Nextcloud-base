@@ -9,3 +9,11 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+nextcloud:
+  extraEnv:
+    - name: OPENREGISTER_VERSION
+      value: "0.2.14-beta.20260410072957"
+    - name: OPENCATALOGI_VERSION
+      value: "0.7.13-beta.20260313153735"
+    - name: OPENCONNECTOR_VERSION
+      value: "0.2.17"
