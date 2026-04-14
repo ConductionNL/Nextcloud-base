@@ -279,8 +279,8 @@ validate_app_versions_format() {
         return 0
     fi
 
-    # Version format: without leading 'v', e.g. 0.7.7 or 0.2.10-unstable.4
-    local ver_re='^[0-9]+\\.[0-9]+\\.[0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$'
+    # Version format: without leading 'v', e.g. 0.7.7 or 0.2.10-beta.20260410072957
+    local ver_re='^[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$'
 
     for i in $(seq 0 $((key_count-1))); do
         key=$(echo "$keys" | yq eval ".[$i]" - 2>/dev/null)
