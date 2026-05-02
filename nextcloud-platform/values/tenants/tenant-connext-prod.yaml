@@ -1,0 +1,11 @@
+---
+tenant:
+  name: connext-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  namespace: connext-prod
+  apps:
+    enabled:
+      - openregister
+      - opencatalogi
