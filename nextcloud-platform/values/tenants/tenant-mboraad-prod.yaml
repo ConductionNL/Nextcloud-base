@@ -1,0 +1,11 @@
+---
+tenant:
+  name: mboraad-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  namespace: mboraad-prod
+  apps:
+    enabled:
+      - openregister
+      - opencatalogi
