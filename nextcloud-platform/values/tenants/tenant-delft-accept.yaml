@@ -1,0 +1,11 @@
+---
+tenant:
+  name: delft-accept
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister

@@ -1,0 +1,11 @@
+---
+tenant:
+  name: edam-volendam-accept
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
