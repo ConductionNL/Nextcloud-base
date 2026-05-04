@@ -79,11 +79,12 @@ spec:
   # Sync windows for controlled rollouts
   # All times are Amsterdam local time (Europe/Amsterdam handles CET/CEST automatically).
   #
-  # Tenant apps (nc-*): no windows — always allowed to sync (auto and manual).
-  # Platform app: blocked during office hours (Mon–Fri 07:00–17:00 Amsterdam).
+  # Policy:
+  #   - Platform changes (Redis, PgBouncer, ESO) MUST wait until after 17:00 — manualSync: false.
+  #   - Tenant apps auto-sync also blocked during office hours so changes to shared values
+  #     (values/common.yaml, values/env/*.yaml, values/db/*.yaml) don't fan out by surprise.
+  #     manualSync: true so adding new tenants and emergency syncs still work during the day.
   syncWindows:
-    # Block platform syncs during office hours (Mon–Fri 07:00–17:00).
-    # Outside office hours (evenings, weekends) platform syncs are allowed.
     - kind: deny
       schedule: "0 7 * * 1-5"
       duration: 10h
@@ -91,6 +92,13 @@ spec:
       applications:
         - "nextcloud-platform"
       manualSync: false
+    - kind: deny
+      schedule: "0 7 * * 1-5"
+      duration: 10h
+      timeZone: Europe/Amsterdam
+      applications:
+        - "nc-*"
+      manualSync: true
   
   # Roles for project access
   roles:
