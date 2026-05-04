@@ -5,11 +5,16 @@
 # Lower replicas for test environment
 replicaCount: 1
 
-# Smaller resources for test – no requests, only limits
+# Memory must accommodate PHP_MEMORY_LIMIT (2048M from common.yaml) + nginx
+# sidecar + opcache + runtime overhead, otherwise the container OOM-kills
+# before PHP reaches its own limit.
 resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
   limits:
     cpu: 1
-    memory: 1Gi
+    memory: 3Gi
 
 # HPA disabled in accept
 hpa:
