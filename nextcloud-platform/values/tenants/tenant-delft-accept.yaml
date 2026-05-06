@@ -3,7 +3,7 @@ tenant:
   name: delft-accept
   environment: accept
   wave: "1"
-  dbType: postgres
+  dbType: mariadb
   apps:
     enabled:
       - opencatalogi
