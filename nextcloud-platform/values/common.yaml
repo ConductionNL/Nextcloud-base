@@ -244,6 +244,8 @@ nextcloud:
         
         // Default phone region for profile validation
         'default_phone_region' => 'NL',
+        'default_language' => 'nl',
+        'default_locale'   => 'nl_NL',
       );
     
     redis.config.php: |
