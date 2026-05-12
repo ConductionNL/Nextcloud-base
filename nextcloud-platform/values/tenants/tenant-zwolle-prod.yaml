@@ -1,0 +1,15 @@
+---
+tenant:
+  name: zwolle-prod
+  environment: prod
+  wave: "1"
+  dbType: mariadb
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+    versions:
+      opencatalogi: "0.7.12"
+      openconnector: "0.2.17"
+      openregister: "0.2.11"
