@@ -1,0 +1,15 @@
+---
+tenant:
+  name: softwarecatalogus-tilburg-test
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  hostname: softwarecatalogus.performance.tilburg-test.commonground.nu
+  hostnameOverride: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openregister
+    versions:
+      opencatalogi: "0.7.9-beta.6"
+      openregister: "0.2.12-unstable.7"

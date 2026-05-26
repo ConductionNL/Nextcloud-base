@@ -1,0 +1,13 @@
+---
+tenant:
+  name: conduction-demo
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  hostname: demo.conduction.nl
+  hostnameOverride: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
