@@ -150,15 +150,17 @@ validate_tenant_name() {
 }
 
 # Validate tenant naming convention: <org>-<env>
-# env suffix must be one of: accept, test, prod
+# env suffix must be one of: accept, test, demo, prod
+# Note: 'demo' tenants use accept env values (same as 'test') — the suffix communicates
+# intent (long-lived demo / sandbox), while runtime config is identical to accept.
 validate_tenant_name_convention() {
     local file="$1"
     local name env suffix org
     name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
     env=$(yq eval '.tenant.environment' "$file" 2>/dev/null)
 
-    if ! [[ "$name" =~ ^(.+)-(accept|test|prod)$ ]]; then
-        log_error "$file: tenant.name '$name' must follow convention '<org>-<accept|test|prod>' (e.g. 'alkmaar-accept')"
+    if ! [[ "$name" =~ ^(.+)-(accept|test|demo|prod)$ ]]; then
+        log_error "$file: tenant.name '$name' must follow convention '<org>-<accept|test|demo|prod>' (e.g. 'alkmaar-accept')"
         return 1
     fi
 
@@ -172,7 +174,7 @@ validate_tenant_name_convention() {
                 return 1
             fi
             ;;
-        accept|test)
+        accept|test|demo)
             if [ "$env" != "accept" ]; then
                 log_error "$file: tenant.environment must be 'accept' when tenant.name ends with '-$suffix' (got '$env')"
                 return 1
@@ -349,16 +351,23 @@ validate_hostname() {
 # Validate hostname matches commonground.nu convention derived from tenant.name
 validate_hostname_convention() {
     local file="$1"
-    local name hostname org suffix expected
+    local name hostname override org suffix expected
     name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
     hostname=$(yq eval '.tenant.hostname' "$file" 2>/dev/null)
+    override=$(yq eval '.tenant.hostnameOverride' "$file" 2>/dev/null)
 
     # Optional: if not set, hostname is derived from tenant.name by convention
     if [ "$hostname" = "null" ] || [ -z "$hostname" ]; then
         return 0
     fi
 
-    if ! [[ "$name" =~ ^(.+)-(accept|test|prod)$ ]]; then
+    # Explicit opt-out: tenant deliberately uses a non-canonical hostname (e.g. external domain)
+    if [ "$override" = "true" ]; then
+        log_warning "$file: tenant.hostname '$hostname' bypasses commonground.nu convention (tenant.hostnameOverride: true)"
+        return 0
+    fi
+
+    if ! [[ "$name" =~ ^(.+)-(accept|test|demo|prod)$ ]]; then
         # validate_tenant_name_convention will report this
         return 0
     fi
@@ -380,7 +389,7 @@ validate_hostname_convention() {
                 return 1
             fi
             ;;
-        accept|test)
+        accept|test|demo)
             expected="${org}.${suffix}.commonground.nu"
             ;;
     esac
