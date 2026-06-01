@@ -84,9 +84,9 @@ spec:
   #
   # Policy:
   #   - Platform changes (Redis, PgBouncer, ESO) MUST wait until after 17:00 — manualSync: false.
-  #   - Tenant apps auto-sync also blocked during office hours so changes to shared values
-  #     (values/common.yaml, values/env/*.yaml, values/db/*.yaml) don't fan out by surprise.
-  #     manualSync: true so adding new tenants and emergency syncs still work during the day.
+  #   - Tenant apps (nc-*) have NO sync window: tenant changes mogen altijd door, ook tijdens
+  #     kantooruren. Discipline voor shared-values fan-out ligt bij de committer
+  #     (zie governance docs + /change-guard skill), niet bij Argo.
   syncWindows:
     - kind: deny
       schedule: "0 7 * * 1-5"
@@ -95,13 +95,6 @@ spec:
       applications:
         - "nextcloud-platform"
       manualSync: false
-    - kind: deny
-      schedule: "0 7 * * 1-5"
-      duration: 10h
-      timeZone: Europe/Amsterdam
-      applications:
-        - "nc-*"
-      manualSync: true
   
   # Roles for project access
   roles:
