@@ -1,0 +1,11 @@
+---
+tenant:
+  name: pipelinq-server-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
