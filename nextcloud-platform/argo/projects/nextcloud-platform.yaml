@@ -13,7 +13,10 @@ spec:
   
   # Source repositories allowed for this project
   sourceRepos:
-    # Allow both SSH and HTTPS repo URLs (Argo matches literally)
+    # Primary host: Codeberg (Forgejo). GitHub org is shadowbanned; Codeberg is now canonical.
+    - "https://codeberg.org/conduction/Nextcloud-base.git"
+    - "git@codeberg.org:conduction/Nextcloud-base.git"
+    # GitHub URLs kept during transition for rollback (Argo matches literally)
     - "git@github.com:ConductionNL/Nextcloud-base.git"
     - "https://github.com/ConductionNL/Nextcloud-base.git"
     - "https://github.com/conductionnl/Nextcloud-base.git"

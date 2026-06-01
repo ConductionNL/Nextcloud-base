@@ -23,7 +23,7 @@ spec:
   # UITGEZONDERD: templates/tenant-template.yaml (staat in andere folder)
   generators:
     - git:
-        repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
+        repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
         revision: HEAD
         files:
           - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
@@ -167,13 +167,13 @@ spec:
                   prefix: "{{ $name }}/"
         
         # Our GitOps repo for values files
-        - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
+        - repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
           targetRevision: HEAD
           ref: values
 
         # AverageValue HPA (no resource requests needed)
         # Enabled only for prod; disabled for accept/test (HPA not useful there)
-        - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
+        - repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
           targetRevision: HEAD
           path: charts/tenant-hpa
           helm:
