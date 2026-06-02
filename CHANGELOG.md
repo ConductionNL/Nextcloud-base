@@ -9,6 +9,15 @@ platform-level changes — update it in the same commit as the change.
 ## [Unreleased]
 
 ### Added
+- **bootstrap**: App-of-apps root Application
+  (`nextcloud-platform/bootstrap/nextcloud-platform-bootstrap.yaml`) that makes
+  `nextcloud-platform/argo/` (AppProjects, the `nextcloud-platform-components`
+  ApplicationSet, and the bundled platform app) GitOps-managed instead of
+  hand-applied — eliminating the live-patch drift this repo accumulated. Applied
+  once by hand; manual sync to start (mirrors `react-platform`). Deliberately
+  excludes `applicationsets/nextcloud-tenants.yaml` (raw Go-template `valueFiles`
+  is not directory-source-safe + gated canary drift). See
+  `nextcloud-platform/bootstrap/README.md`.
 - **argo/projects**: New `nextcloud-platform-core` AppProject
   (`nextcloud-platform/argo/projects/nextcloud-platform-core.yaml`) for the
   privileged platform-infrastructure apps. Unlike the tenant project
