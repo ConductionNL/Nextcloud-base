@@ -2,8 +2,8 @@
 
 `nextcloud-platform-bootstrap.yaml` is the **root Argo CD Application** that makes
 everything under [`../argo/`](../argo/) GitOps-managed: the AppProjects
-(`nextcloud-platform`, `nextcloud-platform-core`), the `nextcloud-platform-components`
-ApplicationSet, and the bundled `nextcloud-platform` Application.
+(`nextcloud-platform`, `nextcloud-platform-core`) and the
+`nextcloud-platform-components` ApplicationSet.
 
 ## Why
 
@@ -24,10 +24,6 @@ kubectl apply -f nextcloud-platform/bootstrap/nextcloud-platform-bootstrap.yaml
 After that, the root app appears in the Argo UI with the projects/appsets as
 children. Start it on **manual sync** (review the diff, then Sync). Switch to
 `automated: {selfHeal, prune}` later once trusted.
-
-> **Order matters:** merge the platform-components/core-project change to `main`
-> *before* applying this, otherwise the root app syncs the old `argo/` and would
-> revert the bundled app's project back to `nextcloud-platform`.
 
 ## Deliberate exclusion
 
