@@ -1,6 +1,6 @@
 ---
 tenant:
-  name: conduction
+  name: conduction-demo
   environment: accept
   wave: "1"
   dbType: postgres

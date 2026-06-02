@@ -39,6 +39,10 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: "*-green"
       server: https://kubernetes.default.svc
+    - namespace: "*-blue"
+      server: https://kubernetes.default.svc
+    - namespace: "*-demo"
+      server: https://kubernetes.default.svc
   
   # Cluster resource whitelist
   clusterResourceWhitelist:
