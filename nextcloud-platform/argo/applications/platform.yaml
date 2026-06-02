@@ -12,8 +12,8 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: nextcloud-platform
-  
+  project: nextcloud-platform-core
+
   source:
     repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
     targetRevision: HEAD

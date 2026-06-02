@@ -8,7 +8,43 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Added
+- **argo/projects**: New `nextcloud-platform-core` AppProject
+  (`nextcloud-platform/argo/projects/nextcloud-platform-core.yaml`) for the
+  privileged platform-infrastructure apps. Unlike the tenant project
+  `nextcloud-platform`, it whitelists `scheduling.k8s.io/PriorityClass` and does
+  **not** blacklist `ResourceQuota`/`LimitRange` — which the platform `policies`
+  app must manage. Adds an after-hours sync window (deny 07:00–17:00 Mon–Fri,
+  `manualSync: false`) covering `nextcloud-platform` + `platform-*`; previously
+  the `platform-*` component apps had no window.
+- **argo/applicationsets**: Captured the previously untracked, live-only
+  `nextcloud-platform-components` ApplicationSet into Git
+  (`nextcloud-platform/argo/applicationsets/nextcloud-platform-components.yaml`)
+  so the per-component platform apps are GitOps-managed.
+
 ### Changed
+- **argo (platform-components)**: Repointed the `nextcloud-platform-components`
+  ApplicationSet `source.repoURL` from `github.com/conductionnl/Nextcloud-base`
+  to `codeberg.org/conduction/Nextcloud-base` (GitHub org shadowbanned; Codeberg
+  is canonical since 2026-06-01). The 2026-06-01 cutover patched the tenant
+  ApplicationSet and bundled app but missed these component apps, leaving
+  `platform-externalsecrets`/`platform-policies` stuck (Sync failed) on a dead
+  source.
+- **argo (platform apps → core project)**: Moved the bundled `nextcloud-platform`
+  app and the `platform-*` component apps from project `nextcloud-platform` to
+  `nextcloud-platform-core`. Fixes `platform-policies` SyncFailed
+  (`PriorityClass`/`ResourceQuota`/`LimitRange` not permitted in the tenant
+  project). Tenant apps stay on `nextcloud-platform` with the guardrail intact.
+  - Verified: after the move + a fresh sync, `platform-policies` is
+    Synced/Healthy; `platform-redis`/`-pgbouncer`/`-postgres` and the bundled
+    `nextcloud-platform` app are Synced/Healthy.
+- **platform/externalsecrets**: Excluded `clustersecretstore.yaml` from the
+  kustomization. The `ClusterSecretStore` requires the external-secrets.io CRD,
+  but the External Secrets Operator is not installed on this cluster (the
+  fallback secret Job is used). Including it made `platform-externalsecrets`
+  SyncFailed. Re-add only after ESO + CRDs are installed cluster-wide.
+  - File: `nextcloud-platform/platform/externalsecrets/kustomization.yaml`
+  - Note: takes effect once merged to Codeberg `main` (the app syncs `HEAD`).
 - **db/postgres**: Moved the in-cluster PostgreSQL image from
   `ghcr.io/conductionnl/nextcloud-images` to
   `docker.io/conduction2022/nextcloud-images:postgres16-ext-sha-8abef67`.
