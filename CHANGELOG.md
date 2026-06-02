@@ -18,6 +18,12 @@ platform-level changes — update it in the same commit as the change.
   excludes `applicationsets/nextcloud-tenants.yaml` (raw Go-template `valueFiles`
   is not directory-source-safe + gated canary drift). See
   `nextcloud-platform/bootstrap/README.md`.
+- **tooling**: `/generate-secrets` operator skill
+  (`.claude/commands/generate-secrets.md`) — the uniform way to create or repair
+  a tenant's in-cluster `nextcloud-secrets` via `create-tenant-secret.sh`,
+  outside the full `/add-tenant` flow (e.g. a tenant whose secret was never
+  provisioned). Confirms before overwriting an existing secret and never prints
+  secret values.
 - **argo/projects**: New `nextcloud-platform-core` AppProject
   (`nextcloud-platform/argo/projects/nextcloud-platform-core.yaml`) for the
   privileged platform-infrastructure apps. Unlike the tenant project
