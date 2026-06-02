@@ -94,6 +94,15 @@ platform-level changes — update it in the same commit as the change.
     image by tag (chart helper does not propagate the digest). Low relevance —
     transient `pg_isready` readiness check, no data or running workload impact.
 
+### Fixed
+- **platform/externalsecrets**: Removed the stray `nextcloud-secrets` Namespace
+  from `externalsecrets/rbac.yaml` (the kustomization's `namespace:` directive
+  renamed it to `nextcloud-platform`, so `platform-externalsecrets` co-claimed
+  the platform namespace alongside the bootstrap-managed project file → a
+  `SharedResourceWarning` that kept the bootstrap app `OutOfSync`). The namespace
+  is now owned solely by the project file (full pod-security labels);
+  `platform-externalsecrets` keeps `CreateNamespace=true`.
+
 ## History
 
 Earlier changes predate this changelog. See `git log` for full detail. Recent

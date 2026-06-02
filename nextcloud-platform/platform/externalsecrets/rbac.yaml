@@ -49,13 +49,3 @@ roleRef:
   kind: ClusterRole
   name: nextcloud-secret-generator
   apiGroup: rbac.authorization.k8s.io
-
----
-# Namespace for fallback Kubernetes secret store (if using ESO with K8s backend)
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: nextcloud-secrets
-  labels:
-    app.kubernetes.io/part-of: nextcloud-platform
-    pod-security.kubernetes.io/enforce: restricted
