@@ -37,7 +37,24 @@ platform-level changes — update it in the same commit as the change.
   (`nextcloud-platform/argo/applicationsets/nextcloud-platform-components.yaml`)
   so the per-component platform apps are GitOps-managed.
 
+### Removed
+- **argo (bundled platform app)**: Retired the redundant bundled
+  `nextcloud-platform` Application (`argo/applications/platform.yaml`) and its
+  now-orphan root kustomization (`platform/kustomization.yaml`). Its only content
+  was `externalsecrets/rbac.yaml` (the `nextcloud-secret-generator` SA/RBAC),
+  which the dedicated `platform-externalsecrets` app already owns — the overlap
+  caused a persistent `SharedResourceWarning` on that ClusterRole. Now
+  `platform-externalsecrets` is the sole owner. The live retire is a one-time
+  `kubectl delete application nextcloud-platform -n argocd --cascade=orphan`
+  (orphan keeps the RBAC in place; no secret-generator downtime).
+
 ### Changed
+- **values/templates (postgres)**: `tenant-template-postgres.yaml` postgres image
+  moved from `ghcr.io/conductionnl/nextcloud-images:...sha-6b56bfeda` (pullPolicy
+  `Always`) to `docker.io/conduction2022/nextcloud-images:postgres16-ext-sha-8abef67`
+  pinned to digest `sha256:7478…b4f8c4` (pullPolicy `IfNotPresent`), matching
+  `values/db/postgres.yaml`. New postgres tenants no longer template a dead
+  ghcr.io pull (GitHub org shadowbanned).
 - **argo (platform-components)**: Repointed the `nextcloud-platform-components`
   ApplicationSet `source.repoURL` from `github.com/conductionnl/Nextcloud-base`
   to `codeberg.org/conduction/Nextcloud-base` (GitHub org shadowbanned; Codeberg

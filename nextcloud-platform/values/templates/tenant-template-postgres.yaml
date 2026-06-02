@@ -66,10 +66,14 @@ mariadb:
 postgresql:
   enabled: true
   image:
-    registry: ghcr.io
-    repository: conductionnl/nextcloud-images
-    tag: postgres16-ext-sha-6b56bfeda88356d768179c7b2220fb9ded1b4adf
-    pullPolicy: Always
+    # Canonical postgres image lives in values/db/postgres.yaml — keep in sync.
+    # GitHub org is shadowbanned; pull from Docker Hub (conduction2022), not ghcr.io.
+    registry: docker.io
+    repository: conduction2022/nextcloud-images
+    tag: postgres16-ext-sha-8abef67
+    # Pinned to the image digest for immutability/auditability.
+    digest: sha256:7478927e1ad48c28d491a2589683fe6cb7a4f8468cece491915990e988b4f8c4
+    pullPolicy: IfNotPresent
   auth:
     database: {{DATABASE_NAME}}
     username: nextcloud
