@@ -8,7 +8,12 @@ metadata:
     app.kubernetes.io/name: pgbouncer
     app.kubernetes.io/component: database-proxy
 spec:
-  replicas: 2
+  # Parked at 0: the shared CNPG postgres backend (nextcloud-pg) is unrecoverable
+  # and there are currently 0 `dbType: external` tenants, so pgbouncer has no
+  # backend and no consumers — running it just CrashLoopBackOffs on
+  # "waiting for PostgreSQL backend". Restore to 2 once the CNPG cluster is
+  # recovered and an external tenant needs the pooler.
+  replicas: 0
   selector:
     matchLabels:
       app.kubernetes.io/name: pgbouncer

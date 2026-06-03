@@ -49,6 +49,12 @@ platform-level changes — update it in the same commit as the change.
   (orphan keeps the RBAC in place; no secret-generator downtime).
 
 ### Changed
+- **platform/pgbouncer**: Parked the pgbouncer Deployment at `replicas: 0`. The
+  shared CNPG postgres backend (`nextcloud-pg`) is currently unrecoverable and
+  there are 0 `dbType: external` tenants, so pgbouncer has no backend and no
+  consumers — at `replicas: 2` it just CrashLoopBackOffs on "waiting for
+  PostgreSQL backend". Restore to 2 once CNPG is recovered and an external tenant
+  needs the pooler. File: `nextcloud-platform/platform/pgbouncer/deployment.yaml`.
 - **values/templates (postgres)**: `tenant-template-postgres.yaml` postgres image
   moved from `ghcr.io/conductionnl/nextcloud-images:...sha-6b56bfeda` (pullPolicy
   `Always`) to `docker.io/conduction2022/nextcloud-images:postgres16-ext-sha-8abef67`
