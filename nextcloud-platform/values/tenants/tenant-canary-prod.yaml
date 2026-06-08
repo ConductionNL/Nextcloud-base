@@ -4,7 +4,10 @@ tenant:
   environment: prod
   wave: "0"
   canary: true
-  dbType: mariadb
+  # In-cluster per-tenant PostgreSQL (Bitnami subchart, conduction2022 image).
+  # NOT the shared CNPG/PgBouncer path (dbType: external) — that backend is
+  # currently unrecoverable. Rebuilt off mariadb on 2026-06-08.
+  dbType: postgres
   apps:
     enabled:
       - opencatalogi

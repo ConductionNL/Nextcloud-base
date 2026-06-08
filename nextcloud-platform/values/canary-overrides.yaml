@@ -49,16 +49,23 @@ nextcloud:
     # directory has content but no config.php (always the case with emptyDir).
     CAN_INSTALL: ""
 
-    identity.config.php: |
-      <?php
-      $CONFIG = array (
-        'installed' => true,
-        'instanceid' => getenv('NEXTCLOUD_INSTANCEID'),
-        'passwordsalt' => getenv('NEXTCLOUD_PASSWORDSALT'),
-        'secret' => getenv('NEXTCLOUD_SECRET'),
-        'trusted_domains' => ['canary.commonground.nu'],
-        'overwrite.cli.url' => 'https://canary.commonground.nu',
-      );
+    # -------------------------------------------------------------------------
+    # PHASE A (2026-06-08 postgres rebuild): identity.config.php is TEMPORARILY
+    # disabled so a fresh install runs against the empty postgres DB and
+    # generates instanceid/passwordsalt/secret. Once captured into
+    # nextcloud-secrets, re-enable this block (Phase B) for stateless restarts.
+    # Until then trusted_domains/overwrite.cli.url are set via the hook config.
+    # -------------------------------------------------------------------------
+    # identity.config.php: |
+    #   <?php
+    #   $CONFIG = array (
+    #     'installed' => true,
+    #     'instanceid' => getenv('NEXTCLOUD_INSTANCEID'),
+    #     'passwordsalt' => getenv('NEXTCLOUD_PASSWORDSALT'),
+    #     'secret' => getenv('NEXTCLOUD_SECRET'),
+    #     'trusted_domains' => ['canary.commonground.nu'],
+    #     'overwrite.cli.url' => 'https://canary.commonground.nu',
+    #   );
 
     # ---------------------------------------------------------------------------
     # S3 primary objectstore — Fuga Cloud / Ceph RGW
@@ -141,20 +148,21 @@ hooks:
 
     log "pre-installation: checking DB state..."
 
-    DB_HOST="${MYSQL_HOST:-nextcloud-mariadb}"
-    DB_NAME="${MYSQL_DATABASE:-nextcloud}"
-    DB_USER="${MYSQL_USER:-nextcloud}"
-    DB_PASS="${MYSQL_PASSWORD:-}"
+    DB_HOST="${POSTGRES_HOST:-nextcloud-postgresql}"
+    DB_NAME="${POSTGRES_DB:-nextcloud}"
+    DB_USER="${POSTGRES_USER:-nextcloud}"
+    DB_PASS="${POSTGRES_PASSWORD:-}"
 
     HAS_TABLES=$(php -r "
       try {
         \$pdo = new PDO(
-          'mysql:host=${DB_HOST};dbname=${DB_NAME};charset=utf8mb4',
+          'pgsql:host=${DB_HOST};port=5432;dbname=${DB_NAME}',
           '${DB_USER}', '${DB_PASS}',
           [PDO::ATTR_TIMEOUT => 3]
         );
-        \$r = \$pdo->query(\"SHOW TABLES LIKE 'oc_users'\");
-        echo \$r && \$r->rowCount() > 0 ? 'yes' : 'no';
+        \$r = \$pdo->query(\"SELECT to_regclass('public.oc_users')\");
+        \$row = \$r ? \$r->fetchColumn() : null;
+        echo \$row ? 'yes' : 'no';
       } catch(Exception \$e) {
         echo 'no';
       }
@@ -168,10 +176,10 @@ hooks:
     \$CONFIG = array (
       'installed'     => true,
       'datadirectory' => '/var/www/html/data',
-      'dbtype'        => 'mysql',
+      'dbtype'        => 'pgsql',
       'dbtableprefix' => 'oc_',
-      'mysql.utf8mb4' => true,
       'dbhost'        => '${DB_HOST}',
+      'dbport'        => '5432',
       'dbname'        => '${DB_NAME}',
       'dbuser'        => '${DB_USER}',
       'dbpassword'    => '${DB_PASS}',
