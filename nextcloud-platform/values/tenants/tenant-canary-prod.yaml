@@ -3,10 +3,13 @@ tenant:
   name: canary-prod
   environment: prod
   wave: "0"
-  canary: true
   # In-cluster per-tenant PostgreSQL (Bitnami subchart, conduction2022 image).
   # NOT the shared CNPG/PgBouncer path (dbType: external) — that backend is
-  # currently unrecoverable. Rebuilt off mariadb on 2026-06-08.
+  # currently unrecoverable.
+  # Plain durable tenant: the stateless emptyDir + S3 PoC (canary: true +
+  # canary-overrides) is shelved — the live ApplicationSet never loaded
+  # canary-overrides, so it was inert. Made durable on 2026-06-08; canary-prod
+  # keeps its wave-0 role as the rollout canary.
   dbType: postgres
   apps:
     enabled:
@@ -14,9 +17,4 @@ tenant:
       - openconnector
       - openregister
 
-# Phase 1 PoC: stateless emptyDir RS=1 (RS=2 blocked by CAN_INSTALL race — investigate next)
-# Graduation criteria: 7 days clean at RS=1, then fix RS=2 before Phase 2
 replicaCount: 1
-
-persistence:
-  enabled: false
