@@ -50,22 +50,23 @@ nextcloud:
     CAN_INSTALL: ""
 
     # -------------------------------------------------------------------------
-    # PHASE A (2026-06-08 postgres rebuild): identity.config.php is TEMPORARILY
-    # disabled so a fresh install runs against the empty postgres DB and
-    # generates instanceid/passwordsalt/secret. Once captured into
-    # nextcloud-secrets, re-enable this block (Phase B) for stateless restarts.
-    # Until then trusted_domains/overwrite.cli.url are set via the hook config.
+    # Stateless identity (Phase B, 2026-06-08 postgres rebuild). instanceid/
+    # passwordsalt/secret are injected from nextcloud-secrets so they survive
+    # emptyDir pod restarts instead of regenerating. Values were captured from
+    # the fresh postgres install and stored in the secret before this was
+    # re-enabled. installed=>true makes the entrypoint skip reinstall; the
+    # pre-installation hook (below) supplies the postgres connection on restart.
     # -------------------------------------------------------------------------
-    # identity.config.php: |
-    #   <?php
-    #   $CONFIG = array (
-    #     'installed' => true,
-    #     'instanceid' => getenv('NEXTCLOUD_INSTANCEID'),
-    #     'passwordsalt' => getenv('NEXTCLOUD_PASSWORDSALT'),
-    #     'secret' => getenv('NEXTCLOUD_SECRET'),
-    #     'trusted_domains' => ['canary.commonground.nu'],
-    #     'overwrite.cli.url' => 'https://canary.commonground.nu',
-    #   );
+    identity.config.php: |
+      <?php
+      $CONFIG = array (
+        'installed' => true,
+        'instanceid' => getenv('NEXTCLOUD_INSTANCEID'),
+        'passwordsalt' => getenv('NEXTCLOUD_PASSWORDSALT'),
+        'secret' => getenv('NEXTCLOUD_SECRET'),
+        'trusted_domains' => ['canary.commonground.nu'],
+        'overwrite.cli.url' => 'https://canary.commonground.nu',
+      );
 
     # ---------------------------------------------------------------------------
     # S3 primary objectstore — Fuga Cloud / Ceph RGW
@@ -132,61 +133,64 @@ nextcloud:
         - name: nextcloud-main
           mountPath: /var/www/html
 
-# ---------------------------------------------------------------------------
-# pre-installation hook — checks DB state on pod start, writes bootstrap
-# config.php if Nextcloud is already installed so occ skips reinstall.
-# Top-level key (not under nextcloud:) — chart mounts at
-# /docker-entrypoint-hooks.d/pre-installation/helm.sh
-# Graduate to: custom Nextcloud image in Phase 2.
-# ---------------------------------------------------------------------------
-hooks:
-  pre-installation: |
-    #!/bin/bash
-    set -euo pipefail
-    LOG="/tmp/nc-pre-install.log"
-    log() { echo "$(date -Iseconds) $*" | tee -a "$LOG"; }
+  # ---------------------------------------------------------------------------
+  # pre-installation hook — checks DB state on pod start and writes a bootstrap
+  # config.php (postgres connection) when Nextcloud is already installed, so the
+  # entrypoint skips reinstall. CRITICAL for stateless (emptyDir) restarts: the
+  # emptyDir is wiped on every restart, so without this the entrypoint would see
+  # an empty config dir and attempt a fresh install over the populated DB.
+  # MUST live under nextcloud.hooks — the chart ignores a top-level `hooks:` key
+  # (mounts nextcloud.hooks.* at /docker-entrypoint-hooks.d/<hook>/helm.sh).
+  # Graduate to: custom Nextcloud image in Phase 2.
+  # ---------------------------------------------------------------------------
+  hooks:
+    pre-installation: |
+      #!/bin/bash
+      set -euo pipefail
+      LOG="/tmp/nc-pre-install.log"
+      log() { echo "$(date -Iseconds) $*" | tee -a "$LOG"; }
 
-    log "pre-installation: checking DB state..."
+      log "pre-installation: checking DB state..."
 
-    DB_HOST="${POSTGRES_HOST:-nextcloud-postgresql}"
-    DB_NAME="${POSTGRES_DB:-nextcloud}"
-    DB_USER="${POSTGRES_USER:-nextcloud}"
-    DB_PASS="${POSTGRES_PASSWORD:-}"
+      DB_HOST="${POSTGRES_HOST:-nextcloud-postgresql}"
+      DB_NAME="${POSTGRES_DB:-nextcloud}"
+      DB_USER="${POSTGRES_USER:-nextcloud}"
+      DB_PASS="${POSTGRES_PASSWORD:-}"
 
-    HAS_TABLES=$(php -r "
-      try {
-        \$pdo = new PDO(
-          'pgsql:host=${DB_HOST};port=5432;dbname=${DB_NAME}',
-          '${DB_USER}', '${DB_PASS}',
-          [PDO::ATTR_TIMEOUT => 3]
-        );
-        \$r = \$pdo->query(\"SELECT to_regclass('public.oc_users')\");
-        \$row = \$r ? \$r->fetchColumn() : null;
-        echo \$row ? 'yes' : 'no';
-      } catch(Exception \$e) {
-        echo 'no';
-      }
-    " 2>/dev/null || echo 'no')
+      HAS_TABLES=$(php -r "
+        try {
+          \$pdo = new PDO(
+            'pgsql:host=${DB_HOST};port=5432;dbname=${DB_NAME}',
+            '${DB_USER}', '${DB_PASS}',
+            [PDO::ATTR_TIMEOUT => 3]
+          );
+          \$r = \$pdo->query(\"SELECT to_regclass('public.oc_users')\");
+          \$row = \$r ? \$r->fetchColumn() : null;
+          echo \$row ? 'yes' : 'no';
+        } catch(Exception \$e) {
+          echo 'no';
+        }
+      " 2>/dev/null || echo 'no')
 
-    if [ "\$HAS_TABLES" = "yes" ]; then
-      log "DB already installed — writing bootstrap config.php to skip reinstall"
-      mkdir -p /var/www/html/config
-      cat > /var/www/html/config/config.php << PHPEOF
-    <?php
-    \$CONFIG = array (
-      'installed'     => true,
-      'datadirectory' => '/var/www/html/data',
-      'dbtype'        => 'pgsql',
-      'dbtableprefix' => 'oc_',
-      'dbhost'        => '${DB_HOST}',
-      'dbport'        => '5432',
-      'dbname'        => '${DB_NAME}',
-      'dbuser'        => '${DB_USER}',
-      'dbpassword'    => '${DB_PASS}',
-      'version'       => '32.0.5.0',
-    );
-    PHPEOF
-      log "config.php written — occ maintenance:install will skip"
-    else
-      log "DB is empty or unreachable — proceeding with fresh install"
-    fi
+      if [ "\$HAS_TABLES" = "yes" ]; then
+        log "DB already installed — writing bootstrap config.php to skip reinstall"
+        mkdir -p /var/www/html/config
+        cat > /var/www/html/config/config.php << PHPEOF
+      <?php
+      \$CONFIG = array (
+        'installed'     => true,
+        'datadirectory' => '/var/www/html/data',
+        'dbtype'        => 'pgsql',
+        'dbtableprefix' => 'oc_',
+        'dbhost'        => '${DB_HOST}',
+        'dbport'        => '5432',
+        'dbname'        => '${DB_NAME}',
+        'dbuser'        => '${DB_USER}',
+        'dbpassword'    => '${DB_PASS}',
+        'version'       => '32.0.5.0',
+      );
+      PHPEOF
+        log "config.php written — occ maintenance:install will skip"
+      else
+        log "DB is empty or unreachable — proceeding with fresh install"
+      fi
