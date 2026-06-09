@@ -9,6 +9,16 @@ platform-level changes — update it in the same commit as the change.
 ## [Unreleased]
 
 ### Added
+- **argo/applicationsets/openwoo-provision.yaml**: per-tenant WOO base-config
+  provisioning (the "target track"). One Application per **accept** tenant
+  (`tenant-*-accept.yaml` glob — never prod) renders the `openwoo-app-config`
+  repo (a kustomize app: provisioner ConfigMap + Argo PostSync Job on a stock
+  python image) into the tenant namespace and runs
+  `provision.py all --skip-credentials` to converge the WOO base config
+  (idempotent). The per-tenant source connection (URL/API-Interface-ID/key) is
+  set out-of-band by an operator, not here. **Sync is manual to start** (validate
+  canary-accept first, then expand, then enable `automated`); pin
+  `targetRevision` to a release tag of openwoo-app-config.
 - **bootstrap**: App-of-apps root Application
   (`nextcloud-platform/bootstrap/nextcloud-platform-bootstrap.yaml`) that makes
   `nextcloud-platform/argo/` (AppProjects, the `nextcloud-platform-components`

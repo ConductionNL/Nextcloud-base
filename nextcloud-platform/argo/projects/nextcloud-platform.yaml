@@ -21,7 +21,10 @@ spec:
     - "https://github.com/ConductionNL/Nextcloud-base.git"
     - "https://github.com/conductionnl/Nextcloud-base.git"
     - "https://nextcloud.github.io/helm/"
-  
+    # WOO config / provisioner repo (target track: openwoo-provision ApplicationSet).
+    # Argo matches sourceRepos literally — keep the exact case used in the AppSet.
+    - "https://codeberg.org/Conduction/openwoo-app-config.git"
+
   # Destination clusters and namespaces
   destinations:
     # Platform components namespace
