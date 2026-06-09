@@ -43,7 +43,7 @@ spec:
       project: nextcloud-platform
       source:
         repoURL: "https://codeberg.org/Conduction/openwoo-app-config.git"
-        targetRevision: main          # TODO: pin to a release tag (e.g. v0.1.0)
+        targetRevision: v0.1.0        # pinned release tag of openwoo-app-config
         path: "."                     # the repo's root kustomization
       destination:
         server: https://kubernetes.default.svc
