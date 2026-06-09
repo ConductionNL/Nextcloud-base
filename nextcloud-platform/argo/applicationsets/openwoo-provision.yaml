@@ -1,0 +1,63 @@
+---
+# ApplicationSet: per-tenant WOO base-config provisioning (the "target track").
+#
+# Generates one Application per ACCEPT tenant that renders the openwoo-app-config
+# repo — a kustomize app (provisioner ConfigMap built from provision.py + the
+# tagged WOO config, plus an Argo PostSync Job on a stock python image). The Job
+# runs `provision.py all --skip-credentials` to converge the WOO base config
+# (settings, oc-settings, import, verify-import, catalog, sync-check, jobs). It is
+# idempotent, so it re-converges safely on every sync.
+#
+# The per-tenant SOURCE connection (source URL + API-Interface-ID + API key) is
+# set out-of-band by an operator (provision.py CLI/GUI), never here.
+#
+# SAFETY:
+#   * Glob is tenant-*-accept.yaml only — never prod.
+#   * Sync is MANUAL to start: validate canary-accept first in the UI, then sync
+#     the rest, then (optionally) enable `automated` below.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: openwoo-provision
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=default"]
+  generators:
+    - git:
+        repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
+        revision: HEAD
+        files:
+          - path: "nextcloud-platform/values/tenants/tenant-*-accept.yaml"
+  template:
+    metadata:
+      name: "openwoo-provision-{{ .tenant.name }}"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/part-of: nextcloud-platform
+        nextcloud.platform/tenant: "{{ .tenant.name }}"
+        nextcloud.platform/component: woo-provisioning
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: nextcloud-platform
+      source:
+        repoURL: "https://codeberg.org/Conduction/openwoo-app-config.git"
+        targetRevision: main          # TODO: pin to a release tag (e.g. v0.1.0)
+        path: "."                     # the repo's root kustomization
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ default .tenant.name .tenant.namespace }}"
+      syncPolicy:
+        syncOptions:
+          - ServerSideApply=true
+        # Enable once validated on canary-accept (then it self-heals/reconciles):
+        # automated:
+        #   prune: true
+        #   selfHeal: true
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 2m
