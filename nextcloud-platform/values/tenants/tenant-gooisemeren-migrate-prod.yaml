@@ -16,11 +16,7 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
-    # Pinned identical to live gooisemeren-prod so the DB backend is the only variable.
-    versions:
-      opencatalogi: "0.7.8"
-      openconnector: "0.2.8"
-      openregister: "0.2.11"
+ 
 
 # Match the live prod local-disk footprint (gooisemeren-prod is at 250Gi).
 persistence:

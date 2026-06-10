@@ -1,0 +1,28 @@
+---
+# Argo CD Application for the OpenWoo provisioning/deployment control-plane.
+# Deploys webgui/deploy/ from the openwoo-app-config repo (Codeberg) into the
+# openwoo-platform namespace. The oauth2 Secret is created out-of-band (see that
+# repo's webgui/deploy/secret.example.yaml); Argo does not manage it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openwoo-provisioner
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: nextcloud-platform
+    nextcloud.platform/component: woo-control-plane
+spec:
+  project: nextcloud-platform
+  source:
+    repoURL: https://codeberg.org/Conduction/openwoo-app-config.git
+    targetRevision: main
+    path: webgui/deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openwoo-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
