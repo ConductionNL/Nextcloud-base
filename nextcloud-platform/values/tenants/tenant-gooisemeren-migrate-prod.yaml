@@ -3,12 +3,14 @@ tenant:
   environment: prod
   wave: "1"
   dbType: postgres
-  # Temporary parallel build to validate the postgres + 250Gi re-platform of the
-  # live gooisemeren-prod (mariadb) tenant. Served on the migrate hostname so it
-  # runs alongside the live prod. After sign-off this instance is torn down and
-  # gooisemeren-prod itself is re-platformed to postgres — do NOT cut this name
-  # over to a canonical host (it would derive gooisemeren-migrate-prod.commonground.nu).
-  hostname: gooisemeren.migrate.commonground.nu
+  # This is the live production instance for Gooise Meren (postgres re-platform,
+  # promoted from the migrate hostname on 2026-06-12; the old mariadb
+  # gooisemeren-prod tenant was removed). The explicit hostname override is
+  # REQUIRED: the ApplicationSet would otherwise derive
+  # gooisemeren-migrate.commonground.nu from the tenant name. Do not rename the
+  # tenant — that changes the namespace and abandons the data.
+  hostname: gooisemeren.commonground.nu
+  hostnameOverride: true
   features:
     appapi: false
   apps:
@@ -16,8 +18,8 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
- 
 
-# Match the live prod local-disk footprint (gooisemeren-prod is at 250Gi).
+# Gooise Meren is the only tenant with substantial local disk needs
+# (platform default is 50Gi in common.yaml).
 persistence:
   size: 250Gi
