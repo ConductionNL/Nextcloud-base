@@ -227,6 +227,10 @@ nextcloud:
         'session_lifetime' => 28800,      // 8 hours
         'session_idle_timeout' => 7200,   // 2 hours idle
         'session_keepalive' => false,
+        // Remember-me cookie matches session_lifetime so "stay logged in"
+        // cannot outlive the 8h session. MUST NOT be lower than
+        // session_lifetime (Nextcloud terminates the session early otherwise).
+        'remember_login_cookie_lifetime' => 28800,  // 8 hours, == session_lifetime
         
         // UI settings
         'simpleSignUpLink.shown' => false,
