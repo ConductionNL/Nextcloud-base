@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Request Router (read first)
+
+Before doing anything, classify the request — almost all work here is one of two kinds:
+
+| Kind | What it is | Route |
+|------|-----------|-------|
+| **A — Tenant** | Add or change a tenant (files under `values/tenants/` only) | `/add-tenant` (one) or `/batch-add-tenant` (many). **Always** create secrets via `/generate-secrets`. Deploy with `/sync-tenant` (use `--refresh-appset` for brand-new tenants). Allowed any time. |
+| **B — Platform** | Anything outside `values/tenants/` (`platform/`, `argo/`, `values/common.yaml`, `values/env/`, `values/db/`, `scripts/`, `policy/`, `.github/`, docs) | Run `/change-guard` **first** to check the sync window, then edit. Deploy windows are restricted (see Sync Windows below). |
+| **C — Neither** | Unclear or out of scope | Ask the user which it is before proceeding. |
+
+**Skill-first rule:** drive the work through the skills above and the sanctioned scripts they call (`create-tenant-secret.sh`, `argocd-sync.sh`, `validate-values.sh`). Ad-hoc `bash` is acceptable only as the script a skill invokes — never as a substitute for the skill itself, and never to hand-roll a loop that a batch skill already covers.
+
 ## Project Overview
 
 This is a **GitOps platform** for deploying multiple isolated Nextcloud instances on Kubernetes using Argo CD. The platform uses a layered Helm values architecture to manage multi-tenant deployments with shared platform services.
