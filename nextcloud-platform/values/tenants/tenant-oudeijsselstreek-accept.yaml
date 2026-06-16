@@ -1,0 +1,12 @@
+---
+tenant:
+  name: oudeijsselstreek-accept
+  # Use accept env values for both -accept and -test tenants
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
