@@ -11,5 +11,5 @@ tenant:
       - openregister
     versions:
       opencatalogi: "0.7.12"
-      openconnector: "0.2.20"
-      openregister: "0.2.16"
+      openconnector: "0.2.16"
+      openregister: "0.2.11"
