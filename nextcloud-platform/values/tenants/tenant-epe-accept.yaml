@@ -2,7 +2,7 @@ tenant:
   name: epe-accept
   environment: accept
   wave: "1"
-  dbType: mariadb
+  dbType: postgres
   apps:
     enabled:
       - opencatalogi
