@@ -8,6 +8,14 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Changed
+- **ESO consumers moved `external-secrets.io/v1beta1` → `external-secrets.io/v1`.**
+  cluster-infra pins ESO to chart `2.6.0` (appVersion v2.6.0); the 2.x major no longer
+  serves `v1beta1`. Updated `platform/externalsecrets/clustersecretstore.yaml`
+  (`ClusterSecretStore`) and `charts/tenant-secret/templates/externalsecret.yaml`
+  (`ExternalSecret`). `ClusterGenerator` stays `generators.external-secrets.io/v1alpha1`;
+  passwordSpec fields verified present in 2.6.0. No spec/field changes beyond the apiVersion.
+
 ### Added
 - **External Secrets Operator — per-tenant secret generation (NEW tenants only).**
   The ESO *operator* is installed by cluster-infra; this repo adds the *consumers*:
