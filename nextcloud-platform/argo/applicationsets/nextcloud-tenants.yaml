@@ -181,6 +181,22 @@ spec:
             values: |
               hpa:
                 enabled: {{ eq .tenant.environment "prod" }}
+
+        # ESO-managed nextcloud-secrets (NEW tenants only). Renders nothing unless
+        # the tenant file sets tenant.secrets.managed: true — so existing tenants'
+        # script-applied secrets are never touched. Needs ESO + the ClusterSecretStore
+        # / ClusterGenerator (platform/externalsecrets) + the S3 seed Secret.
+        - repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
+          targetRevision: HEAD
+          path: charts/tenant-secret
+          helm:
+            releaseName: "nextcloud-secret"
+            values: |
+              tenant:
+                name: "{{ .tenant.name }}"
+                dbType: "{{ default "mariadb" .tenant.dbType }}"
+              secrets:
+                managed: {{ default false .tenant.secrets.managed }}
       
       # Destination: tenant-specific namespace
       destination:

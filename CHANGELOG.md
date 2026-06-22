@@ -9,6 +9,22 @@ platform-level changes — update it in the same commit as the change.
 ## [Unreleased]
 
 ### Added
+- **External Secrets Operator — per-tenant secret generation (NEW tenants only).**
+  The ESO *operator* is installed by cluster-infra; this repo adds the *consumers*:
+  `platform/externalsecrets/clustersecretstore.yaml` now defines a real
+  `ClusterSecretStore` (kubernetes provider, reads the shared Fuga S3 creds from a
+  central `nextcloud-s3-seed` Secret) **+** a `ClusterGenerator` (Password) for the
+  random per-tenant secrets; `rbac.yaml` gains a least-privilege
+  `external-secrets-reader` SA/Role; `s3-seed-secret.example.yaml` documents the
+  seed (out-of-band, never Git). A new Helm chart **`charts/tenant-secret`** renders
+  a per-tenant `ExternalSecret` that assembles `nextcloud-secrets` (generated
+  admin/db/redis/salt + seeded S3), with `refreshInterval: "0"` so it generates
+  **once and never rotates**. Wired as a 4th source on the `nextcloud-tenants`
+  ApplicationSet, **gated on `tenant.secrets.managed: true`** — existing tenants
+  omit the flag, so their script-applied secrets are untouched (no rotation). The
+  flag is set by the web-UI for new (web-created) tenants. `clustersecretstore.yaml`
+  re-added to the externalsecrets kustomization (needs ESO CRDs → deploy cluster-infra
+  first). Deploy in the platform sync window.
 - **argo/applicationsets/openwoo-provision.yaml**: per-tenant WOO base-config
   provisioning (the "target track"). One Application per **accept** tenant
   (`tenant-*-accept.yaml` glob — never prod) renders the `openwoo-app-config`
@@ -59,6 +75,13 @@ platform-level changes — update it in the same commit as the change.
   (orphan keeps the RBAC in place; no secret-generator downtime).
 
 ### Changed
+- **values/common.yaml (session security)**: Added
+  `remember_login_cookie_lifetime => 28800` (8h) to the `proxy.config.php` block,
+  matching `session_lifetime`. The "stay logged in" cookie can no longer outlive
+  the 8h session, so users re-authenticate at least daily — a deliberate
+  fleet-wide security-posture decision (gov tenants). MUST NOT be set lower than
+  `session_lifetime` or Nextcloud terminates the session early. Affects all
+  tenants; rolls out wave-by-wave (canary first).
 - **platform/pgbouncer**: Parked the pgbouncer Deployment at `replicas: 0`. The
   shared CNPG postgres backend (`nextcloud-pg`) is currently unrecoverable and
   there are 0 `dbType: external` tenants, so pgbouncer has no backend and no

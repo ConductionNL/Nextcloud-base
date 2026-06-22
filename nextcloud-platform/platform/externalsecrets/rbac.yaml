@@ -49,3 +49,49 @@ roleRef:
   kind: ClusterRole
   name: nextcloud-secret-generator
   apiGroup: rbac.authorization.k8s.io
+
+---
+# ServiceAccount the ClusterSecretStore (kubernetes provider) authenticates as to
+# READ the shared S3 seed Secret. Least privilege: read-only, only in the
+# nextcloud-platform namespace where the seed lives.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-secrets-reader
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: external-secrets
+    app.kubernetes.io/component: secrets-management
+    app.kubernetes.io/part-of: nextcloud-platform
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: external-secrets-reader
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: external-secrets
+    app.kubernetes.io/component: secrets-management
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: external-secrets-reader
+  namespace: nextcloud-platform
+  labels:
+    app.kubernetes.io/name: external-secrets
+    app.kubernetes.io/component: secrets-management
+subjects:
+  - kind: ServiceAccount
+    name: external-secrets-reader
+    namespace: nextcloud-platform
+roleRef:
+  kind: Role
+  name: external-secrets-reader
+  apiGroup: rbac.authorization.k8s.io

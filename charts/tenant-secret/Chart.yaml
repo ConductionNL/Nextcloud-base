@@ -1,0 +1,5 @@
+apiVersion: v2
+name: tenant-secret
+description: Per-tenant ExternalSecret that assembles nextcloud-secrets from the shared S3 seed + ESO-generated passwords. Rendered only for new (managed) tenants.
+type: application
+version: 1.0.0

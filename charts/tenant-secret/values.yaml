@@ -1,0 +1,20 @@
+# Default values — overridden via the ApplicationSet inline values.
+# Renders NOTHING unless secrets.managed is true (new-tenants-only guard): existing
+# tenants have no `tenant.secrets.managed` in their file, so their script-applied
+# nextcloud-secrets is never touched (no rotation).
+
+tenant:
+  name: ""
+  dbType: mariadb        # mariadb | postgres (external reuses postgres keys)
+
+secrets:
+  managed: false         # opt-in; the web-UI sets this true for new tenants
+
+  # The DB application user baked into the secret (DB is provisioned fresh for a
+  # new tenant with this name). Override per tenant only if needed.
+  dbUsername: nextcloud
+
+  # ESO wiring (defined in platform/externalsecrets/).
+  storeName: nextcloud-shared-store      # ClusterSecretStore (kubernetes provider) for the S3 seed
+  generatorName: nextcloud-password      # ClusterGenerator (Password) for the random secrets
+  s3SeedSecret: nextcloud-s3-seed        # seed Secret in nextcloud-platform holding the shared S3 creds

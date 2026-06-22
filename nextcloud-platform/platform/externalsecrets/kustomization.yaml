@@ -5,12 +5,11 @@ kind: Kustomization
 namespace: nextcloud-platform
 
 resources:
-  # clustersecretstore.yaml is intentionally EXCLUDED: it requires the
-  # external-secrets.io ClusterSecretStore CRD, and the External Secrets
-  # Operator is NOT installed on this cluster (the fallback secret Job is used
-  # instead — see docs/SECRETS.md). Including it makes the app SyncFailed.
-  # Re-add this line only after ESO + its CRDs are installed cluster-wide.
-  # - clustersecretstore.yaml
+  # clustersecretstore.yaml holds the ClusterSecretStore + ClusterGenerator.
+  # ORDERING: these need the external-secrets.io CRDs, installed by cluster-infra's
+  # `external-secrets` Application. Deploy/sync THAT first; then this syncs cleanly.
+  # (Re-excluded only if ESO is ever removed cluster-wide.)
+  - clustersecretstore.yaml
   - rbac.yaml
 
 commonLabels:
