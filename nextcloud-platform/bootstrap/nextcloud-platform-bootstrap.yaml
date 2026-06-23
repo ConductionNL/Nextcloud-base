@@ -12,12 +12,13 @@
 # applied ONCE, by hand, to bootstrap the chain:
 #   kubectl apply -f nextcloud-platform/bootstrap/nextcloud-platform-bootstrap.yaml
 #
-# DELIBERATE EXCLUSION: applicationsets/nextcloud-tenants.yaml is NOT managed by
-# this root app. That ApplicationSet uses a Git generator with raw Go-template
-# control flow ({{- if eq ... }}) in valueFiles, which is not valid standalone
-# YAML and cannot be rendered by a directory-type source. It also carries gated
-# canary/stateless drift (see the migration notes). It stays hand-maintained
-# until that workstream lands and its template is made directory-safe.
+# As of 2026-06-23 the tenant ApplicationSet (applicationsets/nextcloud-tenants.yaml)
+# IS managed here too. Its canary override no longer uses a raw {{- if }} control
+# line inside valueFiles (which was invalid standalone YAML and blocked the
+# directory source); it now uses a templated filename + helm.ignoreMissingValueFiles,
+# so the manifest is valid YAML and applies cleanly via this directory-type source.
+# Result: no more hand-applying the tenant AppSet — commit to Codeberg main and this
+# root app reconciles it.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -37,8 +38,6 @@ spec:
     path: nextcloud-platform/argo
     directory:
       recurse: true
-      # Skip the tenant ApplicationSet (invalid standalone YAML + gated drift).
-      exclude: "applicationsets/nextcloud-tenants.yaml"
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

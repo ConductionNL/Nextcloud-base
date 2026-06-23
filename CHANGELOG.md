@@ -19,6 +19,10 @@ platform-level changes — update it in the same commit as the change.
   propagates the `charts/tenant-secret` source to tenant apps, so managed tenants get their
   ESO `nextcloud-secrets` natively (the manual `helm template … | kubectl apply` stopgap is
   no longer required).
+- **Tenant AppSet is now GitOps-managed.** Removed its deliberate exclusion from the
+  `nextcloud-platform-bootstrap` root app (it was excluded only because of the invalid
+  YAML, now fixed). Committing `nextcloud-tenants.yaml` to Codeberg main now reconciles via
+  the bootstrap directory source — no more hand-applying the AppSet.
 
 ### Documentation
 - **`nextcloud-platform/docs/` refreshed to match current reality (2026-06-23).** Added
