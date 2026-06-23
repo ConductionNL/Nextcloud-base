@@ -1,294 +1,143 @@
-# Secrets Management Guide
+# Secrets Management
 
-This document describes how secrets are managed in the Nextcloud platform.
+How tenant secrets work on this platform. Last verified 2026-06-23.
 
-## Overview
+> **No secrets in Git, ever.** `.env` and key material are git-ignored; `gitleaks` runs in
+> CI. The data below is created in-cluster / out-of-band, never committed.
 
-The platform uses a **no secrets in Git** approach:
+## Two mechanisms
 
-- Secrets are never committed to the repository
-- `.env` files are in `.gitignore`
-- Multiple methods are supported:
-  1. **Script with .env file** (easiest)
-  2. External Secrets Operator (for production)
-  3. Manual kubectl commands
+Every tenant ends up with one `Secret` named **`nextcloud-secrets`** in its namespace
+(the namespace is the **bare tenant name**, e.g. `straatje-accept` — *not* `nc-<tenant>`,
+that is the Argo *application* name). How it gets there depends on the tenant:
 
-## Quick Start: Using .env File
+| Tenant kind | Mechanism | How |
+|---|---|---|
+| **Existing / script-applied** | `scripts/create-tenant-secret.sh` writes `nextcloud-secrets` directly | the original method; not rotated |
+| **Managed (new / web-created)** | **ESO** assembles `nextcloud-secrets` declaratively | tenant file sets `tenant.secrets.managed: true` |
+
+A managed tenant's ExternalSecret renders **only** when `tenant.secrets.managed: true`. If
+it is absent/false the ESO path is skipped entirely, so existing tenants' script-applied
+secrets are never touched.
+
+## Mechanism A — script (existing tenants)
 
 ```bash
 cd nextcloud-platform/scripts
-
-# Copy the template
-cp env.example .env
-
-# Edit with your credentials
-nano .env
-
-# Create secrets for MariaDB tenant
-./create-tenant-secret.sh my-tenant --mariadb
-
-# Or for PostgreSQL tenant (includes Redis)
-./create-tenant-secret.sh my-tenant --postgres
-
-# Or auto-generate all passwords
-./create-tenant-secret.sh my-tenant --postgres --generate-passwords
+cp env.example .env          # fill in real S3/DB creds (git-ignored)
+./create-tenant-secret.sh <tenant> --postgres --generate-passwords   # or --mariadb
 ```
 
-## Required Secrets by Database Type
+## Mechanism B — ESO (managed tenants)
 
-### MariaDB Tenants
+The **External Secrets Operator** itself is installed by the **cluster-infra** repo (it is a
+cluster-wide capability, not part of this repo). This repo only adds the **consumers**, in
+`platform/externalsecrets/`:
 
-| Secret Key | Description | Example |
-|------------|-------------|---------|
-| `nextcloud-username` | Admin username | `admin` |
-| `nextcloud-password` | Admin password | `(generated)` |
-| `s3-access-key` | S3/Ceph access key | `AKIAIOSFODNN7EXAMPLE` |
-| `s3-secret-key` | S3/Ceph secret key | `wJalrXUtnFEMI/...` |
-| `mariadb-root-password` | MariaDB root password | `(generated)` |
-| `mariadb-password` | MariaDB user password | `(generated)` |
-| `nextcloud-secret` | Encryption secret | `(generated 64-char)` |
+- **`ClusterSecretStore` `nextcloud-shared-store`** — uses the ESO **kubernetes provider**:
+  the "external" source is an in-cluster seed Secret. **No Vault, no AWS Secrets Manager.**
+- **`ClusterGenerator` `nextcloud-password`** — a Password generator for the per-tenant
+  random secrets (admin / db / redis / nextcloud salt).
+- A per-tenant **`ExternalSecret`** from `charts/tenant-secret` combines the two into the
+  tenant's `nextcloud-secrets`. `refreshInterval: "0"` → generated **once**, never rotated
+  out from under a running tenant; `deletionPolicy: Retain`.
 
-### PostgreSQL Tenants (with per-tenant Redis)
-
-| Secret Key | Description | Example |
-|------------|-------------|---------|
-| `nextcloud-username` | Admin username | `admin` |
-| `nextcloud-password` | Admin password | `(generated)` |
-| `s3-access-key` | S3/Ceph access key | `AKIAIOSFODNN7EXAMPLE` |
-| `s3-secret-key` | S3/Ceph secret key | `wJalrXUtnFEMI/...` |
-| `postgres-password` | PostgreSQL admin password | `(generated)` |
-| `db-username` | PostgreSQL user | `nextcloud` |
-| `db-password` | PostgreSQL user password | `(generated)` |
-| `redis-password` | Redis password | `(generated)` |
-| `nextcloud-secret` | Encryption secret | `(generated 64-char)` |
-
-## Option A: External Secrets Operator (Recommended)
-
-### Setup
-
-1. Install External Secrets Operator in your cluster
-2. Configure a ClusterSecretStore (e.g., Vault, AWS Secrets Manager)
-3. Store secrets in your backend
-
-### HashiCorp Vault Example
-
-Store secrets in Vault:
-
-```bash
-# For each tenant
-vault kv put secret/nextcloud/prod/canary \
-  admin-password="$(openssl rand -base64 24)" \
-  s3-access-key="AKIAIOSFODNN7EXAMPLE" \
-  s3-secret-key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" \
-  db-password="your-db-password" \
-  redis-password="" \
-  nextcloud-secret="$(openssl rand -base64 48)"
+```
+  seed Secret (shared S3 creds)            ClusterGenerator (random per-tenant pw)
+  nextcloud-platform/nextcloud-s3-seed     "nextcloud-password"
+            │                                        │
+            └────────► ClusterSecretStore ◄──────────┘
+                       "nextcloud-shared-store"
+                                 │
+                                 ▼
+                  ExternalSecret (charts/tenant-secret)  ──►  Secret "nextcloud-secrets"
+                  in ns <tenant>                               in ns <tenant>
 ```
 
-### AWS Secrets Manager Example
+API versions: `external-secrets.io/v1` (ESO 2.x dropped the served `v1beta1`);
+`ClusterGenerator` is `generators.external-secrets.io/v1alpha1`.
+
+### The shared S3 seed (out-of-band)
+
+The Fuga S3 access/secret keys are the **same for every tenant**. ESO reads them from one
+central seed Secret `nextcloud-platform/nextcloud-s3-seed`, created out-of-band (never in
+Git). The live values already exist in any tenant's `nextcloud-secrets`, so the seed is
+seeded by copying from an existing tenant:
 
 ```bash
-# Create secret
-aws secretsmanager create-secret \
-  --name nextcloud/prod/canary \
-  --secret-string '{
-    "admin-password": "generated-password",
-    "s3-access-key": "AKIAIOSFODNN7EXAMPLE",
-    "s3-secret-key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-    "db-password": "your-db-password",
-    "redis-password": "",
-    "nextcloud-secret": "64-char-random-string"
-  }'
+kubectl get secret nextcloud-secrets -n acato-accept -o json \
+  | jq '{apiVersion:"v1",kind:"Secret",type:"Opaque",
+         metadata:{name:"nextcloud-s3-seed",namespace:"nextcloud-platform"},
+         data:{"s3-access-key":.data["s3-access-key"],"s3-secret-key":.data["s3-secret-key"]}}' \
+  | kubectl apply -f -
 ```
 
-### Verify ExternalSecret Status
+### Manual render (fallback)
+
+Normally the per-tenant ExternalSecret is produced by the `nextcloud-tenants` ApplicationSet
+(source `charts/tenant-secret`), so a managed tenant gets `nextcloud-secrets` automatically.
+If you need to (re)create it by hand — e.g. before the AppSet has reconciled — render it
+directly:
 
 ```bash
-# Check if secret is synced
-kubectl get externalsecret -n nc-canary nextcloud-secrets
-
-# Check secret content (base64 encoded)
-kubectl get secret -n nc-canary nextcloud-secrets -o yaml
+helm template nextcloud-secret charts/tenant-secret -n <tenant> \
+  --set secrets.managed=true --set tenant.name=<tenant> --set tenant.dbType=postgres \
+  | kubectl apply -n <tenant> -f -
 ```
 
-## Option B: Fallback Secret Generator
+## Keys in `nextcloud-secrets`
 
-If ESO is not available or not ready, a Kubernetes Job generates secrets.
+| Key | Description | Postgres | MariaDB |
+|---|---|:--:|:--:|
+| `nextcloud-username` | admin user (`admin`) | ✅ | ✅ |
+| `nextcloud-password` | admin password | ✅ | ✅ |
+| `nextcloud-secret` | Nextcloud `secret` (instance) | ✅ | ✅ |
+| `s3-access-key` / `s3-secret-key` | Ceph RGW / Fuga S3 creds (shared seed) | ✅ | ✅ |
+| `db-username` / `db-password` | database user/password | ✅ | ✅ |
+| `postgres-password` | Postgres admin | ✅ | — |
+| `redis-password` | per-tenant Redis | ✅ | — |
+| `mariadb-password` / `mariadb-root-password` | MariaDB user/root | — | ✅ |
 
-### How It Works
+> The admin-password key is **`nextcloud-password`** (not `admin-password`).
 
-1. Job runs as Argo CD PreSync hook
-2. Checks if secret already exists
-3. If not, generates secure random values
-4. Creates Kubernetes Secret
-
-### Important Notes
-
-- **S3 and DB credentials are placeholders** - you MUST update them manually
-- Generated admin password is printed in Job logs (save it!)
-- Secrets labeled with `nextcloud.platform/generated=true`
-
-### Update Placeholder Secrets
-
-After Job runs, update the placeholders:
+## Verify
 
 ```bash
-TENANT=canary
-
-# Edit secret
-kubectl edit secret nextcloud-secrets -n nc-$TENANT
-
-# Or patch specific values
-kubectl patch secret nextcloud-secrets -n nc-$TENANT \
-  --type='json' \
-  -p='[
-    {"op": "replace", "path": "/data/s3-access-key", "value": "'$(echo -n "REAL_KEY" | base64)'"},
-    {"op": "replace", "path": "/data/s3-secret-key", "value": "'$(echo -n "REAL_SECRET" | base64)'"},
-    {"op": "replace", "path": "/data/db-password", "value": "'$(echo -n "REAL_PASSWORD" | base64)'"}
-  ]'
+kubectl get externalsecret -n <tenant>                 # managed tenants
+kubectl get secret -n <tenant> nextcloud-secrets
+kubectl get clustersecretstore nextcloud-shared-store  # want: Ready=True
+kubectl get clustergenerator nextcloud-password
 ```
 
-### Retrieve Generated Admin Password
+## Rotate / retrieve
+
+`refreshInterval: "0"` means ESO does **not** auto-rotate. To rotate, patch (or delete +
+re-render) `nextcloud-secrets` and roll the tenant:
 
 ```bash
-# From Job logs
-kubectl logs -n nc-$TENANT job/nextcloud-secret-generator
+kubectl rollout restart deployment -n <tenant> nextcloud
+```
 
-# Or from secret
-kubectl get secret nextcloud-secrets -n nc-$TENANT \
+Retrieve the admin password:
+
+```bash
+kubectl get secret nextcloud-secrets -n <tenant> \
   -o jsonpath='{.data.nextcloud-password}' | base64 -d
 ```
 
-## Disaster Recovery
+## Best practices
 
-### Backup Secrets
-
-Regularly backup secrets (not to Git!):
-
-```bash
-# Export all tenant secrets
-for ns in $(kubectl get ns -l app.kubernetes.io/part-of=nextcloud-platform -o name | cut -d/ -f2); do
-  kubectl get secret -n $ns nextcloud-secrets -o yaml > "backup/secrets-${ns}.yaml"
-done
-
-# Encrypt backups
-tar czf secrets-backup.tar.gz backup/
-gpg --symmetric --cipher-algo AES256 secrets-backup.tar.gz
-rm -rf backup/ secrets-backup.tar.gz
-
-# Store encrypted backup securely (NOT in Git!)
-```
-
-### Restore Secrets
-
-```bash
-# Decrypt
-gpg --decrypt secrets-backup.tar.gz.gpg > secrets-backup.tar.gz
-tar xzf secrets-backup.tar.gz
-
-# Restore
-kubectl apply -f backup/secrets-nc-canary.yaml
-```
-
-### Rotate Secrets
-
-#### Rotate Admin Password
-
-```bash
-TENANT=canary
-NEW_PASSWORD=$(openssl rand -base64 24)
-
-# Update in Vault (if using ESO)
-vault kv patch secret/nextcloud/prod/$TENANT admin-password="$NEW_PASSWORD"
-
-# Or update Kubernetes secret directly
-kubectl patch secret nextcloud-secrets -n nc-$TENANT \
-  --type='json' \
-  -p='[{"op": "replace", "path": "/data/nextcloud-password", "value": "'$(echo -n "$NEW_PASSWORD" | base64)'"}]'
-
-# Restart Nextcloud to pick up new password
-kubectl rollout restart deployment -n nc-$TENANT nextcloud
-```
-
-#### Rotate S3 Keys
-
-1. Create new S3 credentials in Ceph RGW
-2. Update secret in Vault/K8s
-3. Restart Nextcloud
-4. Verify S3 access works
-5. Revoke old credentials
-
-```bash
-# Update and restart
-kubectl patch secret nextcloud-secrets -n nc-$TENANT ...
-kubectl rollout restart deployment -n nc-$TENANT nextcloud
-
-# Verify
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ files:scan --dry-run admin
-```
-
-## Security Best Practices
-
-1. **Never commit secrets to Git**
-   - Use `.gitignore` to exclude secret files
-   - Run `gitleaks` in CI
-
-2. **Use short-lived credentials when possible**
-   - Enable automatic rotation in Vault
-   - Use IAM roles for S3 if on AWS
-
-3. **Principle of least privilege**
-   - S3 keys should only access their bucket
-   - DB users should only access their database
-
-4. **Audit secret access**
-   - Enable audit logging in Vault
-   - Monitor secret access patterns
-
-5. **Encrypt backups**
-   - Always encrypt secret backups
-   - Use strong encryption (AES-256)
-   - Store encryption keys separately
+- Never commit secrets; keep `.env` git-ignored; `gitleaks` in CI.
+- Least privilege: S3 keys scoped to the bucket, DB users to their database.
+- Back up secrets out-of-band (encrypted), never to Git.
 
 ## Troubleshooting
 
-### ExternalSecret Not Syncing
-
 ```bash
-# Check ESO status
-kubectl get externalsecret -n nc-$TENANT nextcloud-secrets -o yaml
-
-# Check ESO logs
+# ExternalSecret not syncing
+kubectl describe externalsecret -n <tenant> nextcloud-secrets
 kubectl logs -n external-secrets deploy/external-secrets
-
-# Check ClusterSecretStore
-kubectl get clustersecretstore -o yaml
+kubectl get clustersecretstore nextcloud-shared-store -o yaml   # Ready=True?
+# Roadmap: secret access is not yet role-scoped — anyone with `kubectl get secret`
+# can currently read tenant secrets. Tightening this (RBAC) is a planned improvement.
 ```
-
-### Secret Generator Job Failed
-
-```bash
-# Check job status
-kubectl get job -n nc-$TENANT nextcloud-secret-generator
-
-# Check logs
-kubectl logs -n nc-$TENANT job/nextcloud-secret-generator
-
-# Common issues:
-# - ServiceAccount missing permissions
-# - Secret already exists with different owner
-```
-
-### Can't Access Nextcloud After Secret Rotation
-
-```bash
-# Check if pods picked up new secret
-kubectl rollout status deployment -n nc-$TENANT nextcloud
-
-# Force restart if needed
-kubectl rollout restart deployment -n nc-$TENANT nextcloud
-
-# Check environment variables in pod
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- env | grep -i password
-```
-

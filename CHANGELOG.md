@@ -8,6 +8,31 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Fixed
+- **`nextcloud-tenants` ApplicationSet is `kubectl apply`-able again.** The canary override
+  was selected with a `{{- if }}` control line wrapping a `valueFiles` list item — valid as
+  an Argo goTemplate but invalid YAML, so `kubectl apply -f` failed (`line 62: could not
+  find expected ':'`) and the AppSet had gone stale since commit `4afa549`. Replaced it with
+  a templated filename (`canary-overrides{{ if ne … "true" }}-DISABLED{{ end }}.yaml`) plus
+  `helm.ignoreMissingValueFiles: true`: canary tenants load `canary-overrides.yaml`,
+  non-canary resolve to a missing file that is skipped. Re-applying the manifest now
+  propagates the `charts/tenant-secret` source to tenant apps, so managed tenants get their
+  ESO `nextcloud-secrets` natively (the manual `helm template … | kubectl apply` stopgap is
+  no longer required).
+
+### Documentation
+- **`nextcloud-platform/docs/` refreshed to match current reality (2026-06-23).** Added
+  `docs/ARCHITECTURE.md` (cross-repo map: GitOps/secret/auth flows, conventions, known
+  issues). Rewrote `SECRETS.md` for the real ESO model (kubernetes-provider store +
+  generator, no Vault/AWS; key is `nextcloud-password`). Corrected pervasive errors across
+  `ADDING-/REMOVING-TENANT.md`, `OPERATIONS.md`, `UPGRADE.md`, `DATABASE.md`: tenant
+  **namespace = bare name** (not `nc-<tenant>`, which is the Argo *app* name); push to the
+  **Codeberg** remote (GitHub is an ignored mirror); chart version lives in the
+  ApplicationSet `targetRevision`/`tenant.chartVersion` (not `values/common.yaml`); tenant
+  deletion does **not** auto-remove the namespace (`preserveResourcesOnDeletion: true`); and
+  and how to refresh/apply the `nextcloud-tenants` AppSet (now fixed — see Fixed above).
+  Top-level `README.md` slimmed to an entry point that links into `docs/`.
+
 ### Changed
 - **ESO consumers moved `external-secrets.io/v1beta1` → `external-secrets.io/v1`.**
   cluster-infra pins ESO to chart `2.6.0` (appVersion v2.6.0); the 2.x major no longer
@@ -15,6 +40,12 @@ platform-level changes — update it in the same commit as the change.
   (`ClusterSecretStore`) and `charts/tenant-secret/templates/externalsecret.yaml`
   (`ExternalSecret`). `ClusterGenerator` stays `generators.external-secrets.io/v1alpha1`;
   passwordSpec fields verified present in 2.6.0. No spec/field changes beyond the apiVersion.
+- **AppProject `nextcloud-platform-core` widened** (`nextcloud-platform/argo/projects/nextcloud-platform-core.yaml`)
+  so `platform-externalsecrets` can sync the ESO consumers: cluster-scoped
+  `external-secrets.io/ClusterSecretStore` + `generators.external-secrets.io/ClusterGenerator`
+  added to `clusterResourceWhitelist`, and `rbac.authorization.k8s.io/*` (the
+  `external-secrets-reader` Role/RoleBinding) added to `namespaceResourceWhitelist`.
+  Without this the app fails `SyncFailed: resource ... not permitted in project`.
 
 ### Added
 - **External Secrets Operator — per-tenant secret generation (NEW tenants only).**

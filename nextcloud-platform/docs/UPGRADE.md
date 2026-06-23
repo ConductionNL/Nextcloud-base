@@ -29,11 +29,28 @@ Before upgrading, verify:
 
 ### Step 1: Update Chart Version
 
-Edit `values/common.yaml`:
+The chart version is **not** set in `values/common.yaml`. It lives in two places:
+
+- Platform-wide default: the `nextcloud-tenants` ApplicationSet `targetRevision`
+  (default `8.9.0`).
+- Per-tenant override: `tenant.chartVersion` in the tenant's values file.
+
+For a single tenant or canary-first rollout, set `tenant.chartVersion` in that
+tenant's file (leave the ApplicationSet default untouched):
 
 ```yaml
-chart:
-  version: "5.3.0"  # Update to new version
+tenant:
+  chartVersion: "8.10.0"  # Update to new chart version for this tenant only
+```
+
+For a platform-wide bump, edit the ApplicationSet `targetRevision`:
+
+```yaml
+spec:
+  template:
+    spec:
+      source:
+        targetRevision: "8.10.0"  # Update to new chart version for all tenants
 ```
 
 ### Step 2: Update Image Tag (if needed)
@@ -41,7 +58,7 @@ chart:
 ```yaml
 image:
   repository: nextcloud
-  tag: "29.0.0-apache"  # Update to new Nextcloud version
+  tag: "<version>-apache"  # Update to new Nextcloud version (chart 8.9.x ships a recent release)
 ```
 
 ### Step 3: Review New Configuration Options
@@ -50,16 +67,19 @@ Check if new Nextcloud version requires config changes:
 
 ```bash
 # Compare current config with new version defaults
-helm show values nextcloud/nextcloud --version 5.3.0 > /tmp/new-defaults.yaml
+helm show values nextcloud/nextcloud --version 8.10.0 > /tmp/new-defaults.yaml
 diff values/common.yaml /tmp/new-defaults.yaml
 ```
 
 ### Step 4: Commit and Push
 
 ```bash
-git add values/common.yaml
-git commit -m "chore: upgrade Nextcloud to 29.0.0 (chart 5.3.0)"
-git push origin main
+# For a single tenant: stage that tenant's values file.
+# For a platform-wide bump: stage the ApplicationSet manifest.
+git add <changed-file>
+git commit -m "chore: upgrade Nextcloud chart to 8.10.0"
+# Argo CD reads from Codeberg, not GitHub.
+git push codeberg main
 ```
 
 ## Canary Rollout (Canary ring)
@@ -120,11 +140,11 @@ TENANT_NS=canary-prod  # Change per tenant namespace
 kubectl exec -it -n $TENANT_NS deploy/nextcloud -c nextcloud -- php occ status
 ```
 
-Expected output:
+Expected output (version reflects whatever the deployed chart ships):
 ```
 - installed: true
-- version: 29.0.0.0
-- versionstring: 29.0.0
+- version: <major>.<minor>.<patch>.<build>
+- versionstring: <major>.<minor>.<patch>
 - edition: 
 - maintenance: false
 ```
@@ -196,7 +216,7 @@ kubectl logs -n $TENANT_NS deploy/nextcloud -c nextcloud --since=10m | grep -i e
 Rollback to previous revision:
 
 ```bash
-TENANT=canary
+TENANT=canary-prod  # bare tenant name; the Argo Application is nc-<tenant>
 
 # Get history
 argocd app history nc-$TENANT
@@ -212,12 +232,12 @@ If the upgrade needs to be reverted for all tenants:
 ```bash
 # Revert the commit
 git revert HEAD
-git push origin main
+git push codeberg main
 
 # Or manually edit and push
-git checkout HEAD~1 -- values/common.yaml
+git checkout HEAD~1 -- <changed-file>
 git commit -m "revert: rollback Nextcloud to previous version"
-git push origin main
+git push codeberg main
 ```
 
 ### Emergency Rollback (All Tenants)
@@ -243,9 +263,9 @@ kubectl patch applicationset nextcloud-tenants -n argocd \
 
 If database schema changes need to be reverted:
 
-1. Put Nextcloud in maintenance mode:
+1. Put Nextcloud in maintenance mode (namespace is the bare tenant name):
    ```bash
-   kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ maintenance:mode --on
+   kubectl exec -it -n $TENANT deploy/nextcloud -- php occ maintenance:mode --on
    ```
 
 2. Restore database from backup:
@@ -256,7 +276,7 @@ If database schema changes need to be reverted:
 
 3. Disable maintenance mode:
    ```bash
-   kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ maintenance:mode --off
+   kubectl exec -it -n $TENANT deploy/nextcloud -- php occ maintenance:mode --off
    ```
 
 ## Troubleshooting
@@ -267,8 +287,8 @@ If database schema changes need to be reverted:
 
 Check for PVC issues:
 ```bash
-kubectl describe pod -n nc-$TENANT
-kubectl describe pvc -n nc-$TENANT
+kubectl describe pod -n $TENANT
+kubectl describe pvc -n $TENANT
 ```
 
 For S3-based architecture, this is usually limited to config PVC only.
@@ -277,10 +297,10 @@ For S3-based architecture, this is usually limited to config PVC only.
 
 ```bash
 # Check S3 credentials
-kubectl get secret -n nc-$TENANT nextcloud-secrets -o yaml
+kubectl get secret -n $TENANT nextcloud-secrets -o yaml
 
 # Test S3 connectivity from pod
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- curl -I https://s3.example.com
+kubectl exec -it -n $TENANT deploy/nextcloud -- curl -I https://s3.example.com
 ```
 
 #### Issue: Redis Connection Errors
@@ -290,7 +310,7 @@ kubectl exec -it -n nc-$TENANT deploy/nextcloud -- curl -I https://s3.example.co
 kubectl get svc -n nextcloud-platform redis
 
 # Test Redis connectivity
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- \
+kubectl exec -it -n $TENANT deploy/nextcloud -- \
   redis-cli -h redis.nextcloud-platform.svc.cluster.local ping
 ```
 
@@ -301,20 +321,20 @@ kubectl exec -it -n nc-$TENANT deploy/nextcloud -- \
 kubectl get pods -n nextcloud-platform -l app.kubernetes.io/name=pgbouncer
 
 # Check database credentials
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- env | grep DB
+kubectl exec -it -n $TENANT deploy/nextcloud -- env | grep DB
 ```
 
 ### Health Check Commands
 
 ```bash
 # Full system check
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ check
+kubectl exec -it -n $TENANT deploy/nextcloud -- php occ check
 
 # File integrity
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ integrity:check-core
+kubectl exec -it -n $TENANT deploy/nextcloud -- php occ integrity:check-core
 
 # App status
-kubectl exec -it -n nc-$TENANT deploy/nextcloud -- php occ app:list
+kubectl exec -it -n $TENANT deploy/nextcloud -- php occ app:list
 ```
 
 ### Getting Help

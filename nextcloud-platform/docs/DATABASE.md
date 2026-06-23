@@ -1,6 +1,12 @@
 # Database Options
 
-This platform supports three database configurations. Choose based on your needs:
+This platform supports three database configurations. Choose based on your needs.
+
+> DB config is layered: each profile lives in `values/db/<dbType>.yaml`
+> (`mariadb`, `postgres`, `external`) and is selected by `tenant.dbType` in the
+> tenant file. The blocks below are illustrative excerpts of those profiles — see
+> `values/db/` for the authoritative values and `docs/ARCHITECTURE.md` for how the
+> ApplicationSet wires them together.
 
 ## Option 1: MariaDB (Default - Simplest)
 
@@ -10,23 +16,19 @@ Each tenant gets their own MariaDB pod managed by the Nextcloud Helm chart.
 
 ### Configuration
 
-```yaml
-# In tenant values file
-database:
-  type: mariadb
+Set `tenant.dbType: mariadb` (the default) in the tenant file; the matching
+profile `values/db/mariadb.yaml` is then layered in automatically. Illustrative
+excerpt of that profile:
 
+```yaml
+# values/db/mariadb.yaml (excerpt)
 mariadb:
   enabled: true
   auth:
-    database: nextcloud
-    username: nextcloud
     existingSecret: nextcloud-secrets
     secretKeys:
-      password: db-password
-  primary:
-    persistence:
-      enabled: true
-      size: 8Gi
+      mariadb-root-password: mariadb-root-password
+      mariadb-password: mariadb-password
 ```
 
 ### Pros
@@ -68,11 +70,12 @@ mariadb:
 postgresql:
   enabled: true
   image:
-    # Custom image with extensions (recommended)
-    registry: ghcr.io
-    repository: conductionnl/nextcloud-images
-    tag: postgres16-ext-sha-6b56bfeda88356d768179c7b2220fb9ded1b4adf
-    pullPolicy: Always
+    # Custom image with extensions (recommended).
+    # Example tag — check values/db/postgres.yaml for the current tag/digest.
+    registry: docker.io
+    repository: conduction2022/nextcloud-images
+    tag: postgres16-ext-sha-8abef67
+    pullPolicy: IfNotPresent
   auth:
     database: nextcloud_<tenant>
     username: nextcloud
@@ -96,7 +99,7 @@ redis:
 
 ### Custom PostgreSQL Image
 
-The custom image (`conductionnl/nextcloud-images:postgres16-ext-*`) includes:
+The custom image (`conduction2022/nextcloud-images:postgres16-ext-*`) includes:
 - PostgreSQL 16
 - Additional extensions for performance
 - Optimized settings for Nextcloud
@@ -129,11 +132,12 @@ Databases are automatically provisioned per tenant.
 
 ### Configuration
 
-```yaml
-# In tenant values file
-database:
-  type: external
+Set `tenant.dbType: external` in the tenant file; the matching profile
+`values/db/external.yaml` is then layered in automatically. Illustrative excerpt
+of that profile (host/port are typically set in `values/env/*.yaml`):
 
+```yaml
+# values/db/external.yaml (excerpt)
 mariadb:
   enabled: false
 
@@ -146,9 +150,6 @@ internalDatabase:
 externalDatabase:
   enabled: true
   type: postgresql
-  host: pgbouncer.nextcloud-platform.svc.cluster.local
-  port: 5432
-  database: nextcloud_<tenant-name>
   existingSecret:
     enabled: true
     secretName: nextcloud-secrets
@@ -194,7 +195,7 @@ When using external PostgreSQL, a Job automatically:
 
 1. **Export data** from MariaDB:
    ```bash
-   kubectl exec -n nc-$TENANT deploy/nextcloud -- php occ maintenance:mode --on
+   kubectl exec -n "$TENANT" deploy/nextcloud -- php occ maintenance:mode --on
    # Use mysqldump or Nextcloud's backup app
    ```
 
@@ -206,12 +207,16 @@ When using external PostgreSQL, a Job automatically:
 
 5. **Disable maintenance mode**
 
-### Using CloudNativePG Operator (Future)
+### Using CloudNativePG Operator (Future — NOT implemented)
 
-For production, consider [CloudNativePG](https://cloudnative-pg.io/):
+> ⚠️ **Aspirational / not implemented.** This section describes a possible future
+> direction only. None of the below is wired into the platform today — do not
+> follow it as current guidance. The three options above are the supported set.
+
+For production, one option to consider is [CloudNativePG](https://cloudnative-pg.io/):
 
 ```yaml
-# Future: operator-managed PostgreSQL
+# Future / NOT implemented: operator-managed PostgreSQL
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:

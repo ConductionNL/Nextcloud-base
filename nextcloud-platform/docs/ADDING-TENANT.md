@@ -33,11 +33,22 @@ cp nextcloud-platform/values/templates/tenant-template-postgres.yaml \
    nextcloud-platform/values/tenants/tenant-<name>.yaml
 ```
 
-Edit the file and replace:
-- `{{TENANT_NAME}}` → tenant name (e.g., `myorg`)
-- `{{HOSTNAME}}` → full hostname (e.g., `nextcloud-myorg.commonground.nu`)
-- `{{DATABASE_NAME}}` → database name (PostgreSQL only, e.g., `nextcloud_myorg`)
-- `{{ENVIRONMENT}}` → `prod` or `accept`
+Modern tenant files are **thin**: you only set `tenant.name`, `tenant.environment`,
+`tenant.dbType` and the enabled `apps`. The ApplicationSet **derives** the hostname,
+the enabled-app defaults and the S3 prefix from `tenant.name` + `tenant.environment` —
+you do **not** hand-fill these. See `docs/ARCHITECTURE.md` for the big picture, and
+`values/tenants/tenant-straatje-accept.yaml` for a real thin tenant file.
+
+Edit the file and set:
+- `tenant.name` → `<organisatie>-<omgeving>` (e.g., `myorg-accept`, `myorg-prod`)
+- `tenant.environment` → `accept` or `prod`
+- `tenant.dbType` → `mariadb` or `postgres`
+- `tenant.apps.enabled` → the apps to install
+
+Hostname is derived (`<org>.<env>.commonground.nu` for accept/test, `<org>.commonground.nu`
+for prod). Set `tenant.hostname` only if you need to override it. PostgreSQL database
+naming is handled by the chart/template defaults — there is no `{{DATABASE_NAME}}` to fill
+in modern tenant files.
 
 ### 2. Update NetworkPolicies ⚠️ IMPORTANT
 
@@ -55,9 +66,9 @@ matchExpressions:
   - key: kubernetes.io/metadata.name
     operator: In
     values:
-      - nc-canary
-      - nc-example
-      - nc-<your-new-tenant>  # ← Add this line
+      - canary-accept
+      - example-accept
+      - <your-new-tenant>  # ← Add this line (bare tenant name, e.g. myorg-accept)
 ```
 
 #### `platform/pgbouncer/networkpolicy.yaml`
@@ -66,9 +77,9 @@ matchExpressions:
   - key: kubernetes.io/metadata.name
     operator: In
     values:
-      - nc-canary
-      - nc-example
-      - nc-<your-new-tenant>  # ← Add this line
+      - canary-accept
+      - example-accept
+      - <your-new-tenant>  # ← Add this line (bare tenant name, e.g. myorg-accept)
 ```
 
 ### 3. Create Secrets
@@ -98,11 +109,12 @@ nano .env  # Fill in your credentials
 
 ```bash
 # Create namespace first (Argo CD will also create it, but secrets need to exist)
-kubectl create namespace nc-<tenant-name>
+# The namespace is the bare tenant name (e.g. myorg-accept), NOT nc-<tenant>.
+kubectl create namespace <tenant-name>
 
 # MariaDB secrets
 kubectl create secret generic nextcloud-secrets \
-  --namespace=nc-<tenant-name> \
+  --namespace=<tenant-name> \
   --from-literal=nextcloud-username='admin@example.com' \
   --from-literal=nextcloud-password='<secure-password>' \
   --from-literal=s3-access-key='<s3-access-key>' \
@@ -113,7 +125,7 @@ kubectl create secret generic nextcloud-secrets \
 
 # PostgreSQL secrets (includes redis-password)
 kubectl create secret generic nextcloud-secrets \
-  --namespace=nc-<tenant-name> \
+  --namespace=<tenant-name> \
   --from-literal=nextcloud-username='admin@example.com' \
   --from-literal=nextcloud-password='<secure-password>' \
   --from-literal=s3-access-key='<s3-access-key>' \
@@ -132,26 +144,31 @@ git add nextcloud-platform/values/tenants/tenant-<name>.yaml
 git add nextcloud-platform/platform/redis/networkpolicy.yaml
 git add nextcloud-platform/platform/pgbouncer/networkpolicy.yaml
 git commit -m "feat: add tenant <name>"
-git push origin main
+# Argo CD reads Codeberg, not the GitHub mirror. Push to the codeberg remote.
+git push codeberg main
 ```
 
 ### 5. Sync Argo CD
 
 After push, Argo CD should detect the new tenant file and create a new `Application`.
 
-In practice, if you want immediate reconcile (recommended), run:
+In practice, if you want immediate reconcile (recommended), refresh the existing
+ApplicationSet — do **not** re-apply the manifest file (see warning below):
 
 ```bash
-# 1) Re-apply ApplicationSet definition from Git
-kubectl -n argocd apply -f nextcloud-platform/argo/applicationsets/nextcloud-tenants.yaml
-
-# 2) Force ApplicationSet refresh
+# 1) Force ApplicationSet refresh (reconciles against Git)
 kubectl -n argocd annotate applicationset nextcloud-tenants \
   argocd.argoproj.io/application-set-refresh="true" --overwrite
 
-# 3) Check if the tenant Application appears
-kubectl -n argocd get applications | grep nc-<tenant-name>
+# 2) Check if the tenant Application appears (named nc-<tenant>, e.g. nc-myorg-accept)
+kubectl -n argocd get applications | grep <tenant-name>
 ```
+
+> For an existing AppSet the annotate-refresh above is usually enough. Re-applying the
+> manifest (`kubectl -n argocd apply -f .../nextcloud-tenants.yaml`) is also supported —
+> the canary override now uses a templated filename + `helm.ignoreMissingValueFiles: true`,
+> so the manifest is valid YAML. (It previously failed at ~line 62 due to a `{{- if }}`
+> list-control line; that has been fixed.)
 
 Expected timing:
 
@@ -161,8 +178,8 @@ Expected timing:
 ### 6. Verify Deployment
 
 ```bash
-# Check application status
-kubectl -n argocd get applications | grep nc-<tenant-name>
+# Check application status (the Application is named nc-<tenant>)
+kubectl -n argocd get applications | grep <tenant-name>
 
 # Check pods
 kubectl get pods -n <tenant-namespace>
@@ -228,8 +245,9 @@ Secrets are missing. See Step 3 above.
 
 Use this order (most common causes first):
 
-1. **Confirm file was pushed to `main`**
-   - Argo only watches Git (not your local files).
+1. **Confirm file was pushed to `main` on Codeberg**
+   - Argo only watches Git (not your local files), and it reads **Codeberg**, not the
+     GitHub mirror. Make sure you pushed with `git push codeberg main`.
 
 2. **Confirm tenant file is valid**
    - Filename must match `tenant-*.yaml`
@@ -242,10 +260,12 @@ Use this order (most common causes first):
 
 3. **Force ApplicationSet reconcile**
    ```bash
-   kubectl -n argocd apply -f nextcloud-platform/argo/applicationsets/nextcloud-tenants.yaml
    kubectl -n argocd annotate applicationset nextcloud-tenants \
      argocd.argoproj.io/application-set-refresh="true" --overwrite
    ```
+   > The annotate refresh is usually enough; re-applying the manifest also works now
+   > (the canary `{{- if }}` list-control line was replaced by a templated filename +
+   > `helm.ignoreMissingValueFiles`). See Step 5.
 
 4. **Check ApplicationSet status message**
    ```bash
@@ -264,9 +284,9 @@ Use this order (most common causes first):
 ## Checklist
 
 ### All Tenants
-- [ ] Tenant values file created (`tenant-<name>.yaml`)
-- [ ] Template placeholders replaced (`{{TENANT_NAME}}`, `{{HOSTNAME}}`, etc.)
-- [ ] Namespace created
+- [ ] Tenant values file created (`tenant-<name>.yaml`) — thin: name/environment/dbType/apps
+- [ ] `tenant.name`, `tenant.environment`, `tenant.dbType`, `tenant.apps.enabled` set (hostname derived)
+- [ ] Namespace created (bare tenant name, e.g. `myorg-accept`)
 - [ ] Secrets created in namespace (use `create-tenant-secret.sh`)
 - [ ] Changes committed and pushed
 - [ ] Argo CD Application synced
@@ -278,5 +298,5 @@ Use this order (most common causes first):
 - [ ] NetworkPolicy updated for PgBouncer (`platform/pgbouncer/networkpolicy.yaml`)
 
 ### PostgreSQL Tenants Only
-- [ ] `{{DATABASE_NAME}}` placeholder replaced
+- [ ] `tenant.dbType: postgres` set
 - [ ] Per-tenant Redis pod running

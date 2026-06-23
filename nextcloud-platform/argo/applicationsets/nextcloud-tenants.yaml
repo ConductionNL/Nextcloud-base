@@ -54,13 +54,16 @@ spec:
           targetRevision: "{{ default \"8.9.0\" .tenant.chartVersion }}"
           helm:
             releaseName: "nextcloud"
+            # Canary tenants load canary-overrides.yaml; non-canary tenants resolve the
+            # templated name to a missing file, which this flag skips. Generated apps
+            # always have their tenant-*.yaml (the generator globs existing files), so
+            # this does not mask a real typo.
+            ignoreMissingValueFiles: true
             valueFiles:
               - "$values/nextcloud-platform/values/common.yaml"
               - "$values/nextcloud-platform/values/env/{{ .tenant.environment }}.yaml"
               - "$values/nextcloud-platform/values/db/{{ default \"mariadb\" .tenant.dbType }}.yaml"
-              {{- if eq (toString .tenant.canary) "true" }}
-              - "$values/nextcloud-platform/values/canary-overrides.yaml"
-              {{- end }}
+              - "$values/nextcloud-platform/values/canary-overrides{{ if ne (toString .tenant.canary) \"true\" }}-DISABLED{{ end }}.yaml"
               - "$values/nextcloud-platform/values/tenants/tenant-{{ .tenant.name }}.yaml"
             values: |
               {{- $name := .tenant.name -}}

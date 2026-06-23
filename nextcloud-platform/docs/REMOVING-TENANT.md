@@ -23,15 +23,13 @@ Het verwijderen van een tenant is **permanent**. Zorg dat je:
 │                    ↓                                             │
 │  2. Tenant file verwijderen uit Git                             │
 │                    ↓                                             │
-│  3. ApplicationSet generator updaten                            │
+│  3. Commit & Push                                                │
 │                    ↓                                             │
-│  4. Commit & Push                                                │
+│  4. Wachten tot Argo CD Application verwijdert                  │
 │                    ↓                                             │
-│  5. Wachten tot Argo CD Application verwijdert                  │
+│  5. Handmatig namespace opruimen                                │
 │                    ↓                                             │
-│  6. Handmatig namespace opruimen                                │
-│                    ↓                                             │
-│  7. S3 data opruimen (optioneel)                                │
+│  6. S3 data opruimen (optioneel)                                │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -48,11 +46,11 @@ Het verwijderen van een tenant is **permanent**. Zorg dat je:
 TENANT=<tenant-naam>
 
 # MariaDB
-kubectl exec -n nc-$TENANT deploy/nextcloud-mariadb -- \
+kubectl exec -n $TENANT deploy/nextcloud-mariadb -- \
   mysqldump -u nextcloud -p nextcloud > backup-$TENANT-db-$(date +%Y%m%d).sql
 
 # Of voor PostgreSQL
-kubectl exec -n nc-$TENANT deploy/nextcloud -- \
+kubectl exec -n $TENANT deploy/nextcloud -- \
   pg_dump -h pgbouncer.nextcloud-platform.svc.cluster.local \
   -U nextcloud_$TENANT nextcloud_$TENANT > backup-$TENANT-db-$(date +%Y%m%d).sql
 ```
@@ -60,7 +58,7 @@ kubectl exec -n nc-$TENANT deploy/nextcloud -- \
 **Secrets backup (voor het geval je moet herstellen):**
 
 ```bash
-kubectl get secret nextcloud-secrets -n nc-$TENANT -o yaml > backup-$TENANT-secrets.yaml
+kubectl get secret nextcloud-secrets -n $TENANT -o yaml > backup-$TENANT-secrets.yaml
 ```
 
 **S3 data backup (optioneel, als S3 bucket gedeeld is):**
@@ -79,27 +77,20 @@ Verwijder het tenant values bestand:
 git rm nextcloud-platform/values/tenants/tenant-$TENANT.yaml
 ```
 
-### 3. ApplicationSet Updaten
+De `nextcloud-tenants` ApplicationSet gebruikt een glob-generator
+(`path: "nextcloud-platform/values/tenants/tenant-*.yaml"`), dus er is **geen
+per-tenant `files` lijst** die je hoeft aan te passen. Het verwijderen van het
+`tenant-$TENANT.yaml` bestand is voldoende om de tenant uit de generator te halen.
 
-Bewerk `nextcloud-platform/argo/applicationsets/nextcloud-tenants.yaml` en verwijder de tenant uit de `files` lijst:
-
-```yaml
-generators:
-  - git:
-      files:
-        - path: "nextcloud-platform/values/tenants/tenant-canary.yaml"
-        # - path: "nextcloud-platform/values/tenants/tenant-$TENANT.yaml"  ← VERWIJDER DEZE REGEL
-```
-
-### 4. Commit en Push
+### 3. Commit en Push
 
 ```bash
 git add -A
 git commit -m "chore: remove tenant $TENANT"
-git push origin main
+git push codeberg main
 ```
 
-### 5. Wachten op Argo CD
+### 4. Wachten op Argo CD
 
 Argo CD zal nu de Application verwijderen:
 
@@ -111,9 +102,11 @@ kubectl get application nc-$TENANT -n argocd -w
 argocd app get nc-$TENANT
 ```
 
+De Application heet `nc-$TENANT`, maar de namespace is de kale tenant-naam (`$TENANT`).
+
 De Application verdwijnt, maar de **resources blijven bestaan** (`preserveResourcesOnDeletion: true`).
 
-### 6. Namespace Opruimen
+### 5. Namespace Opruimen
 
 Nu de Application weg is, ruim handmatig de namespace op:
 
@@ -121,12 +114,12 @@ Nu de Application weg is, ruim handmatig de namespace op:
 TENANT=<tenant-naam>
 
 # Check wat er nog is
-kubectl get all -n nc-$TENANT
-kubectl get pvc -n nc-$TENANT
-kubectl get secrets -n nc-$TENANT
+kubectl get all -n $TENANT
+kubectl get pvc -n $TENANT
+kubectl get secrets -n $TENANT
 
 # Als alles klopt, verwijder de namespace
-kubectl delete namespace nc-$TENANT
+kubectl delete namespace $TENANT
 ```
 
 **Let op:** Dit verwijdert:
@@ -135,7 +128,7 @@ kubectl delete namespace nc-$TENANT
 - Alle secrets
 - Alle andere resources in de namespace
 
-### 7. S3 Data Opruimen (Optioneel)
+### 6. S3 Data Opruimen (Optioneel)
 
 Als de tenant een eigen S3 prefix/bucket had:
 
@@ -180,20 +173,19 @@ Dit voorkomt dat:
 TENANT=mijn-tenant
 
 # 1. Backup
-kubectl exec -n nc-$TENANT deploy/nextcloud-mariadb -- mysqldump -u nextcloud -p nextcloud > backup.sql
-kubectl get secret nextcloud-secrets -n nc-$TENANT -o yaml > secrets-backup.yaml
+kubectl exec -n $TENANT deploy/nextcloud-mariadb -- mysqldump -u nextcloud -p nextcloud > backup.sql
+kubectl get secret nextcloud-secrets -n $TENANT -o yaml > secrets-backup.yaml
 
-# 2. Git
+# 2. Git (alleen het tenant-bestand verwijderen; de glob-generator regelt de rest)
 git rm nextcloud-platform/values/tenants/tenant-$TENANT.yaml
-# + Edit applicationsets/nextcloud-tenants.yaml
 git commit -m "chore: remove tenant $TENANT"
-git push
+git push codeberg main
 
 # 3. Wacht tot Application weg is
 kubectl get application nc-$TENANT -n argocd
 
-# 4. Opruimen
-kubectl delete namespace nc-$TENANT
+# 4. Opruimen (namespace is de kale tenant-naam)
+kubectl delete namespace $TENANT
 
 # 5. S3 (optioneel)
 aws --endpoint-url https://core.fuga.cloud:8080 s3 rm s3://nextcloud/$TENANT/ --recursive
@@ -207,10 +199,10 @@ aws --endpoint-url https://core.fuga.cloud:8080 s3 rm s3://nextcloud/$TENANT/ --
 
 ```bash
 # Check wat de namespace blokkeert
-kubectl get namespace nc-$TENANT -o yaml
+kubectl get namespace $TENANT -o yaml
 
 # Forceer verwijdering (alleen als veilig!)
-kubectl patch namespace nc-$TENANT -p '{"metadata":{"finalizers":[]}}' --type=merge
+kubectl patch namespace $TENANT -p '{"metadata":{"finalizers":[]}}' --type=merge
 ```
 
 ### Application bestaat nog
@@ -227,10 +219,10 @@ argocd app delete nc-$TENANT
 
 ```bash
 # Check PVC status
-kubectl describe pvc -n nc-$TENANT
+kubectl describe pvc -n $TENANT
 
 # Forceer verwijdering
-kubectl patch pvc <pvc-name> -n nc-$TENANT -p '{"metadata":{"finalizers":[]}}' --type=merge
+kubectl patch pvc <pvc-name> -n $TENANT -p '{"metadata":{"finalizers":[]}}' --type=merge
 ```
 
 ---

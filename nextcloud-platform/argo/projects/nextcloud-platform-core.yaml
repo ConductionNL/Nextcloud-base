@@ -59,6 +59,11 @@ spec:
       kind: ClusterRoleBinding
     - group: scheduling.k8s.io
       kind: PriorityClass
+    # ESO consumers that are cluster-scoped (the operator itself lives in cluster-infra)
+    - group: external-secrets.io
+      kind: ClusterSecretStore
+    - group: generators.external-secrets.io
+      kind: ClusterGenerator
 
   # No namespaceResourceBlacklist here: ResourceQuota/LimitRange ARE permitted,
   # because the platform `policies` app must manage them. The tenant guardrail
@@ -77,6 +82,8 @@ spec:
     - group: policy
       kind: "*"
     - group: autoscaling
+      kind: "*"
+    - group: rbac.authorization.k8s.io      # external-secrets-reader Role/RoleBinding
       kind: "*"
     - group: external-secrets.io
       kind: "*"
