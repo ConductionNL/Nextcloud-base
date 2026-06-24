@@ -2,6 +2,14 @@
 
 All notable changes to this repository are documented in this file.
 
+## 2026-06-24
+
+### Added
+- `delft-accept`: added a `tenant.frontend.branding.organisationName: "Gemeente Delft"`
+  block so the co-tenant WOO PWA frontend (onboarded in React-base's `react-tenants`
+  appset on 2026-06-24) renders the org name. `edam-volendam-accept` already carried
+  its branding block; no change needed there.
+
 ## 2026-03-06 – 2026-03-12
 
 ### Added

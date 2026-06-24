@@ -9,3 +9,6 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  frontend:
+    branding:
+      organisationName: "Gemeente Delft"
