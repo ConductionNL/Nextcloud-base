@@ -9,6 +9,12 @@ All notable changes to this repository are documented in this file.
   block so the co-tenant WOO PWA frontend (onboarded in React-base's `react-tenants`
   appset on 2026-06-24) renders the org name. `edam-volendam-accept` already carried
   its branding block; no change needed there.
+- `gooisemeren-migrate-prod`: added a `tenant.frontend` block with an explicit
+  `host: gooisemeren.openwoo.app` (the appset would otherwise derive
+  `gooisemeren-migrate.openwoo.app` from the tenant name) and branding
+  `"Gemeente Gooise Meren"`. Upstream auto-follows `tenant.hostname`
+  (`gooisemeren.commonground.nu`). No live frontend existed yet — clean add, no
+  cut-over. Frontend onboarded in React-base's `react-tenants` appset same day.
 
 ## 2026-03-06 – 2026-03-12
 
