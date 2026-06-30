@@ -1,0 +1,16 @@
+---
+tenant:
+  name: voorschoten-accept
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    branding:
+      organisationName: "Gemeente Voorschoten"
