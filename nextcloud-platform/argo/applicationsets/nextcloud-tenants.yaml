@@ -174,8 +174,12 @@ spec:
           targetRevision: HEAD
           ref: values
 
-        # AverageValue HPA (no resource requests needed)
-        # Enabled only for prod; disabled for accept/test (HPA not useful there)
+        # AverageValue HPA — DISABLED fleet-wide.
+        # Prod RS>1 is blocked by RWO Cinder PVCs (Multi-Attach): a 2nd replica can
+        # never attach the single-writer volume, so minReplicas=2 leaves every prod
+        # tenant Degraded (stuck Init/FailedAttachVolume). Keep HPA off until the
+        # stateless/S3-primary HA path lands (cf. env/prod.yaml: replicaCount 1,
+        # hpa.enabled false). Re-enable per-environment only once RS>1 is safe.
         - repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
           targetRevision: HEAD
           path: charts/tenant-hpa
@@ -183,7 +187,7 @@ spec:
             releaseName: "nextcloud-hpa"
             values: |
               hpa:
-                enabled: {{ eq .tenant.environment "prod" }}
+                enabled: false
 
         # ESO-managed nextcloud-secrets (NEW tenants only). Renders nothing unless
         # the tenant file sets tenant.secrets.managed: true — so existing tenants'

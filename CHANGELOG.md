@@ -9,6 +9,16 @@ platform-level changes — update it in the same commit as the change.
 ## [Unreleased]
 
 ### Fixed
+- **Disabled the prod HPA in the `tenant-hpa` AppSet source — it forced RS=2 onto RWO PVCs.**
+  The `charts/tenant-hpa` source set `hpa.enabled: {{ eq .tenant.environment "prod" }}`
+  with chart default `minReplicas: 2`. When the 4-source `nextcloud-tenants` AppSet was
+  first brought live (2026-06-30), this created an HPA on every prod tenant that scaled the
+  Nextcloud Deployment to 2 — but the data PVC is RWO Cinder (single-attach), so the 2nd
+  replica was stuck `FailedAttachVolume` and every prod tenant went `Degraded` (no outage;
+  the 1st pod kept serving). Set `hpa.enabled: false` fleet-wide to match `env/prod.yaml`
+  (`replicaCount: 1`, HPA off until the stateless/S3-primary HA path lands). Remediation:
+  deleted the orphaned `nextcloud` HPAs and scaled affected Deployments back to 1 (Argo
+  `ignoreDifferences` on `/spec/replicas` keeps them there; no auto-revert).
 - **`nextcloud-tenants` ApplicationSet is `kubectl apply`-able again.** The canary override
   was selected with a `{{- if }}` control line wrapping a `valueFiles` list item — valid as
   an Argo goTemplate but invalid YAML, so `kubectl apply -f` failed (`line 62: could not
