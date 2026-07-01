@@ -18,3 +18,4 @@ tenant:
       organisationName: Gemeente hoekschewaard
       themeClassname: conduction-theme
       jumbotronImageUrl: https://github.com/ConductionNL/woo-website-hoekschewaard/blob/main/Jumbotron.jpeg
+    tag: latest
