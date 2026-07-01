@@ -16,3 +16,4 @@ tenant:
       jumbotronImageUrl: https://almere.accept.commonground.nu/apps/files_sharing/publicpreview/5b2eaqNiTKKbjAj?file=/&fileId=763&x=3440&y=1440&a=true&etag=286ccf322e05188eabd71948e6a528ca
       faviconUrl: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgBAMAAACBVGfHAAAAA3NCSVQICAjb4U/gAAAAMFBMVEUtn7mGztzv+ftIs8e75eo1qLxkwM6Z2OJArsD///9vxtLb8PRVusus3uZ3ydbK6+/wiAImAAAACXBIWXMAAAsSAAALEgHS3X78AAAAHHRFWHRTb2Z0d2FyZQBBZG9iZSBGaXJld29ya3MgQ1M26LyyjAAAAJJJREFUKJFjYBjcgDW0AwJCYQLNaWCQYwEV4DATBAOpZDC3Z+FuzZlAMEk7pwHIDW1eWKsEElD6ct0iACSfd+W/Eli+cE0oSOCULIgLFNi9BqTBqmQmBCi9aYUa6P8bpGL/3cMBYIEIG/HaTZozJ11/1goRCA099vC35kwlMVNkh/eInUD1ScSZVjS/tYYyDHYAAMRuPyrbj5UXAAAAAElFTkSuQmCC
       footerHideLogo: "true"
+    tag: V1.0.260422-development
