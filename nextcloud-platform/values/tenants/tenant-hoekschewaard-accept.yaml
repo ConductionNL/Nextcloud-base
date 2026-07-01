@@ -14,7 +14,6 @@ tenant:
       openconnector: "0.2.8-beta.7"
       openregister: "0.2.9"
   frontend:
-    tag: latest
     branding:
       organisationName: Gemeente hoekschewaard
       themeClassname: conduction-theme

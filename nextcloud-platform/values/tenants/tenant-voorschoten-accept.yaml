@@ -14,4 +14,3 @@ tenant:
   frontend:
     branding:
       organisationName: "Gemeente Voorschoten"
-    tag: development

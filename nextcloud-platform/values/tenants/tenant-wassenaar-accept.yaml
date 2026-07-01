@@ -14,4 +14,3 @@ tenant:
   frontend:
     branding:
       organisationName: "Gemeente Wassenaar"
-    tag: development
