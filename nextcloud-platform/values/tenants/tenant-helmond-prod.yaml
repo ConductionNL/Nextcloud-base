@@ -9,3 +9,5 @@ tenant:
       - openregister
       - opencatalogi
       - openconnector
+  frontend:
+    tag: latest
