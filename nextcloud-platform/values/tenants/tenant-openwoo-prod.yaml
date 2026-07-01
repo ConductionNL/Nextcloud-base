@@ -11,3 +11,4 @@ tenant:
       - openregister
   frontend:
     tag: dev
+    host: open.openwoo.app
