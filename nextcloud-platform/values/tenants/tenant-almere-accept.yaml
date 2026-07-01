@@ -10,7 +10,7 @@ tenant:
       - openconnector
       - openregister
   frontend:
-    tag: latest
+    tag: development-V1.0.260422
     branding:
       organisationName: Gemeente Almere
       themeClassname: almere-theme
