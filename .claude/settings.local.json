@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls:*)",
+      "Bash(wc:*)",
+      "Bash(TZ=Europe/Amsterdam date:*)",
+      "Bash(helm show:*)",
+      "Bash(helm:*)",
+      "Bash(git status:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl get:*)",
+      "Bash(npx openspec:*)",
+      "Bash(openspec propose:*)",
+      "Bash(openspec new:*)",
+      "Bash(openspec status:*)",
+      "Bash(openspec instructions:*)",
+      "Bash(OS_CLOUD=fuga openstack volume:*)",
+      "Bash(argocd app:*)",
+      "Bash(git -C /home/gongoeloe/CONDUCTION/Nextcloud-base add nextcloud-platform/argo/applicationsets/nextcloud-tenants.yaml)",
+      "Bash(git -C /home/gongoeloe/CONDUCTION/Nextcloud-base rebase --continue)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl version:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(kubectl kustomize:*)",
+      "Bash(./scripts/validate-values.sh)",
+      "Bash(bash scripts/validate-values.sh)",
+      "Bash(bash ./nextcloud-platform/scripts/validate-values.sh)",
+      "Bash(awk '/^Name:/{node=$2} /Allocated resources:/{flag=1; print \"\\\\n=== \"node\" ===\"} flag{print} /Events:/{flag=0}')",
+      "Bash(kubectl apply *)",
+      "Bash(python3 -c \"import json,sys;d=json.load\\(sys.stdin\\);print\\(' '.join\\(sorted\\(d.keys\\(\\)\\)\\)\\)\")",
+      "Bash(echo \"exit=$?\")",
+      "Read(//tmp/**)",
+      "Bash(bash *)",
+      "Bash(./scripts/validate-values.sh values/tenants/tenant-gooisemeren-migrate-*)",
+      "Bash(yamllint values/tenants/tenant-gooisemeren-migrate-*.yaml)",
+      "Bash(curl -sI --max-time 10 https://codeberg.org)",
+      "Bash(echo \"exit: $?\")"
+    ]
+  }
+}
