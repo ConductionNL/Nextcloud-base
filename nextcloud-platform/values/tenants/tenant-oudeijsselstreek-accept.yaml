@@ -10,3 +10,17 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Migratie legacy frontend (ns oudeijsselstreek) 2026-07-06 — waardes 1:1
+  # uit de legacy deploy (tag dev; publiek domein bevat een streepje:
+  # oude-ijsselstreek.nl, tenant-naam niet). LET OP cutover: legacy app heet
+  # oudeijsselstreek-accept-react (geen adoptie door de appset).
+  frontend:
+    tag: dev
+    host: acceptatie-open.oude-ijsselstreek.nl
+    tls:
+      secretName: acceptatie-open-oude-ijsselstreek-nl-tls
+      issuer: letsencrypt-prod
+    branding:
+      organisationName: gemeente Oude IJsselstreek
+      themeClassname: oude-ijsselstreek-theme
+      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-oude-ijsselstreek/main/jumbotron.jpg"
