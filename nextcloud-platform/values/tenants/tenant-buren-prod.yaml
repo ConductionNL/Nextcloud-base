@@ -13,3 +13,18 @@ tenant:
       opencatalogi: "0.7.8"
       openconnector: "0.2.9-beta.3"
       openregister: "0.2.11"
+  # Migratie legacy frontend (ns buren) 2026-07-06 — waardes 1:1 uit de legacy
+  # deploy; backend serveert zelf buren.commonground.nu, upstream default klopt.
+  # LET OP TLS: BYO Sectigo DV-cert (geldig t/m 2026-12-25) in pre-seeded secret
+  # open-buren-nl-tls (geen Argo-labels, overleeft cutover) — issuer "none"
+  # zodat cert-manager er vanaf blijft.
+  frontend:
+    tag: latest
+    host: open.buren.nl
+    tls:
+      secretName: open-buren-nl-tls
+      issuer: none
+    branding:
+      organisationName: Gemeente Buren
+      themeClassname: buren-theme
+      jumbotronImageUrl: "https://buren.commonground.nu/apps/files_sharing/publicpreview/6d3tJAAMYdr9Wy4?file=/&fileId=11505&x=3440&y=1440&a=true&etag=b4f46182ab7c61046403f231d84f7313"

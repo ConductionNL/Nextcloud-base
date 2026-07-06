@@ -10,3 +10,18 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Migratie legacy frontend (ns lansingerland) 2026-07-06 — waardes 1:1 uit de
+  # legacy deploy (incl. lowercase "lansingerland" in organisationName); backend
+  # serveert zelf lansingerland.commonground.nu, upstream default klopt. Nieuw
+  # stabiel TLS-secret (legacy gebruikte chart-derived naam); LE geeft bij
+  # cutover een vers cert uit via HTTP-01.
+  frontend:
+    tag: latest
+    host: open.lansingerland.nl
+    tls:
+      secretName: open-lansingerland-nl-tls
+      issuer: letsencrypt-prod
+    branding:
+      organisationName: Gemeente lansingerland
+      themeClassname: lansingerland-theme
+      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-template/main/pwa/src/assets/jumbotron/jumbotronLansingerland.jpg"
