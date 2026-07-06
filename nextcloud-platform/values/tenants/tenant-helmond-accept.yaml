@@ -14,4 +14,4 @@ tenant:
     tag: latest
     branding:
       organisationName: Gemeente Helmond
-      themeClassname: zuiddrecht-theme
+      themeClassname: helmond-theme
