@@ -24,8 +24,17 @@ tenant:
     # to the real one. Upstream auto-follows tenant.hostname above
     # (gooisemeren.commonground.nu), so the two never drift.
     host: gooisemeren.openwoo.app
+    # De legacy frontend serveerde ook open.gooisemeren.nl (cutover 2026-07-06).
+    # Eén multi-SAN LE-cert voor beide hosts, zoals legacy; het oude secret
+    # wordt gepreseed als gooisemeren-frontend-tls zodat er geen TLS-gat valt.
+    extraHosts:
+      - open.gooisemeren.nl
+    tls:
+      secretName: gooisemeren-frontend-tls
+      issuer: letsencrypt-prod
     branding:
       organisationName: "Gemeente Gooise Meren"
+      themeClassname: gooise-meren-theme
 
 # Gooise Meren is the only tenant with substantial local disk needs
 # (platform default is 50Gi in common.yaml).
