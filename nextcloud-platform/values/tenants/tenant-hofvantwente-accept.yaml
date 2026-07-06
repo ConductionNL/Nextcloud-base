@@ -23,7 +23,7 @@ tenant:
     branding:
       organisationName: Gemeente Hof van Twente
       themeClassname: hof-van-twente-theme
-      jumbotronImageUrl: "https://hofvantwente.accept.commonground.nu/apps/files_sharing/publicpreview/3YdsMTgDw9z3yRi?file=/&fileId=576993&x=3440&y=1440&a=true&etag=9663929e52bd176ab1c97c323f758c12"
+      jumbotronImageUrl: "https://hofvantwente.commonground.nu/apps/files_sharing/publicpreview/RYsbR2nGycfcM3w?file=/&fileId=1536&x=3440&y=1440&a=true&etag=31a5a3530d87d1853e2027200c33d3ed"
       footerHideLogo: true
     env:
       GATSBY_ANALYTICS_URL: "https://siteimproveanalytics.com/js/siteanalyze_6006029.js"
