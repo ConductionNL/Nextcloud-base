@@ -10,3 +10,16 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Migratie legacy frontend (ns tubbergen) 2026-07-06 — waardes 1:1 uit de
+  # legacy deploy (favicon/footer-href waren daar leeg; theme deelt assets met
+  # noaberkracht). Favicon evt. later live zetten (ignore-diff).
+  frontend:
+    tag: latest
+    host: acceptatie-open.tubbergen.nl
+    tls:
+      secretName: acceptatie-open-tubbergen-nl-tls
+      issuer: letsencrypt-prod
+    branding:
+      organisationName: Gemeente tubbergen
+      themeClassname: tubbergen-theme
+      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-tubbergen/main/jumbotron.jpg"
