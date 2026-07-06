@@ -2,6 +2,10 @@
 tenant:
   name: pipelinq-server-prod
   environment: prod
+  # Geen WOO-portaal — geen react-frontend (FASE 2-opt-out 2026-07-06; de
+  # react-tenants appset filtert tenant.frontend.enabled=false via post-selector).
+  frontend:
+    enabled: false
   wave: "1"
   dbType: postgres
   apps:

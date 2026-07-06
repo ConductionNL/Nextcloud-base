@@ -7,6 +7,10 @@ tenant:
   namespace: vng-backend-accept
   phpMemoryLimit: "2048M"
   hostname: backend.accept.opencatalogi.nl
+  # Geen WOO-portaal — geen react-frontend (FASE 2-opt-out 2026-07-06; de
+  # react-tenants appset filtert tenant.frontend.enabled=false via post-selector).
+  frontend:
+    enabled: false
 resources:
   limits:
     memory: 4Gi

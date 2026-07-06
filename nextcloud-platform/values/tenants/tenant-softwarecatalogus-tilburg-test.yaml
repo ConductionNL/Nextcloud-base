@@ -6,6 +6,10 @@ tenant:
   dbType: postgres
   hostname: softwarecatalogus.performance.tilburg-test.commonground.nu
   hostnameOverride: true
+  # Geen WOO-portaal — geen react-frontend (FASE 2-opt-out 2026-07-06; de
+  # react-tenants appset filtert tenant.frontend.enabled=false via post-selector).
+  frontend:
+    enabled: false
   apps:
     enabled:
       - opencatalogi
