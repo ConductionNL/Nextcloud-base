@@ -1,0 +1,7 @@
+# Gate-mode hooks (nooit auto-fix). Activeren:
+#   pre-commit install --hook-type pre-push
+repos:
+  - repo: https://codeberg.org/Conduction/techbook
+    rev: a0c3ae388ed437a79d3eb297920b2df298a29f77
+    hooks:
+      - id: docs-contract
