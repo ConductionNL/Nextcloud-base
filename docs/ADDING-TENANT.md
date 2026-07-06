@@ -1,3 +1,8 @@
+---
+last_reviewed: 2026-06-23
+owner: mark
+---
+
 # Adding a New Tenant
 
 This guide describes the steps required to add a new Nextcloud tenant to the platform.

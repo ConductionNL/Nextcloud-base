@@ -1,3 +1,8 @@
+---
+last_reviewed: 2026-06-23
+owner: mark
+---
+
 # Removing a Tenant
 
 Deze guide beschrijft hoe je een tenant veilig verwijdert van het platform.
@@ -230,6 +235,6 @@ kubectl patch pvc <pvc-name> -n $TENANT -p '{"metadata":{"finalizers":[]}}' --ty
 ## Zie Ook
 
 - [ADDING-TENANT.md](ADDING-TENANT.md) - Nieuwe tenant toevoegen
-- [OPERATIONS.md](OPERATIONS.md) - Tenant reset (zonder verwijderen)
+- [TENANT-OPERATIONS.md](TENANT-OPERATIONS.md) - Tenant reset (zonder verwijderen)
 - [SECRETS.md](SECRETS.md) - Secrets backup en restore
 

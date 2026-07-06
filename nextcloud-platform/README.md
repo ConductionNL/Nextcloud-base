@@ -14,7 +14,7 @@ config, Redis sessions/locking).
 | Understand secrets | [`docs/SECRETS.md`](docs/SECRETS.md) |
 | Roll out / upgrade safely | [`docs/ROLLOUTS.md`](docs/ROLLOUTS.md) · [`docs/UPGRADE.md`](docs/UPGRADE.md) |
 | Change Nextcloud config | [`docs/CONFIG-CHANGES.md`](docs/CONFIG-CHANGES.md) |
-| Operate / troubleshoot | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) |
+| Operate / troubleshoot | [`docs/TENANT-OPERATIONS.md`](../docs/TENANT-OPERATIONS.md) e.a. — zie [`docs/index.md`](../docs/index.md) |
 
 ## Conventions you must know (or you will get burned)
 

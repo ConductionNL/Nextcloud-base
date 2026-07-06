@@ -1,3 +1,8 @@
+---
+last_reviewed: 2026-06-23
+owner: mark
+---
+
 # Checks And Balances (Safe Rollouts)
 
 This document defines the operational safety flow for tenant additions and platform changes.

@@ -1,3 +1,8 @@
+---
+last_reviewed: 2026-06-23
+owner: mark
+---
+
 # Nextcloud Platform Upgrade Guide
 
 This document describes the upgrade process for the Nextcloud platform.

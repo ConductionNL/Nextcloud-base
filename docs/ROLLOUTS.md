@@ -1,3 +1,8 @@
+---
+last_reviewed: 2026-06-23
+owner: mark
+---
+
 ## Controlled rollouts with a Canary Ring (Argo CD)
 
 This document describes how we do **safe, controlled upgrades** of the Nextcloud platform using Argo CD:

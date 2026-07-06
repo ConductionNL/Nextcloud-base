@@ -1,3 +1,8 @@
+---
+last_reviewed: 2026-06-23
+owner: mark
+---
+
 # Making Nextcloud Configuration Changes
 
 ## The Rule

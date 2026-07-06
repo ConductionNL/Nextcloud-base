@@ -168,10 +168,10 @@ Open je browser en ga naar `https://nextcloud-canary.commonground.nu` (of je gec
 | Document | Beschrijving |
 |----------|--------------|
 | [SETUP.md](nextcloud-platform/SETUP.md) | Volledige setup guide voor eerste deployment |
-| [ADDING-TENANT.md](nextcloud-platform/docs/ADDING-TENANT.md) | Stap-voor-stap guide voor nieuwe tenants |
-| [DATABASE.md](nextcloud-platform/docs/DATABASE.md) | Database opties (MariaDB, PostgreSQL, External) |
-| [SECRETS.md](nextcloud-platform/docs/SECRETS.md) | Secrets management met ESO of fallback |
-| [UPGRADE.md](nextcloud-platform/docs/UPGRADE.md) | Upgrade procedures en rollback |
+| [ADDING-TENANT.md](docs/ADDING-TENANT.md) | Stap-voor-stap guide voor nieuwe tenants |
+| [DATABASE.md](docs/DATABASE.md) | Database opties (MariaDB, PostgreSQL, External) |
+| [SECRETS.md](docs/SECRETS.md) | Secrets management met ESO of fallback |
+| [UPGRADE.md](docs/UPGRADE.md) | Upgrade procedures en rollback |
 
 ## 🔧 Tenant Toevoegen
 

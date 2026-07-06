@@ -1,3 +1,8 @@
+---
+last_reviewed: 2026-06-23
+owner: mark
+---
+
 # Secrets Management
 
 How tenant secrets work on this platform. Last verified 2026-06-23.

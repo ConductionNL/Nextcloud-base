@@ -1,3 +1,8 @@
+---
+last_reviewed: 2026-06-23
+owner: mark
+---
+
 # Architecture Map
 
 > One-screen orientation for a dev or agent: which repos exist, how they connect, and how
