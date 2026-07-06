@@ -10,3 +10,8 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  frontend:
+    tag: latest
+    branding:
+      organisationName: Gemeente Helmond
+      themeClassname: zuiddrecht-theme
