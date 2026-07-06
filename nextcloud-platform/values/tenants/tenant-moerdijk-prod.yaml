@@ -12,5 +12,23 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Migratie legacy frontend (ns moerdijk) 2026-07-06 — waardes 1:1 uit de
+  # legacy deploy (tag dev = huidige legacy tag; bewust later bumpen).
+  # Favicon is een inline data-URI en gaat live mee (ignore-diff).
+  frontend:
+    tag: dev
+    host: open.moerdijk.nl
+    # De prod-data staat nog op de LEGACY nextcloud (moerdijk.commonground.nu);
+    # tenant.hostname hierboven is het migrate-host en zou anders de upstream
+    # worden. Verwijder deze override samen met de hostname-regel bij de
+    # backend-cutover.
+    upstreamHost: moerdijk.commonground.nu
+    tls:
+      secretName: open-moerdijk-nl-tls
+      issuer: letsencrypt-prod
+    branding:
+      organisationName: Gemeente Moerdijk
+      themeClassname: moerdijk-theme
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-moerdijk-v2/main/jumbotron.jpg
 
 
