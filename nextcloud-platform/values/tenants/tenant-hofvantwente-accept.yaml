@@ -10,3 +10,21 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Migratie legacy frontend (ns hofvantwente) 2026-07-06 — waardes 1:1 uit de
+  # legacy deploy (tag dev; cert was al letsencrypt via los Certificate CR).
+  # Jumbotron komt uit de eigen Nextcloud (publicpreview) — host blijft gelijk.
+  # Favicon is een inline data-URI en gaat live mee (ignore-diff).
+  frontend:
+    tag: dev
+    host: acceptatie-open.hofvantwente.nl
+    tls:
+      secretName: acceptatie-open-hofvantwente-nl-tls
+      issuer: letsencrypt-prod
+    branding:
+      organisationName: Gemeente Hof van Twente
+      themeClassname: hof-van-twente-theme
+      jumbotronImageUrl: "https://hofvantwente.accept.commonground.nu/apps/files_sharing/publicpreview/3YdsMTgDw9z3yRi?file=/&fileId=576993&x=3440&y=1440&a=true&etag=9663929e52bd176ab1c97c323f758c12"
+      footerHideLogo: true
+    env:
+      GATSBY_ANALYTICS_URL: "https://siteimproveanalytics.com/js/siteanalyze_6006029.js"
+      GATSBY_FOOTER_HIDE_LOVE: "true"
