@@ -14,3 +14,5 @@ tenant:
   frontend:
     branding:
       organisationName: "Gemeente Tilburg Preprod"
+      # Theme-baseline 2026-07-06 (FASE 2) — ignore-diffed, live bij te stellen.
+      themeClassname: tilburg-theme

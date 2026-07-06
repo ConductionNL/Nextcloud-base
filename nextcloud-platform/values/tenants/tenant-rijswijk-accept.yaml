@@ -8,6 +8,11 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Branding-baseline 2026-07-06 (FASE 2) — GATSBY_-env is ignore-diffed,
+  # devs kunnen live bijstellen; geen rijswijk-theme in de app-bundle.
+  frontend:
+    branding:
+      organisationName: Gemeente Rijswijk
 
 image:
   registry: ghcr.io

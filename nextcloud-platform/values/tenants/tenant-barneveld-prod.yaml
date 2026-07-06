@@ -9,3 +9,8 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Branding-baseline 2026-07-06 (FASE 2) — GATSBY_-env is ignore-diffed,
+  # devs kunnen live bijstellen; geen barneveld-theme in de app-bundle.
+  frontend:
+    branding:
+      organisationName: Gemeente Barneveld

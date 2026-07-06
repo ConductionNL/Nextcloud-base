@@ -10,3 +10,9 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Branding-baseline 2026-07-06 (FASE 2) — GATSBY_-env is ignore-diffed,
+  # devs kunnen live bijstellen. Geen zeewolde-theme in de app-bundle;
+  # theme volgt zodra die in woo-website-template bestaat.
+  frontend:
+    branding:
+      organisationName: Gemeente Zeewolde
