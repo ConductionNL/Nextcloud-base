@@ -9,3 +9,23 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Migratie legacy frontend (ns noorderzijlvest) 2026-07-06 — waardes 1:1 uit
+  # de legacy deploy; backend serveert zelf noorderzijlvest.commonground.nu,
+  # upstream default klopt. DNS gecheckt: A -> 81.24.6.82, geen AAAA.
+  # LET OP TLS: BYO Sectigo DV-cert (t/m 2026-11-27); legacy issuer-annotatie
+  # was live verwijderd (ignoreDifferences-drift). Secret wordt bij cutover
+  # gekopieerd naar ns noorderzijlvest-prod onder de stabiele naam
+  # open-noorderzijlvest-nl-tls — issuer "none", cert-manager blijft eraf.
+  frontend:
+    tag: latest
+    host: open.noorderzijlvest.nl
+    tls:
+      secretName: open-noorderzijlvest-nl-tls
+      issuer: none
+    branding:
+      organisationName: Waterschap Noorderzijlvest
+      themeClassname: noorderzijlvest-theme
+      jumbotronImageUrl: "https://noorderzijlvest.commonground.nu/apps/files_sharing/publicpreview/CiPAYNDcZjbt4Z3?file=/&fileId=291&x=3440&y=1440&a=true&etag=ce18a459c2e581bdcf795da2b5401461"
+    env:
+      GATSBY_FOOTER_HIDE_LOGO: "true"
+      GATSBY_FOOTER_CONTENT_HEADER: "heading-2"
