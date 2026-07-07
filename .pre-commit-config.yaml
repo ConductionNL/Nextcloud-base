@@ -5,3 +5,13 @@ repos:
     rev: 834f9467074caaedc39c0c61ab4f09773a6790d2
     hooks:
       - id: docs-contract
+
+  - repo: local
+    hooks:
+      - id: verify
+        name: verify (tenant-validatie + smoke-checks)
+        entry: scripts/verify.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
