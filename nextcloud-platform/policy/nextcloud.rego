@@ -1,12 +1,15 @@
 # OPA/Conftest policies for Nextcloud Platform
 # Run with: conftest test <manifest.yaml> --policy policy/
+#
+# Syntax: Rego v1 (gemoderniseerd 2026-07-07; oude syntax parste niet meer
+# onder conftest 0.66 en liet de gate fail-closed afgaan).
 
 package main
 
 import future.keywords.in
 
 # Deny deployments without resource limits
-deny[msg] {
+deny contains msg if {
     input.kind == "Deployment"
     container := input.spec.template.spec.containers[_]
     not container.resources.limits
@@ -14,7 +17,7 @@ deny[msg] {
 }
 
 # Deny deployments without resource requests
-deny[msg] {
+deny contains msg if {
     input.kind == "Deployment"
     container := input.spec.template.spec.containers[_]
     not container.resources.requests
@@ -22,7 +25,7 @@ deny[msg] {
 }
 
 # Warn if using :latest tag
-warn[msg] {
+warn contains msg if {
     input.kind == "Deployment"
     container := input.spec.template.spec.containers[_]
     endswith(container.image, ":latest")
@@ -30,7 +33,7 @@ warn[msg] {
 }
 
 # Deny privileged containers
-deny[msg] {
+deny contains msg if {
     input.kind == "Deployment"
     container := input.spec.template.spec.containers[_]
     container.securityContext.privileged == true
@@ -38,7 +41,7 @@ deny[msg] {
 }
 
 # Deny containers running as root
-deny[msg] {
+deny contains msg if {
     input.kind == "Deployment"
     container := input.spec.template.spec.containers[_]
     container.securityContext.runAsUser == 0
@@ -46,7 +49,7 @@ deny[msg] {
 }
 
 # Warn if no readiness probe
-warn[msg] {
+warn contains msg if {
     input.kind == "Deployment"
     container := input.spec.template.spec.containers[_]
     not container.readinessProbe
@@ -54,7 +57,7 @@ warn[msg] {
 }
 
 # Warn if no liveness probe
-warn[msg] {
+warn contains msg if {
     input.kind == "Deployment"
     container := input.spec.template.spec.containers[_]
     not container.livenessProbe
@@ -62,62 +65,62 @@ warn[msg] {
 }
 
 # Deny hostNetwork
-deny[msg] {
+deny contains msg if {
     input.kind == "Deployment"
     input.spec.template.spec.hostNetwork == true
     msg := sprintf("Deployment '%s' uses hostNetwork - not allowed", [input.metadata.name])
 }
 
 # Deny hostPID
-deny[msg] {
+deny contains msg if {
     input.kind == "Deployment"
     input.spec.template.spec.hostPID == true
     msg := sprintf("Deployment '%s' uses hostPID - not allowed", [input.metadata.name])
 }
 
 # Warn if Service uses NodePort
-warn[msg] {
+warn contains msg if {
     input.kind == "Service"
     input.spec.type == "NodePort"
     msg := sprintf("Service '%s' uses NodePort - prefer ClusterIP with Ingress", [input.metadata.name])
 }
 
 # Warn if Service uses LoadBalancer
-warn[msg] {
+warn contains msg if {
     input.kind == "Service"
     input.spec.type == "LoadBalancer"
     msg := sprintf("Service '%s' uses LoadBalancer - prefer ClusterIP with Ingress", [input.metadata.name])
 }
 
 # Deny Ingress without TLS
-deny[msg] {
+deny contains msg if {
     input.kind == "Ingress"
     not input.spec.tls
     msg := sprintf("Ingress '%s' has no TLS configuration - HTTPS required", [input.metadata.name])
 }
 
 # Warn if PVC uses RWX (potential NFS dependency)
-warn[msg] {
+warn contains msg if {
     input.kind == "PersistentVolumeClaim"
     input.spec.accessModes[_] == "ReadWriteMany"
     msg := sprintf("PVC '%s' uses ReadWriteMany - ensure this is provider-managed CephFS, not in-cluster NFS", [input.metadata.name])
 }
 
 # Deny if namespace is default
-deny[msg] {
+deny contains msg if {
     input.metadata.namespace == "default"
     msg := sprintf("%s '%s' is in the 'default' namespace - use dedicated namespace", [input.kind, input.metadata.name])
 }
 
 # Require specific labels on Deployments
-deny[msg] {
+deny contains msg if {
     input.kind == "Deployment"
     not input.metadata.labels["app.kubernetes.io/name"]
     msg := sprintf("Deployment '%s' missing required label 'app.kubernetes.io/name'", [input.metadata.name])
 }
 
 # Warn if memory limit is too high (potential resource hog)
-warn[msg] {
+warn contains msg if {
     input.kind == "Deployment"
     container := input.spec.template.spec.containers[_]
     memory_limit := container.resources.limits.memory
@@ -128,23 +131,23 @@ warn[msg] {
 }
 
 # Nextcloud-specific: Warn if S3 config appears to be missing
-warn[msg] {
+warn contains msg if {
     input.kind == "ConfigMap"
     input.metadata.name == "nextcloud-config"
-    data := input.data
-    not contains_s3_config(data)
+    cfg := input.data
+    not contains_s3_config(cfg)
     msg := "Nextcloud ConfigMap may be missing S3 object storage configuration - user files should use S3"
 }
 
-contains_s3_config(data) {
+contains_s3_config(cfg) if {
     some key
-    value := data[key]
+    value := cfg[key]
     contains(value, "objectstore")
 }
 
-contains_s3_config(data) {
+contains_s3_config(cfg) if {
     some key
-    value := data[key]
+    value := cfg[key]
     contains(value, "S3")
 }
 

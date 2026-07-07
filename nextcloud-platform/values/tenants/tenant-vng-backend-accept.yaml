@@ -7,17 +7,12 @@ tenant:
   namespace: vng-backend-accept
   phpMemoryLimit: "2048M"
   hostname: backend.accept.opencatalogi.nl
+  # Bewuste afwijking van commonground.nu (VNG-backend op opencatalogi.nl).
+  hostnameOverride: true
   # Geen WOO-portaal — geen react-frontend (FASE 2-opt-out 2026-07-06; de
   # react-tenants appset filtert tenant.frontend.enabled=false via post-selector).
   frontend:
     enabled: false
-resources:
-  limits:
-    memory: 4Gi
-nextcloud:
-  extraEnv:
-    - name: PHP_MEMORY_LIMIT
-      value: "4096M"
   apps:
     enabled:
       - opencatalogi
@@ -25,4 +20,11 @@ nextcloud:
     # versions:
     #   opencatalogi: "0.7.8-beta.13"
     #   openregister: "0.2.12-unstable.1"
+resources:
+  limits:
+    memory: 4Gi
+nextcloud:
+  extraEnv:
+    - name: PHP_MEMORY_LIMIT
+      value: "4096M"
 

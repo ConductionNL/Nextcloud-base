@@ -11,10 +11,12 @@
 # These checks run in CI as a hard gate (no || true).
 # Run locally: conftest test values/common.yaml values/env/*.yaml \
 #              --policy policy/ --namespace values
+#
+# Syntax: Rego v1 (OPA >= 1.0 / conftest >= 0.56 vereist `if` en `contains`;
+# gemoderniseerd 2026-07-07 — de oude syntax parste niet meer en liet de
+# gate fail-closed afgaan met een misleidende melding).
 
 package values
-
-import future.keywords.in
 
 # ---------------------------------------------------------------------------
 # Storage: RWX access mode must not be in shared files
@@ -22,7 +24,7 @@ import future.keywords.in
 #       a cluster-aware CSI driver and causes concurrent-write corruption
 #       on single-node filesystems (as we found on 2026-03-09).
 # ---------------------------------------------------------------------------
-deny[msg] {
+deny contains msg if {
     input.persistence.accessMode == "ReadWriteMany"
     msg := "persistence.accessMode=ReadWriteMany found in a shared values file — move to values/canary-overrides.yaml or a per-tenant file (risk: concurrent ext4 corruption on all tenants)"
 }
@@ -32,7 +34,7 @@ deny[msg] {
 # Risk: Silently migrates all tenant PVCs to cinder-rwx on next sync,
 #       which would trigger PVC recreation and data loss for all tenants.
 # ---------------------------------------------------------------------------
-deny[msg] {
+deny contains msg if {
     input.persistence.storageClass == "cinder-rwx"
     msg := "persistence.storageClass=cinder-rwx found in a shared values file — move to values/canary-overrides.yaml or a per-tenant file (risk: mass PVC migration for all tenants)"
 }
@@ -42,7 +44,7 @@ deny[msg] {
 # until HA storage is validated and rolled out to all tenants.
 # Risk: Starts RS=2 for tenants still on RWO PVCs, causing stuck rollouts.
 # ---------------------------------------------------------------------------
-deny[msg] {
+deny contains msg if {
     input.replicaCount > 1
     msg := sprintf("replicaCount=%d found in a shared values file — gate behind tenant.canary first, then graduate to env/prod.yaml only after all tenant PVCs are migrated to RWX", [input.replicaCount])
 }
