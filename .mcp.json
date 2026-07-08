@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "conduction-docs": {
+      "command": "uv",
+      "args": ["run", "--project", "../docs-mcp",
+               "python", "-m", "docs_mcp.server"]
+    }
+  }
+}

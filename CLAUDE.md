@@ -142,3 +142,13 @@ Two supported approaches (see `docs/SECRETS.md`):
 Required secret keys per tenant: `admin-password`, `s3-access-key`, `s3-secret-key`, `db-password`
 
 **Never commit secrets** — `.gitignore` excludes `*.secret.yaml`, `secrets/`, and `env.local`.
+
+## Agent-guardrails
+
+- Operatie-cataloog: `docs/agents.md` — **niet gecatalogiseerd = eerst
+  vragen** (uitbreiden kan alleen via PR op het cataloog).
+- Grondwaarheid: MCP `conduction-docs` (het handboek) boven modelkennis;
+  bij tegenspraak wint de handboekpagina, flag de discrepantie.
+- Vóór afronden: `./scripts/verify.sh` groen; docs wijzigen mee in
+  dezelfde wijziging (docs-as-code).
+- Push en álle cluster-mutaties doet een mens. Nooit `--no-verify`.
