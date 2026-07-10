@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-08
+last_reviewed: 2026-07-10
 owner: mark
 ---
 
@@ -12,8 +12,8 @@ Guardrails voor agents in deze repo, per het handboek-formaat
 
 | Operatie | Autonomie | Idempotentie | Verificatie |
 |---|---|---|---|
-| Tenant-bestand aanmaken (`values/tenants/tenant-<org>-<env>.yaml` uit de template) | autonoom | declaratief: bestand bestaat al → geen tweede aanmaak (check eerst) | `./scripts/verify.sh` (validator + smoke-render) groen |
-| Frontend-blok (`tenant.frontend:`) toevoegen/wijzigen | autonoom | gewenste staat in het bestand; gelijke staat → geen diff | verify hier én react-base `./scripts/verify.sh` (vloot-render) |
+| Tenant-bestand aanmaken (`values/tenants/tenant-<org>-<env>.yaml` uit de template) | **voorstel-eerst** (toon het volledige bestand, schrijf pas na akkoord — creatie-regel 2026-07-10) | declaratief: bestand bestaat al → geen tweede aanmaak (check eerst) | `./scripts/verify.sh` (validator + smoke-render) groen |
+| Frontend-blok (`tenant.frontend:`): nieuw toevoegen **voorstel-eerst**, bestaand wijzigen autonoom | zie creatie-regel | gewenste staat in het bestand; gelijke staat → geen diff | verify hier én react-base `./scripts/verify.sh` (vloot-render) |
 | Tenant-waarden wijzigen (resources, apps, phpMemoryLimit) | autonoom | idem (declaratief bestand) | verify groen; render-diff tonen bij twijfel |
 | Docs bijwerken (zelfde wijziging als de code) | autonoom | tekstueel; front-matter `last_reviewed` bijwerken | docs-contract-gate |
 | Tenant-bestand verwijderen | mens-vereist | n.v.t. (voorbereiding is een diff) | agent bereidt voor; mens beslist + pusht; REMOVING-TENANT.md |
