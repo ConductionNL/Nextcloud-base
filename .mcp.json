@@ -2,8 +2,14 @@
   "mcpServers": {
     "conduction-docs": {
       "command": "uv",
-      "args": ["run", "--project", "../docs-mcp",
-               "python", "-m", "docs_mcp.server"]
+      "args": [
+        "run",
+        "--directory",
+        "../docs-mcp",
+        "python",
+        "-m",
+        "docs_mcp.server"
+      ]
     }
   }
 }
