@@ -2,9 +2,10 @@
 #   pre-commit install --hook-type pre-push
 repos:
   - repo: https://codeberg.org/Conduction/techbook
-    rev: 834f9467074caaedc39c0c61ab4f09773a6790d2
+    rev: edf269eeea4fd28f150791a00d6600d645262a91
     hooks:
       - id: docs-contract
+      - id: docs-claims
 
   - repo: local
     hooks:
