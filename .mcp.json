@@ -5,7 +5,7 @@
       "args": [
         "run",
         "--directory",
-        "../docs-mcp",
+        "../hub",
         "python",
         "-m",
         "docs_mcp.server"
