@@ -8,6 +8,16 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Changed
+- 2026-07-10: `values/tenants/tenant-canary-prod.yaml` — tijdelijk gespiegeld aan de
+  accept-laag omdat canary-prod momenteel niet werkt. `tenant.environment` blijft
+  `prod` (validate-values dwingt de naam-suffix-match af); de spiegel is een expliciet
+  override-blok in het tenant-bestand (laatste valueFile wint): accept-resources
+  (1 CPU/3Gi), geen pool-nodeSelector/anti-affinity/PDB, accept-probes, cron */15,
+  www.conf terug naar 2048M, accept-INFO-logging. Identiteit (naam, namespace,
+  hostname canary.commonground.nu, podLabels, DB, secrets) ongewijzigd.
+  Terugdraaien: het blok onder de streep in het tenant-bestand verwijderen.
+
 ### Fixed
 - **Disabled the prod HPA in the `tenant-hpa` AppSet source — it forced RS=2 onto RWO PVCs.**
   The `charts/tenant-hpa` source set `hpa.enabled: {{ eq .tenant.environment "prod" }}`
