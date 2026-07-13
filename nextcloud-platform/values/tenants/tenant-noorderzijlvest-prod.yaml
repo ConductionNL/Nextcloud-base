@@ -29,7 +29,7 @@ tenant:
 
       - hosts:
           - open.noorderzijlvest.nl
-        secretName: client-secret-frontend-tls
+        secretName: noorderzijlvest-client-frontend-tls
         issuer: letsencrypt-prod
 
     branding:
