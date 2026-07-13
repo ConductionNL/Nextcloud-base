@@ -15,6 +15,6 @@ tenant:
     host: open.noorderzijlvest.nl
     tls:
       secretName: open-noorderzijlvest-nl-tls
-      issuer: noned
+      issuer: cert-manager-issuer-prod
     branding:
       organisationName: "Waterschap Noorderzijlvest"
