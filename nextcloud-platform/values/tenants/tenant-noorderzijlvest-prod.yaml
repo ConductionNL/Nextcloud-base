@@ -12,5 +12,19 @@ tenant:
       - openconnector
       - openregister
   frontend:
+    # Backend tenant is gooisemeren-migrate-prod, so the react-tenants appset
+    # would derive gooisemeren-migrate.openwoo.app. Pin the public frontend host
+    # to the real one. Upstream auto-follows tenant.hostname above
+    # (gooisemeren.commonground.nu), so the two never drift.
+    host: noorderzijlvest.openwoo.app
+    # De legacy frontend serveerde ook open.gooisemeren.nl (cutover 2026-07-06).
+    # Eén multi-SAN LE-cert voor beide hosts, zoals legacy; het oude secret
+    # wordt gepreseed als gooisemeren-frontend-tls zodat er geen TLS-gat valt.
+    extraHosts:
+      - open.noorderzijlvest.nl
+    tls:
+      secretName: gooisemeren-frontend-tls
+      issuer: letsencrypt-prod
     branding:
       organisationName: "Gemeente Noorderzijlvest"
+      themeClassname: noorderzijlvest-theme
