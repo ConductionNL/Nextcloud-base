@@ -23,7 +23,7 @@ tenant:
     extraHosts:
       - open.noorderzijlvest.nl
     tls:
-      secretName: gooisemeren-frontend-tls
+      secretName: noorderzijlvest-frontend-tls
       issuer: letsencrypt-prod
     branding:
       organisationName: "Gemeente Noorderzijlvest"
