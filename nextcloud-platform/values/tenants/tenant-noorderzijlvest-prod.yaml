@@ -18,3 +18,8 @@ tenant:
       issuer: cert-manager-issuer-prod
     branding:
       organisationName: "Waterschap Noorderzijlvest"
+      themeClassname: noorderzijlvest-theme
+      jumbotronImageUrl: "https://noorderzijlvest.commonground.nu/apps/files_sharing/publicpreview/CiPAYNDcZjbt4Z3?file=/&fileId=291&x=3440&y=1440&a=true&etag=ce18a459c2e581bdcf795da2b5401461"
+    env:
+      GATSBY_FOOTER_HIDE_LOGO: "true"
+      GATSBY_FOOTER_CONTENT_HEADER: "heading-2"
