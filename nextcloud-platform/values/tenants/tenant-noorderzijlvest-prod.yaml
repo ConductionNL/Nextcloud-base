@@ -9,15 +9,8 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
-  # Migratie legacy frontend (ns noorderzijlvest) 2026-07-06 — waardes 1:1 uit
-  # de legacy deploy; backend serveert zelf noorderzijlvest.commonground.nu,
-  # upstream default klopt. DNS gecheckt: A -> 81.24.6.82, geen AAAA.
-  # LET OP TLS: BYO Sectigo DV-cert (t/m 2026-11-27); legacy issuer-annotatie
-  # was live verwijderd (ignoreDifferences-drift). Secret wordt bij cutover
-  # gekopieerd naar ns noorderzijlvest-prod onder de stabiele naam
-  # open-noorderzijlvest-nl-tls — issuer "none", cert-manager blijft eraf.
   frontend:
-    tag: latest
+    tag: V1.0.260422-development
     host: open.noorderzijlvest.nl
     tls:
       secretName: open-noorderzijlvest-nl-tls
