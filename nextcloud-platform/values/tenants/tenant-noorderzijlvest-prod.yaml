@@ -4,21 +4,34 @@ tenant:
   environment: prod
   wave: "1"
   dbType: postgres
+
   secrets:
     managed: true
+
   apps:
     enabled:
       - opencatalogi
       - openconnector
       - openregister
-  frontend:
 
+  frontend:
+    # Pin the public frontend host to the real tenant hostname.
     host: noorderzijlvest.openwoo.app
+
+    # Legacy frontend hostname.
     extraHosts:
       - open.noorderzijlvest.nl
+
     tls:
-      secretName: noorderzijlvest-frontend-tls
-      issuer: letsencrypt-prod
+      - hosts:
+          - noorderzijlvest.openwoo.app
+        secretName: noorderzijlvest-frontend-tls
+
+      - hosts:
+          - open.noorderzijlvest.nl
+        secretName: client-secret-frontend-tls
+        issuer: letsencrypt-prod
+
     branding:
       organisationName: "Gemeente Noorderzijlvest"
       themeClassname: noorderzijlvest-theme
