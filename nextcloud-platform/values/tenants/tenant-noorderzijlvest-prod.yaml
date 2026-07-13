@@ -1,0 +1,17 @@
+---
+tenant:
+  name: noorderzijlvest-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    host: open.noorderzijlvest.nl
+    branding:
+      organisationName: "Waterschap Noorderzijlvest"
