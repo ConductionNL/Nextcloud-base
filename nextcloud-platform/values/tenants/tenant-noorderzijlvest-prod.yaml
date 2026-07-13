@@ -13,5 +13,8 @@ tenant:
       - openregister
   frontend:
     host: open.noorderzijlvest.nl
+    tls:
+      secretName: open-noorderzijlvest-nl-tls
+      issuer: noned
     branding:
       organisationName: "Waterschap Noorderzijlvest"
