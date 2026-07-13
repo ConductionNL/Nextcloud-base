@@ -1,6 +1,6 @@
 ---
 last_reviewed: 2026-06-23
-owner: mark
+owner: info@conduction.nl
 ---
 
 # Making Nextcloud Configuration Changes

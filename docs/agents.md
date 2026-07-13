@@ -1,6 +1,6 @@
 ---
 last_reviewed: 2026-07-10
-owner: mark
+owner: info@conduction.nl
 ---
 
 # Agent-cataloog (referentie)

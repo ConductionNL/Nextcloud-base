@@ -1,6 +1,6 @@
 ---
 last_reviewed: 2026-07-06
-owner: mark
+owner: info@conduction.nl
 ---
 
 # Storage-operaties: PVC resizen en S3-databeheer
