@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-07-14
+updated: 2026-07-14
+pivot: This is a documentation-only change (no chart/template/values edits) — the platform already implements the Haven pillars; the gap was that alignment was never written down for procurement/audit purposes.
