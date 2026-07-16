@@ -172,6 +172,7 @@ Open je browser en ga naar `https://nextcloud-canary.commonground.nu` (of je gec
 | [DATABASE.md](docs/DATABASE.md) | Database opties (MariaDB, PostgreSQL, External) |
 | [SECRETS.md](docs/SECRETS.md) | Secrets management met ESO of fallback |
 | [UPGRADE.md](docs/UPGRADE.md) | Upgrade procedures en rollback |
+| [HAVEN-COMPLIANCE.md](docs/HAVEN-COMPLIANCE.md) | Haven (VNG) alignment — pillar-by-pillar mapping met file-referenties, voor aanbesteding/audit |
 
 ## 🔧 Tenant Toevoegen
 
