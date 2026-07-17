@@ -21,13 +21,14 @@ spec:
 
   # Source repositories allowed for this project
   sourceRepos:
-    # Primary host: Codeberg (Forgejo). GitHub org is shadowbanned; Codeberg is now canonical.
-    - "https://codeberg.org/conduction/Nextcloud-base.git"
-    - "git@codeberg.org:conduction/Nextcloud-base.git"
-    # GitHub URLs kept during transition for rollback (Argo matches literally)
+    # Primary host: GitHub (ConductionNL) — sinds de terugmigratie van 2026-07-15/17.
     - "git@github.com:ConductionNL/Nextcloud-base.git"
     - "https://github.com/ConductionNL/Nextcloud-base.git"
     - "https://github.com/conductionnl/Nextcloud-base.git"
+    # Codeberg-URLs blijven toegestaan tot de tenant-omzetting (canary → waves)
+    # af is; daarna opruimen. (Argo matcht sourceRepos letterlijk.)
+    - "https://codeberg.org/conduction/Nextcloud-base.git"
+    - "git@codeberg.org:conduction/Nextcloud-base.git"
     - "https://nextcloud.github.io/helm/"
 
   # Destination clusters and namespaces (copied from nextcloud-platform for parity)

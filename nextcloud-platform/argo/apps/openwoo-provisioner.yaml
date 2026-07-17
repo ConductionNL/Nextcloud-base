@@ -14,7 +14,7 @@ metadata:
 spec:
   project: nextcloud-platform
   source:
-    repoURL: https://codeberg.org/Conduction/openwoo-app-config.git
+    repoURL: https://github.com/ConductionNL/openwoo-app-config.git
     targetRevision: main
     path: webgui/deploy
   destination:

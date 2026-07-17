@@ -23,7 +23,7 @@ spec:
   # UITGEZONDERD: templates/tenant-template.yaml (staat in andere folder)
   generators:
     - git:
-        repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
+        repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
         revision: HEAD
         files:
           - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
@@ -170,7 +170,7 @@ spec:
                   prefix: "{{ $name }}/"
         
         # Our GitOps repo for values files
-        - repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
+        - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
           targetRevision: HEAD
           ref: values
 
@@ -180,7 +180,7 @@ spec:
         # tenant Degraded (stuck Init/FailedAttachVolume). Keep HPA off until the
         # stateless/S3-primary HA path lands (cf. env/prod.yaml: replicaCount 1,
         # hpa.enabled false). Re-enable per-environment only once RS>1 is safe.
-        - repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
+        - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
           targetRevision: HEAD
           path: charts/tenant-hpa
           helm:
@@ -193,7 +193,7 @@ spec:
         # the tenant file sets tenant.secrets.managed: true — so existing tenants'
         # script-applied secrets are never touched. Needs ESO + the ClusterSecretStore
         # / ClusterGenerator (platform/externalsecrets) + the S3 seed Secret.
-        - repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
+        - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
           targetRevision: HEAD
           path: charts/tenant-secret
           helm:

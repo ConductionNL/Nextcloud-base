@@ -33,7 +33,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: "https://codeberg.org/conduction/Nextcloud-base.git"
+    repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
     targetRevision: HEAD
     path: nextcloud-platform/argo
     directory:
