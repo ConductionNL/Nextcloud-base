@@ -13,16 +13,18 @@ spec:
   
   # Source repositories allowed for this project
   sourceRepos:
-    # Primary host: Codeberg (Forgejo). GitHub org is shadowbanned; Codeberg is now canonical.
-    - "https://codeberg.org/conduction/Nextcloud-base.git"
-    - "git@codeberg.org:conduction/Nextcloud-base.git"
-    # GitHub URLs kept during transition for rollback (Argo matches literally)
+    # Primary host: GitHub (ConductionNL) — sinds de terugmigratie van 2026-07-15/17.
     - "git@github.com:ConductionNL/Nextcloud-base.git"
     - "https://github.com/ConductionNL/Nextcloud-base.git"
     - "https://github.com/conductionnl/Nextcloud-base.git"
+    # Codeberg-URLs blijven toegestaan tot de tenant-omzetting (canary → waves)
+    # af is; daarna opruimen. (Argo matcht sourceRepos letterlijk.)
+    - "https://codeberg.org/conduction/Nextcloud-base.git"
+    - "git@codeberg.org:conduction/Nextcloud-base.git"
     - "https://nextcloud.github.io/helm/"
     # WOO config / provisioner repo (target track: openwoo-provision ApplicationSet).
     # Argo matches sourceRepos literally — keep the exact case used in the AppSet.
+    - "https://github.com/ConductionNL/openwoo-app-config.git"
     - "https://codeberg.org/Conduction/openwoo-app-config.git"
 
   # Destination clusters and namespaces
