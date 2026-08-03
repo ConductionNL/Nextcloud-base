@@ -67,7 +67,10 @@ postgresql:
   enabled: true
   image:
     # Canonical postgres image lives in values/db/postgres.yaml — keep in sync.
-    # GitHub org is shadowbanned; pull from Docker Hub (conduction2022), not ghcr.io.
+    #
+    # De shadowban op de GitHub-org is opgeheven (bevestigd 2026-08-03), dus
+    # ghcr.io is weer een geldige bron. Deze ref staat nog op Docker Hub tot
+    # de mirror-migratie is uitgevoerd — zie cluster-config/ROADMAP.md.
     registry: docker.io
     repository: conduction2022/nextcloud-images
     tag: postgres16-ext-sha-8abef67

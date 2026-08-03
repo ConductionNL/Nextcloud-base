@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-06-23
+last_reviewed: 2026-08-03
 owner: info@conduction.nl
 ---
 
@@ -18,24 +18,36 @@ This platform spans **four repos**. None is self-contained; a change often touch
 
 | Repo | Role | Argo reads from |
 |---|---|---|
-| **Nextcloud-base** (this repo) | The multi-tenant Nextcloud platform: tenant values, charts, platform components, and the ESO *consumers* | Codeberg `conduction/Nextcloud-base` (`main`) |
-| **cluster-infra** | Cluster-wide capabilities — external-dns, **External Secrets Operator**, storage | Codeberg `Conduction/cluster-infra` (`main`) |
-| **KeyCloak** | Identity — realm `commonground` at `iam.commonground.nu` | Codeberg `Conduction/KeyCloak` (`main`) |
-| **openwoo-app-config** | The provisioning control-plane (`platform.commonground.nu`) that opens tenant PRs | Codeberg `Conduction/openwoo-app-config` |
+| **Nextcloud-base** (this repo) | The multi-tenant Nextcloud platform: tenant values, charts, platform components, and the ESO *consumers* | GitHub `ConductionNL/Nextcloud-base` (`main`) |
+| **cluster-infra** | Cluster-wide capabilities — external-dns, **External Secrets Operator**, storage | GitHub `ConductionNL/cluster-infra` (`main`) |
+| **KeyCloak** | Identity — realm `commonground` at `iam.commonground.nu` | GitHub `ConductionNL/KeyCloak` (SSH-remote) |
+| **openwoo-app-config** | The provisioning control-plane (`platform.commonground.nu`) that opens tenant PRs | GitHub `ConductionNL/openwoo-app-config` |
 
-**Golden rule: Argo reads Codeberg, never GitHub.** GitHub remotes exist as mirrors (the
-org was shadowbanned) but Argo ignores them. `git push origin …` on most of these repos
-pushes to the **GitHub mirror** and does **not** deploy — push to the `codeberg` remote.
+**Golden rule (sinds 2026-08-03): Argo reads GitHub.** De shadowban op de
+`ConductionNL`-org is opgeheven en de terugmigratie is uitgevoerd; `git push origin …`
+deployt dus wél. Gemeten op 2026-08-03: 234 Argo-app-sources wijzen naar
+`github.com/ConductionNL/Nextcloud-base.git`, 143 naar `React-base`. Alleen
+`woo-website-template-apiv2` (22) en `tilburg-woo-ui` (7) lezen nog Codeberg.
+
+> **Vóór 2026-08-03 gold het omgekeerde** ("Argo reads Codeberg, never GitHub", GitHub
+> als mirror tijdens de shadowban). Kom je die instructie elders tegen, dan is die
+> achterhaald.
+
+**Let op bij merge naar `main`:** 81 van de 82 Nextcloud-base-apps staan op
+`automated` sync mét `selfHeal`. Een merge rolt fleet-wide direct uit. Wijzigingen die
+de pod-template raken (image, tag, `pullPolicy`, resources) horen daarom in een eigen
+PR met een uitrolvenster — zie `ROLLOUTS.md` en de Multi-Attach-storm in
+`cluster-config/docs/rca-2026-05-02-pullsecret-rollout.md`.
 
 ---
 
 ## 2. GitOps — how code reaches the cluster
 
 ```
-  dev / agent          Codeberg (per repo)        Argo CD (ns argocd)            cluster
+  dev / agent          GitHub (per repo)          Argo CD (ns argocd)            cluster
   ───────────          ───────────────────        ───────────────────            ───────
   git push ──────────► main ──────────────────────► Application / AppSet ────────► workloads
-                       GitHub mirror (ignored) ✗     │
+                       ConductionNL/<repo>           │
                                                       ├─ AppProject gates which
                                                       │   sourceRepos / destinations /
                                                       │   resource-kinds are allowed
@@ -144,7 +156,8 @@ available.
 ## 7. For agents: start here
 
 1. Read this map, then the topic doc you need (see `README.md` in this folder for the index).
-2. **Argo reads Codeberg** — a GitHub push will not deploy.
+2. **Argo reads GitHub** (`ConductionNL`, sinds 2026-08-03) — een merge naar `main`
+   deployt, en met `selfHeal` op 81/82 apps gebeurt dat fleet-wide en meteen.
 3. **AppProjects gate everything** — a sync failure is often a missing whitelist entry.
 4. **Namespace = bare tenant name** (`straatje-accept`), the Argo app is `nc-<tenant>`.
 5. **prod paths** (`*-prod`, `clusters/prod/…`) and pushes to `main` go through the operator,

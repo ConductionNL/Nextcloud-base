@@ -8,6 +8,26 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gewijzigd — 2026-08-03 (shadowban opgeheven: Argo leest GitHub, niet Codeberg)
+- `docs/ARCHITECTURE.md`: de "golden rule" stond op *"Argo reads Codeberg,
+  never GitHub — a GitHub push will not deploy"*. Dat is sinds de
+  terugmigratie **omgekeerd** en daarmee actief misleidend: het stuurde
+  een maintainer naar een remote waar niets van deployt.
+- Gemeten op het cluster (2026-08-03): 234 Argo-app-sources lezen
+  `github.com/ConductionNL/Nextcloud-base.git`, 143 `React-base`, 8
+  `cluster-infra`. Alleen `woo-website-template-apiv2` (22) en
+  `tilburg-woo-ui` (7) staan nog op Codeberg. De repo-tabel, het
+  GitOps-diagram en de agent-checklist zijn navenant bijgewerkt, met een
+  expliciete blockquote dat de oude regel achterhaald is.
+- Toegevoegd aan de golden rule: 81 van de 82 Nextcloud-base-apps staan
+  op `automated` sync mét `selfHeal`, dus een merge naar `main` rolt
+  fleet-wide en meteen uit. Pod-template-wijzigingen (image, tag,
+  `pullPolicy`, resources) horen daarom in een eigen PR met uitrolvenster.
+- `values/templates/tenant-template-postgres.yaml`: de comment *"GitHub
+  org is shadowbanned; pull from Docker Hub, not ghcr.io"* vervangen. De
+  ref blijft voorlopig op Docker Hub tot de mirror-migratie
+  (`cluster-config/ROADMAP.md`), maar de reden ervoor bestaat niet meer.
+
 ### Gewijzigd — 2026-07-13 (eigenaarschap → info@conduction.nl, review WP8)
 - Alle `owner:`-front-matter en CODEOWNERS omgezet van `mark` naar
   `info@conduction.nl` (opvolging na 2026-08-31). Voorbereid op branch
