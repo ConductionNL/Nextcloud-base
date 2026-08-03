@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-06-23
+last_reviewed: 2026-08-03
 owner: info@conduction.nl
 ---
 
@@ -83,8 +83,9 @@ diff values/common.yaml /tmp/new-defaults.yaml
 # For a platform-wide bump: stage the ApplicationSet manifest.
 git add <changed-file>
 git commit -m "chore: upgrade Nextcloud chart to 8.10.0"
-# Argo CD reads from Codeberg, not GitHub.
-git push codeberg main
+# Argo CD reads from GitHub (origin). A merge to main deploys — and with
+# selfHeal on 81/82 apps that happens fleet-wide and immediately.
+git push origin main
 ```
 
 ## Canary Rollout (Canary ring)
@@ -237,12 +238,12 @@ If the upgrade needs to be reverted for all tenants:
 ```bash
 # Revert the commit
 git revert HEAD
-git push codeberg main
+git push origin main
 
 # Or manually edit and push
 git checkout HEAD~1 -- <changed-file>
 git commit -m "revert: rollback Nextcloud to previous version"
-git push codeberg main
+git push origin main
 ```
 
 ### Emergency Rollback (All Tenants)

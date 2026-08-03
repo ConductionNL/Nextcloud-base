@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-14
+last_reviewed: 2026-08-03
 owner: info@conduction.nl
 ---
 
@@ -30,7 +30,7 @@ Every tenant is a set of Kubernetes resources generated from Git state and recon
   NetworkPolicy, PDB, ServiceMonitor, namespace, database provisioning job).
 - `syncPolicy.automated: { prune: true, selfHeal: true }` — cluster drift is corrected
   automatically back to Git state, and Git state is the only path to changing the cluster (see
-  `docs/ARCHITECTURE.md` §2, "Golden rule: Argo reads Codeberg, never GitHub").
+  `docs/ARCHITECTURE.md` §2, "Golden rule: Argo reads GitHub").
 
 ## 2. Twelve-factor configuration
 

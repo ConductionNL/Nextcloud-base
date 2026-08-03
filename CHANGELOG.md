@@ -29,6 +29,44 @@ platform-level changes — update it in the same commit as the change.
   rolling update per tenant. Niet fleet-wide in één sync, gezien de
   Multi-Attach-storm van 2026-05-02
   (`cluster-config/docs/rca-2026-05-02-pullsecret-rollout.md`).
+### Gewijzigd — 2026-08-03 (Codeberg-refs in de runbooks naar GitHub)
+- Vervolg op de shadowban-PR: `docs/ARCHITECTURE.md` was omgezet, maar de
+  runbooks droegen de oude instructie nog wél. Zeven bestanden gaven
+  `git push codeberg` als deploy-stap — dat deployt niets meer en is dus
+  een instructie die stil faalt: `index.md`, `UPGRADE.md`,
+  `TENANT-OPERATIONS.md`, `ADDING-TENANT.md`, `STORAGE-OPERATIONS.md`,
+  `REMOVING-TENANT.md`, `HAVEN-COMPLIANCE.md`.
+- Overal `origin` in plaats van `codeberg`, met de opmerking erbij dat een
+  merge naar `main` fleet-wide en meteen uitrolt (`selfHeal` op 81/82 apps).
+  `last_reviewed` op alle zeven bijgewerkt.
+- Bewust bewaard: de vermeldingen die *uitleggen* dat de oude regel
+  achterhaald is, en de vaststelling in `ARCHITECTURE.md` dat
+  `woo-website-template-apiv2` (22 apps) en `tilburg-woo-ui` (7) nog wél
+  Codeberg lezen.
+- **Niet aangeraakt** en apart te behandelen: de AppProject-`sourceRepos`
+  (`argo/projects/*.yaml`) whitelisten `codeberg.org` juist voor die 29
+  apps. Die refs weghalen vóór migratie van die twee repo's breekt ze.
+  Historische CHANGELOG-regels blijven staan — audittrail.
+
+### Gewijzigd — 2026-08-03 (shadowban opgeheven: Argo leest GitHub, niet Codeberg)
+- `docs/ARCHITECTURE.md`: de "golden rule" stond op *"Argo reads Codeberg,
+  never GitHub — a GitHub push will not deploy"*. Dat is sinds de
+  terugmigratie **omgekeerd** en daarmee actief misleidend: het stuurde
+  een maintainer naar een remote waar niets van deployt.
+- Gemeten op het cluster (2026-08-03): 234 Argo-app-sources lezen
+  `github.com/ConductionNL/Nextcloud-base.git`, 143 `React-base`, 8
+  `cluster-infra`. Alleen `woo-website-template-apiv2` (22) en
+  `tilburg-woo-ui` (7) staan nog op Codeberg. De repo-tabel, het
+  GitOps-diagram en de agent-checklist zijn navenant bijgewerkt, met een
+  expliciete blockquote dat de oude regel achterhaald is.
+- Toegevoegd aan de golden rule: 81 van de 82 Nextcloud-base-apps staan
+  op `automated` sync mét `selfHeal`, dus een merge naar `main` rolt
+  fleet-wide en meteen uit. Pod-template-wijzigingen (image, tag,
+  `pullPolicy`, resources) horen daarom in een eigen PR met uitrolvenster.
+- `values/templates/tenant-template-postgres.yaml`: de comment *"GitHub
+  org is shadowbanned; pull from Docker Hub, not ghcr.io"* vervangen. De
+  ref blijft voorlopig op Docker Hub tot de mirror-migratie
+  (`cluster-config/ROADMAP.md`), maar de reden ervoor bestaat niet meer.
 
 ### Gewijzigd — 2026-07-13 (eigenaarschap → info@conduction.nl, review WP8)
 - Alle `owner:`-front-matter en CODEOWNERS omgezet van `mark` naar

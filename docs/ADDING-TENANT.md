@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-06-23
+last_reviewed: 2026-08-03
 owner: info@conduction.nl
 ---
 
@@ -149,8 +149,8 @@ git add nextcloud-platform/values/tenants/tenant-<name>.yaml
 git add nextcloud-platform/platform/redis/networkpolicy.yaml
 git add nextcloud-platform/platform/pgbouncer/networkpolicy.yaml
 git commit -m "feat: add tenant <name>"
-# Argo CD reads Codeberg, not the GitHub mirror. Push to the codeberg remote.
-git push codeberg main
+# Argo CD reads GitHub (origin). A merge to main deploys immediately.
+git push origin main
 ```
 
 ### 5. Sync Argo CD
@@ -250,9 +250,10 @@ Secrets are missing. See Step 3 above.
 
 Use this order (most common causes first):
 
-1. **Confirm file was pushed to `main` on Codeberg**
-   - Argo only watches Git (not your local files), and it reads **Codeberg**, not the
-     GitHub mirror. Make sure you pushed with `git push codeberg main`.
+1. **Confirm file was pushed to `main` on GitHub**
+   - Argo only watches Git (not your local files), and it reads **GitHub**
+     (`ConductionNL`) since 2026-08-03. Make sure it landed on `main` via
+     `origin` — a branch on Codeberg will not deploy.
 
 2. **Confirm tenant file is valid**
    - Filename must match `tenant-*.yaml`
