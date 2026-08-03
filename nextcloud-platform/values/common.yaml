@@ -104,10 +104,22 @@ externalDatabase:
 # =============================================================================
 
 # Global image settings
+#
+# pullPolicy: IfNotPresent sinds 2026-08-03. Stond op Always, wat elke
+# pod-start een registry-round-trip maakte. Die tellen mee tegen de
+# anonieme Docker Hub-limiet (100 pulls/6u/IP), en sinds de Docker
+# Pro-credential is verlopen pullt de fleet weer anoniem — zie
+# cluster-config/ROADMAP.md. Veilig omdat de tag hieronder vast is
+# gepind, niet zwevend: een nieuwe versie is een tag-wijziging in dit
+# bestand, en die triggert de pull vanzelf.
+#
+# LET OP bij terugzetten naar een zwevende tag (`32-fpm`, `latest`):
+# met IfNotPresent pikt een node die de tag al gecachet heeft nieuwe
+# pushes niet meer op. Zwevende tag en IfNotPresent gaan niet samen.
 image:
   repository: nextcloud
   tag: "32.0.5-fpm"
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 # Replica count (can be overridden per env/tenant)
 replicaCount: 1

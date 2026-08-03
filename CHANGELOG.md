@@ -8,6 +8,28 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gewijzigd — 2026-08-03 (pullPolicy `Always` → `IfNotPresent`)
+- `values/common.yaml`: de globale `image.pullPolicy` voor de
+  hoofd-Nextcloud-image staat niet langer op `Always`. Elke pod-start
+  was daarmee een registry-round-trip naar Docker Hub, en die tellen mee
+  tegen de anonieme limiet van 100 pulls/6u/IP.
+- **Aanleiding:** de Docker Hub Pro-credential uit de rollout van
+  2026-05-02 is na drie maanden verlopen en geeft `401`. Hij wordt niet
+  vernieuwd; het pull-secret is fleet-wide teruggetrokken. De fleet pullt
+  dus weer anoniem, en dit is de goedkoopste manier om onder die limiet
+  te blijven tot er een registry-mirror staat. Zie
+  `cluster-config/CHANGELOG.md` en `ROADMAP.md` 2026-08-03.
+- **Veilig** omdat `image.tag` vast gepind is (`32.0.5-fpm`), niet
+  zwevend. De drie namespaces die wél een zwevende tag draaien
+  (`moerdijk`, `openpdd-berkelland`, `zandbak-010` op `32-fpm`/`33-fpm`)
+  worden niet door dit bestand aangestuurd en zijn dus niet geraakt.
+  Zwevende tag + `IfNotPresent` gaan niet samen — dat staat als
+  waarschuwing bij de waarde zelf.
+- **Uitrol is mensenwerk en gefaseerd:** dit landt via ArgoCD als een
+  rolling update per tenant. Niet fleet-wide in één sync, gezien de
+  Multi-Attach-storm van 2026-05-02
+  (`cluster-config/docs/rca-2026-05-02-pullsecret-rollout.md`).
+
 ### Gewijzigd — 2026-07-13 (eigenaarschap → info@conduction.nl, review WP8)
 - Alle `owner:`-front-matter en CODEOWNERS omgezet van `mark` naar
   `info@conduction.nl` (opvolging na 2026-08-31). Voorbereid op branch
