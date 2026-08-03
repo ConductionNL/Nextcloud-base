@@ -8,6 +8,19 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### 2026-08-03 — pre-commit-hookbron naar GitHub
+- `.pre-commit-config.yaml`: de techbook-hook komt van
+  `github.com/ConductionNL/techbook` in plaats van `codeberg.org`. De pin
+  `edf269ee…` blijft ongewijzigd: die commit bestaat op beide forges en is
+  daar voorouder van `main`. Host-only dus — de gates (`docs-contract`,
+  `docs-claims`) gedragen zich identiek.
+- Waarom: dit was de laatste harde Codeberg-afhankelijkheid buiten talos.
+  Zolang die bestond moest `techbook` naar twee forges gepusht blijven
+  worden, en dat is niet volgehouden — 7 van de 9 repos zijn daar uit
+  elkaar gelopen. De bron van het patroon zat in
+  `techbook/scripts/rollout_precommit_hook.sh`, dat deze URL in élke repo
+  schreef; die is in dezelfde ronde omgezet.
+
 ### Gewijzigd — 2026-08-03 (Codeberg-refs in de runbooks naar GitHub)
 - Vervolg op de shadowban-PR: `docs/ARCHITECTURE.md` was omgezet, maar de
   runbooks droegen de oude instructie nog wél. Zeven bestanden gaven
