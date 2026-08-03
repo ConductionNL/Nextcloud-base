@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-06
+last_reviewed: 2026-08-03
 owner: info@conduction.nl
 ---
 
@@ -51,10 +51,10 @@ kubectl scale deployment nextcloud -n $NS --replicas=0
 # 4. Verwijder oude PVC
 kubectl delete pvc nextcloud -n $NS
 
-# 5. Update PVC size in values en sync (Argo leest Codeberg, niet GitHub)
+# 5. Update PVC size in values en sync (Argo leest GitHub)
 # Edit tenant yaml: persistence.size: 50Gi
 git commit -am "chore: increase PVC size for $TENANT"
-git push codeberg
+git push origin
 
 # 6. Wacht op nieuwe PVC en pod
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=nextcloud -n $NS --timeout=300s

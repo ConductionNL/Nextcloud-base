@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-06
+last_reviewed: 2026-08-03
 owner: info@conduction.nl
 ---
 
@@ -81,8 +81,8 @@ NS=$TENANT
 # 1. Verwijder tenant bestand uit Git
 git rm nextcloud-platform/values/tenants/tenant-$TENANT.yaml
 git commit -m "chore: remove tenant $TENANT"
-# Argo leest Codeberg, niet GitHub — push naar de codeberg remote
-git push codeberg
+# Argo leest GitHub — push naar origin (een merge naar main deployt meteen)
+git push origin
 
 # 2. Argo CD verwijdert de Application (nc-$TENANT), MAAR de ApplicationSet
 #    heeft preserveResourcesOnDeletion: true. De namespace en alle resources
@@ -167,10 +167,10 @@ kubectl create secret generic nextcloud-secrets \
   --from-literal=redis-password='' \
   --from-literal=nextcloud-secret="$(openssl rand -base64 48)"
 
-# 4. Commit en push (Argo leest Codeberg, niet GitHub)
+# 4. Commit en push (Argo leest GitHub)
 git add nextcloud-platform/values/tenants/tenant-$TENANT.yaml
 git commit -m "feat: add tenant $TENANT"
-git push codeberg
+git push origin
 
 # 5. Noteer admin wachtwoord
 kubectl get secret nextcloud-secrets -n $NS -o jsonpath='{.data.nextcloud-password}' | base64 -d

@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-06-23
+last_reviewed: 2026-08-03
 owner: info@conduction.nl
 ---
 
@@ -92,7 +92,7 @@ per-tenant `files` lijst** die je hoeft aan te passen. Het verwijderen van het
 ```bash
 git add -A
 git commit -m "chore: remove tenant $TENANT"
-git push codeberg main
+git push origin main
 ```
 
 ### 4. Wachten op Argo CD
@@ -184,7 +184,7 @@ kubectl get secret nextcloud-secrets -n $TENANT -o yaml > secrets-backup.yaml
 # 2. Git (alleen het tenant-bestand verwijderen; de glob-generator regelt de rest)
 git rm nextcloud-platform/values/tenants/tenant-$TENANT.yaml
 git commit -m "chore: remove tenant $TENANT"
-git push codeberg main
+git push origin main
 
 # 3. Wacht tot Application weg is
 kubectl get application nc-$TENANT -n argocd

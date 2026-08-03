@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-06
+last_reviewed: 2026-08-03
 owner: info@conduction.nl
 ---
 
@@ -8,10 +8,13 @@ owner: info@conduction.nl
 Begin bij **`ARCHITECTURE.md`** voor het grote plaatje; duik daarna in het
 hoofdstuk dat je nodig hebt.
 
-> **Codeberg vs GitHub:** Argo CD deployt vanaf **Codeberg** (`codeberg`
-> remote). De GitHub-remote is een *mirror* die Argo negeert — `git push
-> origin …` deployt dus niet. Push naar de `codeberg` remote. Zie
-> `ARCHITECTURE.md` §1-2.
+> **Waar Argo van deployt:** **GitHub** (`origin`,
+> `ConductionNL/Nextcloud-base`), sinds de terugmigratie van 2026-08-03. Een
+> merge naar `main` deployt dus wél — en met `selfHeal` op 81 van de 82 apps
+> gebeurt dat fleet-wide en meteen. Zie `ARCHITECTURE.md` §1-2.
+>
+> Kom je nog de oude regel tegen ("Argo reads Codeberg, never GitHub"), dan is
+> die achterhaald.
 
 ## Hoofdstuk 0 - Het grote plaatje
 
@@ -55,8 +58,8 @@ hoofdstuk dat je nodig hebt.
 
 ## Labels (PR governance)
 
-Elke PR moet exact één passend label hebben (in GitHub; CI-governance leeft
-daar, deploy gebeurt via Codeberg):
+Elke PR moet exact één passend label hebben (in GitHub; CI-governance én
+deploy leven daar):
 
 - `change/tenant-additive` - alleen tenant-bestanden
 - `change/platform` - platform/mixed wijzigingen
