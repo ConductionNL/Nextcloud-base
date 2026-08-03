@@ -8,6 +8,25 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gewijzigd — 2026-08-03 (Codeberg-refs in de runbooks naar GitHub)
+- Vervolg op de shadowban-PR: `docs/ARCHITECTURE.md` was omgezet, maar de
+  runbooks droegen de oude instructie nog wél. Zeven bestanden gaven
+  `git push codeberg` als deploy-stap — dat deployt niets meer en is dus
+  een instructie die stil faalt: `index.md`, `UPGRADE.md`,
+  `TENANT-OPERATIONS.md`, `ADDING-TENANT.md`, `STORAGE-OPERATIONS.md`,
+  `REMOVING-TENANT.md`, `HAVEN-COMPLIANCE.md`.
+- Overal `origin` in plaats van `codeberg`, met de opmerking erbij dat een
+  merge naar `main` fleet-wide en meteen uitrolt (`selfHeal` op 81/82 apps).
+  `last_reviewed` op alle zeven bijgewerkt.
+- Bewust bewaard: de vermeldingen die *uitleggen* dat de oude regel
+  achterhaald is, en de vaststelling in `ARCHITECTURE.md` dat
+  `woo-website-template-apiv2` (22 apps) en `tilburg-woo-ui` (7) nog wél
+  Codeberg lezen.
+- **Niet aangeraakt** en apart te behandelen: de AppProject-`sourceRepos`
+  (`argo/projects/*.yaml`) whitelisten `codeberg.org` juist voor die 29
+  apps. Die refs weghalen vóór migratie van die twee repo's breekt ze.
+  Historische CHANGELOG-regels blijven staan — audittrail.
+
 ### Gewijzigd — 2026-08-03 (shadowban opgeheven: Argo leest GitHub, niet Codeberg)
 - `docs/ARCHITECTURE.md`: de "golden rule" stond op *"Argo reads Codeberg,
   never GitHub — a GitHub push will not deploy"*. Dat is sinds de
