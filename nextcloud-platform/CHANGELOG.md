@@ -2,6 +2,35 @@
 
 All notable changes to this repository are documented in this file.
 
+## 2026-08-04
+
+### Added
+- `docs/CNPG-MIGRATIE.md`: afweging en plan voor consolidatie van de 58 losse
+  in-cluster PostgreSQL-instanties naar CloudNativePG. Conclusie: **niet
+  besluiten op kosten**. De volledige multiplexing-winst over 58 tenants is
+  4,4 GiB RAM en 2,2 cores, gemeten over 14 dagen; de posten die er wél waren
+  (requests, ~1045 GiB opruimbare Cinder-volumes) zijn zonder migratie op te
+  lossen.
+  Omdat het platform data bij de bron ophaalt en alleen toont, is er ook geen
+  backup- of PITR-eis — de enige resterende drijfveer is operationeel gemak, en
+  de prijs daarvoor is blast radius.
+  Bevat verder de forensiek van `nextcloud-pg`: die stond 62 dagen
+  `unrecoverable` in `nextcloud-platform` (instances zonder PVC's, `spec.backup`
+  afwezig) terwijl Argo `sync=Synced, health=Suspended` rapporteerde en er geen
+  enkele alertregel voor CNPG of Postgres bestaat.
+
+  Eén meetles staat er expliciet in omdat hij op élke storagetelling in dit
+  cluster van toepassing is: de `nfs`/`nfs-v4`-classes worden geserveerd door
+  `cluster.local/nfs-server-provisioner`, die géén quota handhaaft. De `capacity`
+  van zo'n PVC is een label, geen reservering — die volumes leven allemaal op één
+  Cinder-volume van 500Gi. Van de 145 volumes die op 2026-08-04 zijn opgeruimd was
+  65 Cinder-backed (1045 GiB, echt gefactureerd) en 80 NFS-backed (1080 GiB,
+  nominaal). Splits op provisioner voordat je een storagecijfer aan een besluit
+  hangt.
+
+  Verwijzingen bijgewerkt in `docs/index.md`, `README.md` en de aspirational
+  CloudNativePG-sectie van `docs/DATABASE.md`.
+
 ## 2026-06-24
 
 ### Added

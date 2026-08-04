@@ -103,6 +103,7 @@ nextcloud-platform/
 └── docs/                           # Documentatie
     ├── ADDING-TENANT.md
     ├── DATABASE.md
+    ├── CNPG-MIGRATIE.md
     ├── SECRETS.md
     └── UPGRADE.md
 ```
@@ -170,6 +171,7 @@ Open je browser en ga naar `https://nextcloud-canary.commonground.nu` (of je gec
 | [SETUP.md](nextcloud-platform/SETUP.md) | Volledige setup guide voor eerste deployment |
 | [ADDING-TENANT.md](docs/ADDING-TENANT.md) | Stap-voor-stap guide voor nieuwe tenants |
 | [DATABASE.md](docs/DATABASE.md) | Database opties (MariaDB, PostgreSQL, External) |
+| [CNPG-MIGRATIE.md](docs/CNPG-MIGRATIE.md) | Afweging + plan voor consolidatie naar CloudNativePG — nog niet besloten |
 | [SECRETS.md](docs/SECRETS.md) | Secrets management met ESO of fallback |
 | [UPGRADE.md](docs/UPGRADE.md) | Upgrade procedures en rollback |
 | [HAVEN-COMPLIANCE.md](docs/HAVEN-COMPLIANCE.md) | Haven (VNG) alignment — pillar-by-pillar mapping met file-referenties, voor aanbesteding/audit |

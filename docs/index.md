@@ -25,6 +25,8 @@ hoofdstuk dat je nodig hebt.
 
 - `../README.md` - korte platformintro + verwijzing naar deze docs
 - `DATABASE.md` - databaseopties (MariaDB / in-cluster PG / external PG) en keuzes
+- `CNPG-MIGRATIE.md` - afweging en plan voor consolidatie naar CloudNativePG.
+  Bevat de meting die de kostenclaim onderuit haalt: **nog niet besloten**
 - `SECRETS.md` - secretsbeheer: script-applied vs ESO (managed tenants)
 
 ## Hoofdstuk 2 - Tenants toevoegen of wijzigen
