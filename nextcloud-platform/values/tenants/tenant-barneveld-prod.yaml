@@ -3,14 +3,14 @@ tenant:
   name: barneveld-prod
   environment: prod
   wave: "1"
-  dbType: postgres
-  secrets:
-    managed: true
+  dbType: mariadb
   apps:
     enabled:
       - opencatalogi
       - openconnector
       - openregister
+  # Branding-baseline 2026-07-06 (FASE 2) — GATSBY_-env is ignore-diffed,
+  # devs kunnen live bijstellen; geen barneveld-theme in de app-bundle.
   frontend:
     branding:
-      organisationName: "Gemeente Barneveld"
+      organisationName: Gemeente Barneveld
