@@ -24,8 +24,17 @@ fi
 BASE_SHA="$1"
 HEAD_SHA="$2"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Work from the git root: `git diff --name-only` reports paths relative to the
+# git root regardless of the current directory. Until 2026-08-04 this used the
+# platform subdirectory as the root, so every pattern below missed and every
+# change classified as "platform" with zero changed tenants — fail-safe, but it
+# made the tenant-additive path dead and changed_tenants permanently empty.
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
+
+# Platform values/manifests live in a subdirectory; docs/, scripts/ and
+# .github/ sit at the git root. Both shapes appear in the patterns below.
+readonly PLATFORM_DIR="nextcloud-platform"
 
 mapfile -t CHANGED_FILES < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" --)
 
@@ -39,20 +48,26 @@ fi
 
 is_tenant_file() {
   local f="$1"
-  [[ "$f" =~ ^values/tenants/tenant-.*\.yaml$ ]]
+  [[ "$f" =~ ^${PLATFORM_DIR}/values/tenants/tenant-.*\.yaml$ ]]
 }
 
 is_platform_file() {
   local f="$1"
-  [[ "$f" =~ ^values/common\.yaml$ ]] \
-    || [[ "$f" =~ ^values/env/.*\.yaml$ ]] \
-    || [[ "$f" =~ ^values/db/.*\.yaml$ ]] \
-    || [[ "$f" =~ ^values/templates/.*$ ]] \
-    || [[ "$f" =~ ^argo/applicationsets/.*$ ]] \
-    || [[ "$f" =~ ^argo/projects/.*$ ]] \
-    || [[ "$f" =~ ^platform/.*$ ]] \
+  # Inside the platform subdirectory: shared values, Argo wiring, policy, scripts.
+  [[ "$f" =~ ^${PLATFORM_DIR}/values/common\.yaml$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/values/env/.*\.yaml$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/values/db/.*\.yaml$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/values/templates/.*$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/values/canary-overrides.*\.yaml$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/argo/.*$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/platform/.*$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/policy/.*$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/scripts/.*$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/bootstrap/.*$ ]] \
+    || [[ "$f" =~ ^${PLATFORM_DIR}/CHANGELOG\.md$ ]] \
     || [[ "$f" =~ ^\.github/workflows/.*$ ]] \
     || [[ "$f" =~ ^scripts/.*$ ]] \
+    || [[ "$f" =~ ^\.pre-commit-config\.yaml$ ]] \
     || [[ "$f" =~ ^docs/ROLLOUTS\.md$ ]]
 }
 
@@ -83,8 +98,11 @@ TENANTS_SORTED=()
 for k in "${!TENANT_SET[@]}"; do
   TENANTS_SORTED+=("$k")
 done
-IFS=$'\n' TENANTS_SORTED=($(sort <<<"${TENANTS_SORTED[*]}"))
-unset IFS
+# Guarded: on an empty array `printf '%s\n'` would emit one blank line and
+# mapfile would read it as a single empty tenant, making TENANT_COUNT 1.
+if ((${#TENANTS_SORTED[@]} > 0)); then
+  mapfile -t TENANTS_SORTED < <(printf '%s\n' "${TENANTS_SORTED[@]}" | sort)
+fi
 
 TENANT_COUNT="${#TENANTS_SORTED[@]}"
 CHANGED_FILES_COUNT="${#CHANGED_FILES[@]}"
