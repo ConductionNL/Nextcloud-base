@@ -9,8 +9,8 @@ mariadb:
 postgresql:
   enabled: true
   image:
-    registry: docker.io
-    repository: conduction2022/nextcloud-images
+    registry: ghcr.io
+    repository: conductionnl/nextcloud-images
     tag: postgres16-ext-sha-8abef67
     # Pinned to the image digest for immutability/auditability.
     # When digest is set the Bitnami chart pulls repository@digest; tag stays for readability.
