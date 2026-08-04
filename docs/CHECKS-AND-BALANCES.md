@@ -16,27 +16,37 @@ Every PR is classified as:
 - **Platform change**: shared behavior/templating/rollout logic.
 - **Tenant additive change**: isolated tenant file updates.
 
-Classification is automated by `scripts/classify-change.sh` and enforced in CI by:
+Classification is automated by `nextcloud-platform/scripts/classify-change.sh`
+and enforced in CI by:
 
 - `.github/workflows/governance-check.yaml`
 
-Required labels:
+Required labels (both exist in this repository; the gate fails without the
+matching one):
 
 - `change/platform` for platform/mixed changes
 - `change/tenant-additive` for tenant-only changes
 
 ## 2) Check installation viability
 
-Before merge, CI runs:
+Before merge, CI runs `scripts/verify.sh`, which wraps:
 
-- `scripts/validate-values.sh` for changed tenant files
-- `scripts/smoke-checks.sh --tenant <name>` for changed tenants
+- `nextcloud-platform/scripts/validate-values.sh` — required/forbidden fields
+  and patterns across all tenant files
+- `nextcloud-platform/scripts/smoke-checks.sh` — Helm chart renders
 
-This catches invalid values and Helm/rendering failures early.
+This catches invalid values and Helm/rendering failures early. Both are dry-run:
+CI needs no cluster access and no secrets. The same gate runs locally via
+`./scripts/verify.sh` before pushing.
 
 ## 3) Configuration checks
 
-Post-merge verification can be run via:
+> ⚠️ **Not implemented.** `.github/workflows/rollout-verify.yaml` does not exist.
+> The section below describes intent, not a workflow you can dispatch. Run
+> `nextcloud-platform/scripts/smoke-checks.sh --tenant <name>` by hand for the
+> per-tenant checks, and see `docs/ROLLOUTS.md` for the canary ring.
+
+Post-merge verification is intended to run via:
 
 - `.github/workflows/rollout-verify.yaml` (manual dispatch)
 
