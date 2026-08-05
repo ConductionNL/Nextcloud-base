@@ -2,7 +2,7 @@ tenant:
   name: roosendaal-prod
   environment: prod
   wave: "1"
-  dbType: mariadb
+  dbType: postgres
   apps:
     enabled:
       - opencatalogi
@@ -12,7 +12,7 @@ tenant:
   # legacy deploy; backend serveert zelf roosendaal.commonground.nu (geen
   # migrate-host), upstream default klopt. Favicon gaat live mee (ignore-diff).
   frontend:
-    tag: latest
+    tag: dev
     host: open.roosendaal.nl
     tls:
       secretName: open-roosendaal-nl-tls
@@ -20,5 +20,3 @@ tenant:
     branding:
       organisationName: gemeente Roosendaal
       themeClassname: roosendaal-theme
-      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-roosendaal/main/roosendaal_jumbotron.jpg"
-

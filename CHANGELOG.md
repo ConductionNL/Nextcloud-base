@@ -94,6 +94,127 @@ inventarisatie.
 - `values/templates/tenant-template-postgres.yaml` is nu grotendeels dubbel met
   `tenant-template.yaml`; samenvoegen is een aparte opruiming.
 
+### Gewijzigd — 2026-08-05 (canary-poort: twee refs, promotie en rollback)
+
+Tot nu volgden alle 76 tenant-apps `HEAD` van main op alle drie hun git-sources.
+Een merge naar main was daarmee de uitrol voor de hele vloot in één keer — er was
+geen moment waarop je iets kon valideren voordat iedereen het kreeg. De canary was
+alleen "eerst" doordat hij extra overrides had, niet in tijd.
+
+**De ApplicationSet kiest nu per tenant een ref:**
+- wave-0-tenants (`tenant.wave: "0"` — canary-prod en canary-accept) volgen `HEAD` (main)
+- alle andere tenants volgen de branch `release`
+- de git-generator volgt óók `release`, zodat een Application en de values waaruit
+  hij rendert altijd van dezelfde commit komen. Zou de generator main volgen, dan
+  bestond een nieuwe tenant-Application al terwijl zijn values-bestand nog niet op
+  `release` staat; met `ignoreMissingValueFiles: true` wordt dat bestand dan stil
+  overgeslagen en rendert de tenant met alleen de defaults. Dat faalt niet, het
+  gaat verkeerd — vandaar deze keuze.
+
+Alle drie de sources zijn omgezet; ze moeten dezelfde ref gebruiken, anders
+rendert een tenant values van de ene commit tegen charts van een andere.
+
+**`scheduled-merge.yaml` doet nu de hele keten:** probe vooraf, merge naar main
+(alleen canary), canary pollen, bij gezond promoveren door `release` vooruit te
+schuiven, daarna de vloot probeeren. Faalt de vloot na promotie, dan gaat
+`release` terug naar de vorige commit — een pointer, geen revert, en main blijft
+ongemoeid. Faalt canary, dan is de vloot per definitie nooit geraakt en wordt de
+merge op main gereverteerd.
+
+**Automatische revert is niet universeel.** Raakt de diff een image-tag, chart- of
+`chartVersion`-regel, dan wordt er niet gereverteerd maar alleen gealarmeerd: zo'n
+wijziging kan `occ upgrade` hebben gedraaid en een revert zet dan een oude binary
+op een nieuw schema. De detectie is getest op vier echte commits — de image-tag-bump
+wordt gevlagd, de values-config-wijzigingen niet.
+
+Tenant-only PR's (`change/tenant-additive`) worden direct na de merge
+gepromoveerd, zonder canary-poort: een nieuw tenant-bestand kan bestaande tenants
+niet breken, en zonder promotie zou de generator de tenant helemaal niet zien.
+
+**`promote-tenant-changes.yaml` dekt de onboarding-flow.** Zonder deze workflow
+zou de ref-splitsing de tenant-provisioning stil breken: een PR `add tenant: X`
+landt op main, maar de generator volgt `release` en ziet het bestand dus niet — er
+komt geen Application en geen foutmelding. Deze workflow draait op elke push naar
+main, classificeert de range met `scripts/classify-change.sh` (hetzelfde script als
+de governance-gate, zodat "tenant-only" overal hetzelfde betekent) en promoveert
+alleen bij `tenant-additive`. Buiten het avondvenster om, want tenant-toevoegingen
+mogen op elk moment. Platform-wijzigingen laat hij expliciet staan; die horen door
+de canary-poort.
+
+Beide workflows delen de concurrency-groep `release-pointer`, zodat ze nooit
+tegelijk aan dezelfde pointer zitten.
+
+**De provisioner (`platform.commonground.nu` / openwoo-app-config) hoeft niet
+aangepast.** Nagekeken in `webgui/gitlib.py`: hij opent de PR en pollt daarna
+alleen de PR-status (`state`, `merged`) voor zijn dashboard — hij merget niet zelf,
+en zijn basis is de env-var `TENANTS_BASE` met default `main`, wat main blijft. De
+promotie zit repo-side. Wat hij wél niet doet is labels zetten; vandaag faalt de
+governance-gate daarop en wordt er toch gemerged omdat main geen branch protection
+heeft. Zet je die protection aan, dan moet de provisioner
+`change/tenant-additive` gaan meesturen.
+
+**Cutover.** Maak `release` aan op de huidige main vóórdat dit gemerged wordt.
+Omdat `release` en main op dat moment identiek zijn, levert het omzetten van de ref
+nul manifest-verschil op en herstart er geen enkele pod. Bestaat de branch niet als
+de ApplicationSet dit oppikt, dan kunnen 74 apps hun bron niet resolven.
+
+Twee beperkingen om te kennen:
+- De canary wijkt structureel af van de rest: `persistence.enabled: false`
+  (emptyDir) tegen een PVC bij de andere 74. Iets kan op canary werken en op een
+  gewone tenant niet, juist door dat verschil. De poort is echt, niet waterdicht.
+- De vloot-rollback is een force-push op `release`. Uitsluitend op die branch,
+  nooit op main, en met `--force-with-lease` zodat een gelijktijdige promotie niet
+  stil wordt overschreven.
+
+Docs bijgewerkt: `CLAUDE.md` (de sectie Sync Windows stelde dat een merge naar main
+direct fleet-wide uitrolt — dat is nu onwaar) en `docs/ARCHITECTURE.md` (aanvulling
+op de golden rule over welke ref een tenant leest).
+
+### Toegevoegd — 2026-08-05 (geplande merge na 17:00, in waves)
+
+`.github/workflows/scheduled-merge.yaml` merget PR's automatisch na 17:00
+Amsterdam, in wave-orde, en stopt bij het eerste probleem. Reden: een merge naar
+main *is* de uitrol — 76 tenant-apps staan op `automated` sync met `selfHeal` —
+maar Argo dwingt het uitrolvenster niet af (het deny-window in de AppProject dekt
+alleen `platform-*`). Tot nu toe was "mergen na 17:00" iets wat iemand moest
+onthouden.
+
+Werking:
+- **Opt-in per PR** via een `merge-wave/<n>`-label. Zonder dat label doet de
+  workflow niets met een PR; er wordt nooit iets gemerged omdat het per ongeluk
+  groen stond. Het change-label van de governance-gate blijft daarnaast vereist.
+- **Eén wave per run.** Standaard verwerkt een run alleen de laagste openstaande
+  wave, dus per avond één stap met een dag ertussen. `all_waves` als input doet
+  de hele wachtrij in één keer.
+- **Verificatie zonder credentials.** Na elke merge wordt `/status.php` van de
+  hosts in `.github/merge-probe-hosts.txt` gecontroleerd op HTTP 200,
+  `installed:true` en `maintenance:false`, met tien pogingen van 20s zodat een
+  rolling update de tijd krijgt. De lijst dekt canary plus één MariaDB- en één
+  PostgreSQL-tenant, zodat een fout die maar één engine raakt ook opvalt. Dit is
+  bewust een publieke check: er zijn geen repo-secrets en dus geen cluster-toegang
+  vanuit CI.
+- **Escaleren, niet doorgaan.** Faalt een probe, dan stopt de run, blijven latere
+  waves staan, en komt er een issue met de faalreden en de betrokken PR. Geen
+  automatische rollback — die keuze is te ingrijpend voor een cron.
+- Er wordt ook vóór de eerste merge geprobed. Was de vloot al niet gezond, dan
+  wordt er niets gemerged.
+
+Twee dingen expliciet:
+- **Zomertijd.** GitHub-cron kent alleen UTC. Daarom vuren twee crons (15:05 en
+  16:05 UTC) en beslist een check op `TZ=Europe/Amsterdam` welke doorgaat. De
+  bestaande `office-hours-tenant-only-guard.yaml` doet dit fout — die rekent met
+  `date -u` en verschuift daardoor twee uur in de zomer. Die workflow draait niet
+  (hij staat in `nextcloud-platform/.github/`, dat GitHub negeert) en is hier niet
+  aangeraakt.
+- **Venster.** Ma–do vanaf 17:00 plus de nacht erna tot 07:00. Vrijdagavond en
+  het weekend niet: dan is er niemand om een probleem op te pakken. De
+  waarheidstabel voor die conditie is met twaalf gevallen getest.
+
+Voorwaarde die nog niet geregeld is: `main` heeft **geen** branch protection —
+geen required checks, geen required review. De workflow controleert daarom zelf
+dat een PR groen en `MERGEABLE/CLEAN` is voordat hij merget, maar dat is een
+vangnet in de automatisering en geen rem op de repo.
+
 ### Gewijzigd — 2026-08-05 (sync-window-governance: config en docs kloppend gemaakt)
 
 Geen gedragswijziging. `CLAUDE.md` stelde dat de AppProject sync-blokkades tijdens

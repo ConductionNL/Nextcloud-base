@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-03
+last_reviewed: 2026-08-05
 owner: info@conduction.nl
 ---
 
@@ -25,7 +25,19 @@ This platform spans **four repos**. None is self-contained; a change often touch
 
 **Golden rule (sinds 2026-08-03): Argo reads GitHub.** De shadowban op de
 `ConductionNL`-org is opgeheven en de terugmigratie is uitgevoerd; `git push origin …`
-deployt dus wél. Gemeten op 2026-08-03: 234 Argo-app-sources wijzen naar
+deployt dus wél.
+
+> **Aanvulling 2026-08-05: welke ref een tenant leest, hangt af van `tenant.wave`.**
+> De ApplicationSet zet `targetRevision` per tenant: `wave: "0"` volgt `HEAD` (main),
+> alle andere tenants volgen de branch `release`. Wave 0 zijn `canary-prod` en
+> `canary-accept`. (Niet `tenant.canary` — die vlag hoort bij de geparkeerde
+> emptyDir/S3-PoC in `canary-overrides.yaml` en staat op geen enkele tenant.) Een merge naar main raakt dus
+> alleen canary. `release` schuift vooruit als canary gezond blijkt — automatisch
+> via `.github/workflows/scheduled-merge.yaml`, of met de hand met
+> `git push origin main:release`. De git-generator volgt óók `release`, zodat een
+> Application en de values waaruit hij rendert altijd van dezelfde commit komen.
+> Vloot-rollback is daarmee het terugzetten van één pointer in plaats van een
+> revert. Gemeten op 2026-08-03: 234 Argo-app-sources wijzen naar
 `github.com/ConductionNL/Nextcloud-base.git`, 143 naar `React-base`. Alleen
 `woo-website-template-apiv2` (22) en `tilburg-woo-ui` (7) lezen nog Codeberg.
 
