@@ -2,6 +2,57 @@
 
 All notable changes to this repository are documented in this file.
 
+## 2026-08-04 (governance)
+
+### Added
+- `.github/workflows/governance-check.yaml` — the PR gate that
+  `docs/CHECKS-AND-BALANCES.md` has described since 2026-06-23 but which never
+  existed. There were **no workflows in this repository at all**: every promised
+  check ran only when someone remembered `./scripts/verify.sh` locally.
+
+  The gate does three things: classify the diff, require the matching label, and
+  run `scripts/verify.sh` (values validation + chart renders, dry-run, no cluster
+  access and no secrets). Tool versions are pinned so an upstream release cannot
+  change the outcome of a merge gate.
+- Labels `change/platform` and `change/tenant-additive`. Both were required by
+  `docs/CHECKS-AND-BALANCES.md` and neither existed — the repository carried only
+  the nine GitHub defaults.
+
+### Fixed
+- `nextcloud-platform/scripts/classify-change.sh` classified **every** change as
+  `platform` with `changed_tenant_count=0`.
+
+  Its path patterns were anchored at `^values/`, `^argo/` and `^platform/`, which
+  assumed a flat repository layout. The platform moved into the
+  `nextcloud-platform/` subdirectory, and `git diff --name-only` reports paths
+  relative to the git root — so `is_tenant_file` and `is_platform_file` never
+  matched anything, every file fell through to the "safer default", and the
+  `tenant-additive` and `mixed` branches were unreachable. `changed_tenants` was
+  permanently empty, so the per-tenant checks the docs promise could never have
+  been targeted.
+
+  It also treated `nextcloud-platform/` as the repository root; it now uses
+  `git rev-parse --show-toplevel`, so the patterns and the diff output agree.
+
+  Verified against real history: a tenant-only commit now yields
+  `tenant-additive` / count 1 / `changed_tenants=alkmaar-prod`, and a platform
+  change yields `platform` / count 0. `mixed` is reachable now that both
+  predicates work, but there is no commit in the last 80 that touches both a
+  tenant file and a platform file, so that branch is untested.
+
+### Fixed (documentation)
+- `docs/CHECKS-AND-BALANCES.md` pointed at `scripts/classify-change.sh`,
+  `scripts/validate-values.sh` and `scripts/smoke-checks.sh`. All three live under
+  `nextcloud-platform/scripts/`; only `scripts/verify.sh` sits at the root.
+- The same document presented `.github/workflows/rollout-verify.yaml` as
+  dispatchable. It does not exist and is not added here — writing it needs a
+  decision about which rollout stages it should drive. Marked as not implemented
+  rather than left to read as available.
+
+### Notes
+- `classify-change.sh` carries a pre-existing shellcheck SC2207 warning on its
+  `sort` line. Reported, not changed — unrelated to this fix.
+
 ## 2026-06-24
 
 ### Added

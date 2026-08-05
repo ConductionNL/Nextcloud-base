@@ -1,7 +1,7 @@
 ---
 tenant:
-  name: burentest-accept
-  environment: accept
+  name: alkmaar-prod
+  environment: prod
   wave: "1"
   dbType: postgres
   secrets:
@@ -13,4 +13,4 @@ tenant:
       - openregister
   frontend:
     branding:
-      organisationName: "Gemeente Burentest"
+      organisationName: "Gemeente Alkmaar"

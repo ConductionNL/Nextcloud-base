@@ -118,7 +118,7 @@ externalDatabase:
 # pushes niet meer op. Zwevende tag en IfNotPresent gaan niet samen.
 image:
   repository: nextcloud
-  tag: "32.0.5-fpm"
+  tag: "32.0.13-fpm"
   pullPolicy: IfNotPresent
 
 # Replica count (can be overridden per env/tenant)
