@@ -45,6 +45,28 @@ Tenant-only PR's (`change/tenant-additive`) worden direct na de merge
 gepromoveerd, zonder canary-poort: een nieuw tenant-bestand kan bestaande tenants
 niet breken, en zonder promotie zou de generator de tenant helemaal niet zien.
 
+**`promote-tenant-changes.yaml` dekt de onboarding-flow.** Zonder deze workflow
+zou de ref-splitsing de tenant-provisioning stil breken: een PR `add tenant: X`
+landt op main, maar de generator volgt `release` en ziet het bestand dus niet — er
+komt geen Application en geen foutmelding. Deze workflow draait op elke push naar
+main, classificeert de range met `scripts/classify-change.sh` (hetzelfde script als
+de governance-gate, zodat "tenant-only" overal hetzelfde betekent) en promoveert
+alleen bij `tenant-additive`. Buiten het avondvenster om, want tenant-toevoegingen
+mogen op elk moment. Platform-wijzigingen laat hij expliciet staan; die horen door
+de canary-poort.
+
+Beide workflows delen de concurrency-groep `release-pointer`, zodat ze nooit
+tegelijk aan dezelfde pointer zitten.
+
+**De provisioner (`platform.commonground.nu` / openwoo-app-config) hoeft niet
+aangepast.** Nagekeken in `webgui/gitlib.py`: hij opent de PR en pollt daarna
+alleen de PR-status (`state`, `merged`) voor zijn dashboard — hij merget niet zelf,
+en zijn basis is de env-var `TENANTS_BASE` met default `main`, wat main blijft. De
+promotie zit repo-side. Wat hij wél niet doet is labels zetten; vandaag faalt de
+governance-gate daarop en wordt er toch gemerged omdat main geen branch protection
+heeft. Zet je die protection aan, dan moet de provisioner
+`change/tenant-additive` gaan meesturen.
+
 **Cutover.** Maak `release` aan op de huidige main vóórdat dit gemerged wordt.
 Omdat `release` en main op dat moment identiek zijn, levert het omzetten van de ref
 nul manifest-verschil op en herstart er geen enkele pod. Bestaat de branch niet als

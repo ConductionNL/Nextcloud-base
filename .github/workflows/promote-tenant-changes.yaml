@@ -1,0 +1,156 @@
+---
+# Promoveert tenant-only wijzigingen direct na een push naar main, buiten het
+# avondvenster om.
+#
+# Waarom dit moet bestaan: sinds de ref-splitsing volgt de git-generator van de
+# ApplicationSet `release`, niet main. Een nieuw tenant-bestand dat op main landt
+# levert dus géén Application op — de generator ziet het bestand niet. Zonder deze
+# workflow zou een tenant-PR stil niets doen tot de avondrun promoveert, en dat
+# botst met de regel dat tenant-toevoegingen op elk moment mogen.
+#
+# Dit is precies de flow die platform.commonground.nu (openwoo-provisioner)
+# gebruikt: een PR `add tenant: <naam>` met één bestand onder values/tenants/, die
+# op een willekeurig moment gemerged wordt. Die blijft dus werken zoals hij werkte.
+#
+# Platform-wijzigingen doet deze workflow expliciet NIET. Die horen door de
+# canary-poort van scheduled-merge.yaml, en die poort is het hele punt.
+#
+# De classificatie komt uit nextcloud-platform/scripts/classify-change.sh — hetzelfde
+# script dat de governance-gate gebruikt, zodat "tenant-only" hier en daar hetzelfde
+# betekent.
+
+name: Promote tenant-only wijzigingen
+
+"on":
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+
+# Deelt de groep met scheduled-merge.yaml: twee workflows die dezelfde
+# `release`-pointer verzetten mogen nooit tegelijk lopen.
+concurrency:
+  group: release-pointer
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promoveer als de push tenant-only was
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classificeer de push
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          before="${{ github.event.before }}"
+          after="${{ github.sha }}"
+
+          # Bij een nieuwe branch of een force-push kan `before` alleen nullen zijn.
+          # Dan is er geen zinnige range en vergelijken we met de eerste parent.
+          if [[ -z "${before}" || "${before}" =~ ^0+$ ]] \
+            || ! git cat-file -e "${before}^{commit}" 2>/dev/null; then
+            before="$(git rev-parse "${after}^1")"
+            echo "Geen bruikbare before-SHA; val terug op ${before}"
+          fi
+
+          classification="$(bash nextcloud-platform/scripts/classify-change.sh \
+            "${before}" "${after}" | grep '^classification=' | cut -d= -f2)"
+
+          echo "range          : ${before}..${after}"
+          echo "classification : ${classification}"
+          echo "classification=${classification}" >>"$GITHUB_OUTPUT"
+
+      - name: Promoveer en verifieer
+        if: steps.classify.outputs.classification == 'tenant-additive'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROBE_ATTEMPTS: "18"
+          PROBE_INTERVAL: "20"
+          SETTLE_SECONDS: "30"
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          mapfile -t FLEET_HOSTS < <(
+            while IFS= read -r line; do
+              line="${line%%#*}"
+              line="$(echo "${line}" | tr -d '[:space:]')"
+              [[ -n "${line}" ]] && echo "${line}"
+            done <.github/probe-hosts-fleet.txt
+          )
+          if [[ "${#FLEET_HOSTS[@]}" -eq 0 ]]; then
+            echo "error: probe-lijst is leeg; weiger blind te promoveren" >&2
+            exit 1
+          fi
+
+          host_healthy() {
+            local host="$1" code body
+            code="$(curl -s -m 15 -o /tmp/status.json -w '%{http_code}' \
+              "https://${host}/status.php" || echo "000")"
+            body="$(cat /tmp/status.json 2>/dev/null || true)"
+            [[ "${code}" == "200" ]] \
+              && grep -q '"installed":true' <<<"${body}" \
+              && ! grep -q '"maintenance":true' <<<"${body}"
+          }
+
+          probe_until() {
+            local attempt host all_ok
+            for ((attempt = 1; attempt <= PROBE_ATTEMPTS; attempt++)); do
+              all_ok=true
+              for host in "${FLEET_HOSTS[@]}"; do
+                if ! host_healthy "${host}"; then
+                  echo "  poging ${attempt}/${PROBE_ATTEMPTS}: ${host} nog niet gezond"
+                  all_ok=false
+                fi
+              done
+              [[ "${all_ok}" == "true" ]] && { echo "  gezond (poging ${attempt})"; return 0; }
+              sleep "${PROBE_INTERVAL}"
+            done
+            return 1
+          }
+
+          git fetch origin release --quiet
+          release_before="$(git rev-parse origin/release)"
+          echo "release staat op ${release_before}, promoveren naar ${GITHUB_SHA}"
+
+          git push origin "${GITHUB_SHA}:refs/heads/release"
+
+          sleep "${SETTLE_SECONDS}"
+          if ! probe_until; then
+            echo "Vloot niet gezond; release terugzetten naar ${release_before}"
+            git push --force-with-lease="refs/heads/release:${GITHUB_SHA}" \
+              origin "${release_before}:refs/heads/release"
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Promotie van tenant-wijziging teruggedraaid" \
+              --body "Een tenant-only push naar main is gepromoveerd, maar de
+          vloot-probes bleven falen. \`release\` is teruggezet naar
+          ${release_before}; main staat op ${GITHUB_SHA}.
+
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              >/dev/null || echo "::warning::issue aanmaken faalde"
+            exit 1
+          fi
+
+          echo "Gepromoveerd en vloot gezond."
+
+      - name: Platform-wijziging, niets gepromoveerd
+        if: steps.classify.outputs.classification != 'tenant-additive'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Classificatie is '${{ steps.classify.outputs.classification }}',"
+          echo "geen tenant-only push. Deze wijziging staat nu op main en dus alleen"
+          echo "op de canary-tenants. Promotie naar de vloot gaat via de canary-poort"
+          echo "in scheduled-merge.yaml, of met de hand: git push origin main:release"

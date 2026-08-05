@@ -68,9 +68,10 @@ permissions:
   pull-requests: write
   issues: write
 
-# Twee runs die tegelijk mergen en promoveren zouden elkaars refs overschrijven.
+# Deelt de groep met promote-tenant-changes.yaml: twee workflows die dezelfde
+# `release`-pointer verzetten mogen nooit tegelijk lopen.
 concurrency:
-  group: scheduled-merge
+  group: release-pointer
   cancel-in-progress: false
 
 jobs:
