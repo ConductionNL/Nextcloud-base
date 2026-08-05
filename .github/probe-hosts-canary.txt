@@ -1,0 +1,13 @@
+# Canary-hosts: scheduled-merge.yaml controleert deze NA de merge naar main en
+# VOOR de promotie naar `release`. Zolang deze niet gezond zijn, ziet de rest van
+# de vloot de wijziging niet — dat is de hele poort.
+#
+# Eén host per regel; regels met # en lege regels worden overgeslagen. De check is
+# publiek (geen credentials): HTTP 200 + "installed":true + "maintenance":false.
+#
+# Hier horen ALLEEN tenants met `tenant.canary: true` in hun values-bestand, want
+# alleen die volgen main. Zet je hier een gewone tenant in, dan meet je iets wat
+# de wijziging op dat moment nog niet heeft en is de poort waardeloos.
+
+canary.accept.commonground.nu
+canary.commonground.nu

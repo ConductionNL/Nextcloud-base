@@ -8,6 +8,60 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gewijzigd — 2026-08-05 (canary-poort: twee refs, promotie en rollback)
+
+Tot nu volgden alle 76 tenant-apps `HEAD` van main op alle drie hun git-sources.
+Een merge naar main was daarmee de uitrol voor de hele vloot in één keer — er was
+geen moment waarop je iets kon valideren voordat iedereen het kreeg. De canary was
+alleen "eerst" doordat hij extra overrides had, niet in tijd.
+
+**De ApplicationSet kiest nu per tenant een ref:**
+- canary-tenants (`tenant.canary: true`) volgen `HEAD` (main)
+- alle andere tenants volgen de branch `release`
+- de git-generator volgt óók `release`, zodat een Application en de values waaruit
+  hij rendert altijd van dezelfde commit komen. Zou de generator main volgen, dan
+  bestond een nieuwe tenant-Application al terwijl zijn values-bestand nog niet op
+  `release` staat; met `ignoreMissingValueFiles: true` wordt dat bestand dan stil
+  overgeslagen en rendert de tenant met alleen de defaults. Dat faalt niet, het
+  gaat verkeerd — vandaar deze keuze.
+
+Alle drie de sources zijn omgezet; ze moeten dezelfde ref gebruiken, anders
+rendert een tenant values van de ene commit tegen charts van een andere.
+
+**`scheduled-merge.yaml` doet nu de hele keten:** probe vooraf, merge naar main
+(alleen canary), canary pollen, bij gezond promoveren door `release` vooruit te
+schuiven, daarna de vloot probeeren. Faalt de vloot na promotie, dan gaat
+`release` terug naar de vorige commit — een pointer, geen revert, en main blijft
+ongemoeid. Faalt canary, dan is de vloot per definitie nooit geraakt en wordt de
+merge op main gereverteerd.
+
+**Automatische revert is niet universeel.** Raakt de diff een image-tag, chart- of
+`chartVersion`-regel, dan wordt er niet gereverteerd maar alleen gealarmeerd: zo'n
+wijziging kan `occ upgrade` hebben gedraaid en een revert zet dan een oude binary
+op een nieuw schema. De detectie is getest op vier echte commits — de image-tag-bump
+wordt gevlagd, de values-config-wijzigingen niet.
+
+Tenant-only PR's (`change/tenant-additive`) worden direct na de merge
+gepromoveerd, zonder canary-poort: een nieuw tenant-bestand kan bestaande tenants
+niet breken, en zonder promotie zou de generator de tenant helemaal niet zien.
+
+**Cutover.** Maak `release` aan op de huidige main vóórdat dit gemerged wordt.
+Omdat `release` en main op dat moment identiek zijn, levert het omzetten van de ref
+nul manifest-verschil op en herstart er geen enkele pod. Bestaat de branch niet als
+de ApplicationSet dit oppikt, dan kunnen 74 apps hun bron niet resolven.
+
+Twee beperkingen om te kennen:
+- De canary wijkt structureel af van de rest: `persistence.enabled: false`
+  (emptyDir) tegen een PVC bij de andere 74. Iets kan op canary werken en op een
+  gewone tenant niet, juist door dat verschil. De poort is echt, niet waterdicht.
+- De vloot-rollback is een force-push op `release`. Uitsluitend op die branch,
+  nooit op main, en met `--force-with-lease` zodat een gelijktijdige promotie niet
+  stil wordt overschreven.
+
+Docs bijgewerkt: `CLAUDE.md` (de sectie Sync Windows stelde dat een merge naar main
+direct fleet-wide uitrolt — dat is nu onwaar) en `docs/ARCHITECTURE.md` (aanvulling
+op de golden rule over welke ref een tenant leest).
+
 ### Toegevoegd — 2026-08-05 (geplande merge na 17:00, in waves)
 
 `.github/workflows/scheduled-merge.yaml` merget PR's automatisch na 17:00
