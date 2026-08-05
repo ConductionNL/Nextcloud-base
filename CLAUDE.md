@@ -92,9 +92,27 @@ The Kubernetes namespace equals `tenant.name` directly (e.g., `zuiddrecht-prod`)
 - **NetworkPolicies**: No manual updates needed when adding tenants — the ApplicationSet labels every namespace with `app.kubernetes.io/part-of: nextcloud-platform` and both NetworkPolicies allow all namespaces with that label automatically.
 
 ### Sync Windows (Governance)
-The AppProject enforces automatic sync blocks during office hours, but the operational rule is stricter:
+
+**Wat Argo technisch afdwingt** (gemeten 2026-08-05 — dit is minder dan de
+operationele regel, ken het verschil):
+
+| Wat | Waar | Afgedwongen? |
+|---|---|---|
+| Platform-services (`platform-redis`, `-pgbouncer`, `-postgres`, `-externalsecrets`, `-policies`) | AppProject `nextcloud-platform-core`, deny window `platform-*` | **Ja** — ma–vr 07:00–17:00 geen sync, ook niet handmatig (`manualSync: false`) |
+| `argo/` zelf (ApplicationSet, AppProjects) | app `nextcloud-platform-bootstrap` | **Geen window, maar ook geen `automated`** — komt alleen door als een mens die app synct |
+| Tenant-apps (`nc-*`, 76 stuks) | AppProject `nextcloud-platform` | **Nee, en dat is opzet.** Zie de policy-comment in `argo/projects/nextcloud-platform.yaml` |
+
+Tenant-apps staan op `automated` met `selfHeal`, dus een merge naar `main` rolt
+bij hen **direct** uit, op elk uur van de dag. Let op wat dat betekent voor een
+wijziging in `values/common.yaml` of `values/db/*.yaml`: die fan-out raakt alle
+tenants tegelijk en wacht op niets.
+
+**De operationele regel is strenger dan wat Argo afdwingt.** Voor het verschil
+bestaat geen technische rem — die discipline ligt bij de committer, via
+`/change-guard`:
 
 - **Platform changes**: Only allowed Monday–Thursday 17:00–07:00 **Amsterdam time** (Europe/Amsterdam — handles CET/CEST automatically). Never on Friday evenings, Saturdays, or Sundays — unless mwest2020 explicitly approves.
+- **Fleet-wide values-wijzigingen** (`values/common.yaml`, `values/env/`, `values/db/`): vallen onder platform changes. Argo blokkeert ze niet, dus het moment van **mergen** is het uitrolmoment — merge na 17:00.
 - **Tenant config additions** (`values/tenants/` only): Allowed at any time, including office hours and weekends.
 - **Canary (wave 0)**: Syncs first in every rollout; validate before allowing other waves to proceed.
 

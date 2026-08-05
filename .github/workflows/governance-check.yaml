@@ -27,6 +27,12 @@ name: governance-check
 on:
   pull_request:
     branches: [main]
+    # labeled/unlabeled zijn nodig omdat de label-check github.event.pull_request
+    # .labels uit de event-payload leest. Zonder deze types faalt elke
+    # platform-PR bij aanmaak (labelen kan niet vóór de PR bestaat) en is er
+    # daarna geen event dat de check opnieuw evalueert — een rerun herhaalt de
+    # oude payload. De enige uitweg was een extra push of de PR heropenen.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read

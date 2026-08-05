@@ -81,11 +81,9 @@ inventarisatie.
   gebruikt — ze belanden dus niet in het secret. Dat is geen gevolg van deze
   wijziging, maar moet eerst beoordeeld worden (bedoeld en vergeten, of dode
   code?) voordat het script aangepast wordt.
-- De sync window in `argo/projects/nextcloud-platform.yaml` matcht op
-  applicatienaam `nextcloud-platform`, en zo'n applicatie bestaat niet: de 76
-  tenant-apps heten `nc-<tenant>`. Het window blokkeert dus niets, terwijl
-  `CLAUDE.md` stelt dat de AppProject sync-blokkades tijdens kantooruren
-  afdwingt. Die claim is onjuist zolang dit niet gerepareerd is.
+- ~~De sync window matcht niets~~ — opgelost in PR #23, zie de entry hieronder.
+  Relevant voor deze wijziging: Argo remt fleet-wide values-wijzigingen niet, dus
+  het moment van **mergen** is hier het uitrolmoment. Merge na 17:00.
 - `values/db/postgres.yaml` heeft dezelfde probe-correctie niet en draait op
   30s + 6×10s = 90s opstartbudget — krapper dan MariaDB had. Bewust buiten deze
   wijziging: raakt 55 van de 77 tenants en verdient een eigen sync-window.
@@ -95,6 +93,35 @@ inventarisatie.
   als iemand ze later onder de ApplicationSet brengt.
 - `values/templates/tenant-template-postgres.yaml` is nu grotendeels dubbel met
   `tenant-template.yaml`; samenvoegen is een aparte opruiming.
+
+### Gewijzigd — 2026-08-05 (sync-window-governance: config en docs kloppend gemaakt)
+
+Geen gedragswijziging. `CLAUDE.md` stelde dat de AppProject sync-blokkades tijdens
+kantooruren afdwingt; dat gold niet voor de tenant-apps, en de configuratie
+suggereerde het tegendeel van wat ze doet. Gemeten op het cluster:
+
+| Wat | Afgedwongen? |
+|---|---|
+| `platform-*` (5 apps, AppProject `nextcloud-platform-core`) | Ja — ma–vr 07:00–17:00, ook niet handmatig |
+| `argo/` zelf (app `nextcloud-platform-bootstrap`) | Geen window, maar ook geen `automated` — alleen handmatig |
+| Tenant-apps `nc-*` (76) | Nee, en dat is opzet |
+
+- `argo/projects/nextcloud-platform.yaml`: het deny-window verwijderd. Het stond op
+  `applications: ["nextcloud-platform"]` en er bestaat geen applicatie met die naam
+  — de tenant-apps heten `nc-<tenant>`. Het matchte dus niets en blokkeerde niets.
+  Weggehaald omdat het dekking suggereerde die er niet is; de policy-comment erboven
+  legt nu uit waarom dit project bewust géén window heeft, en wat je nodig hebt
+  (`manualSync: true`) mocht iemand de keuze ooit willen omkeren.
+- `CLAUDE.md`: de sectie Sync Windows splitst nu expliciet wat Argo technisch
+  afdwingt van wat operationele discipline is, met een tabel per component. Toegevoegd
+  dat fleet-wide values-wijzigingen (`values/common.yaml`, `values/env/`, `values/db/`)
+  onder platform changes vallen en dat Argo ze niet remt — het moment van **mergen**
+  is daar het uitrolmoment.
+
+Bewust niet aangeraakt: het window in `nextcloud-platform-core.yaml` bevat dezelfde
+dode `"nextcloud-platform"`-regel, maar dat window werkt via `platform-*`. Die regel
+opruimen raakt de enige window die productie-platform-apps daadwerkelijk gate, voor
+nul winst.
 
 ### Gewijzigd — 2026-08-03 (Codeberg-refs in de runbooks naar GitHub)
 - Vervolg op de shadowban-PR: `docs/ARCHITECTURE.md` was omgezet, maar de
