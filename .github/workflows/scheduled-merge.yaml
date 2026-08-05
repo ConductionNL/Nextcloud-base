@@ -55,11 +55,20 @@ name: Scheduled merge (canary-poort, na 17:00 Amsterdam)
 
 "on":
   schedule:
-    # GitHub-cron kent alleen UTC en geen zomertijd. 15:05 UTC is 17:05 tijdens
-    # CEST, 16:05 UTC is 17:05 tijdens CET. Beide vuren het hele jaar; de
-    # tijdcheck in de eerste stap laat er per seizoen precies één door.
-    - cron: "5 15 * * 1-4"
-    - cron: "5 16 * * 1-4"
+    # Elk uur, en de venstercheck in de eerste stap bepaalt of er iets gebeurt.
+    #
+    # Waarom uurlijks en niet één vast tijdstip: met één slot per avond wacht een PR
+    # die om 21:00 groen wordt tot de volgende dag. Dat is dezelfde flessenhals als
+    # één-wave-per-avond, alleen op de tijd-as. Uurlijks geeft ~14 kansen per
+    # werkavond (17:00-07:00), en een gemiste kans kost een uur in plaats van een dag.
+    #
+    # Bijkomend voordeel: dit is zomertijd-proof zonder trucs. Eerst stonden er twee
+    # crons (15:05 en 16:05 UTC) omdat GitHub alleen UTC kent en 17:05 lokaal per
+    # seizoen verschuift. Nu doet de check op `TZ=Europe/Amsterdam` al het werk en is
+    # de cron zelf onverschillig voor de klok.
+    #
+    # Kosten: buiten het venster stopt de run in de eerste stap, in enkele seconden.
+    - cron: "5 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
