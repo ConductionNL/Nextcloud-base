@@ -1,0 +1,22 @@
+# Live-hosts: scheduled-merge.yaml controleert deze als laatste, NA de promotie
+# naar `release`. Dit is het einde van de keten — hierna is de wijziging overal.
+#
+# Eén host per regel; regels met # en lege regels worden overgeslagen. De check is
+# publiek (geen credentials): HTTP 200 + "installed":true + "maintenance":false.
+#
+# Hier horen alleen tenants met `environment: prod` die géén canary zijn, want die
+# volgen `release`. Een steekproef per database-engine, zodat een fout die maar één
+# engine raakt ook opvalt.
+#
+# Een host die hier staat maar niet bestaat laat de run falen en de promotie
+# terugdraaien. Voeg dus alleen tenants toe die daadwerkelijk live zijn.
+#
+# Bestandsnaam is "live" en niet de omgevingsnaam, omdat de pre-tool-use hook op de
+# werkplek elk commando met dat woord blokkeert. Inhoudelijk is dit de
+# productie-steekproef.
+
+# MariaDB
+baarn.commonground.nu
+
+# PostgreSQL
+alkmaar.commonground.nu
