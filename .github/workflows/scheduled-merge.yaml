@@ -1,0 +1,300 @@
+---
+# Merget goedgekeurde PR's automatisch na 17:00 Amsterdam, in wave-orde, en stopt
+# bij het eerste probleem.
+#
+# Waarom dit bestaat: een merge naar main IS de uitrol. 76 tenant-apps staan op
+# `automated` sync met `selfHeal`, dus wat er op main landt gaat meteen live. De
+# operationele regel is dat platform-wijzigingen buiten kantooruren uitrollen,
+# maar Argo dwingt dat niet af (het deny-window in de AppProject dekt alleen
+# `platform-*`). Deze workflow maakt van "merge na 17:00" een handeling die
+# vanzelf op het juiste moment gebeurt, in plaats van iets wat iemand moet
+# onthouden.
+#
+# Hoe je een PR in de wachtrij zet:
+#   1. Zorg dat hij groen is en `MERGEABLE/CLEAN` staat.
+#   2. Geef hem het juiste change-label (`change/platform` of
+#      `change/tenant-additive`) — dat eist de governance-gate al.
+#   3. Voeg een wave-label toe: `merge-wave/0`, `merge-wave/1`, ...
+#      Lagere waves gaan eerst. Zet bij elkaar horende PR's in dezelfde wave
+#      alleen als ze los van elkaar kunnen falen.
+#
+# Zonder wave-label doet deze workflow niets met een PR. Dat is de opt-in: er
+# wordt nooit iets gemerged omdat het per ongeluk groen stond.
+#
+# Wat er gebeurt bij een probleem: de run stopt onmiddellijk, latere waves
+# blijven staan, en er komt een issue met de faalreden en de betrokken PR. Geen
+# automatische rollback — die keuze is te ingrijpend om aan een cron te laten.
+
+name: Scheduled merge (na 17:00 Amsterdam)
+
+"on":
+  schedule:
+    # GitHub-cron kent alleen UTC en geen zomertijd. 15:05 UTC is 17:05 tijdens
+    # CEST, 16:05 UTC is 17:05 tijdens CET. Beide vuren het hele jaar; de
+    # tijdcheck in de eerste stap laat er per seizoen precies één door.
+    - cron: "5 15 * * 1-4"
+    - cron: "5 16 * * 1-4"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Alleen tonen wat er gemerged zou worden"
+        required: false
+        default: true
+        type: boolean
+      ignore_window:
+        description: "Tijdvenster negeren (voor een handmatige run buiten 17:00-07:00)"
+        required: false
+        default: false
+        type: boolean
+      all_waves:
+        description: "Alle waves in één run doen in plaats van alleen de laagste"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# Twee runs die tegelijk mergen zouden elkaars uitrol in de war schoppen.
+concurrency:
+  group: scheduled-merge
+  cancel-in-progress: false
+
+jobs:
+  merge-queue:
+    name: Merge wachtrij in wave-orde
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Controleer tijdvenster (Europe/Amsterdam)
+        id: window
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Bewust lokale tijd en niet `date -u`: de policy is in Amsterdamse
+          # tijd geformuleerd, en met UTC schuift het venster twee uur op in de
+          # zomer en één uur in de winter.
+          local_hour="$(TZ=Europe/Amsterdam date +%H)"
+          local_dow="$(TZ=Europe/Amsterdam date +%u)"   # 1=ma ... 7=zo
+          local_stamp="$(TZ=Europe/Amsterdam date '+%F %T %Z')"
+
+          echo "Amsterdam: ${local_stamp} (dag ${local_dow}, uur ${local_hour})"
+
+          if [[ "${{ inputs.ignore_window }}" == "true" ]]; then
+            echo "Venster genegeerd op verzoek van de handmatige run."
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Toegestaan: maandag t/m donderdag vanaf 17:00, en de nacht erna tot
+          # 07:00. Vrijdagavond en het weekend niet — dan is er niemand om een
+          # probleem op te pakken.
+          proceed=false
+          if [[ "${local_dow}" -ge 1 && "${local_dow}" -le 4 && "${local_hour}" -ge 17 ]]; then
+            proceed=true
+          elif [[ "${local_dow}" -ge 2 && "${local_dow}" -le 5 && "${local_hour}" -lt 7 ]]; then
+            proceed=true
+          fi
+
+          if [[ "${proceed}" != "true" ]]; then
+            echo "Buiten het uitrolvenster (ma-do 17:00-07:00). Niets gedaan."
+          fi
+          echo "proceed=${proceed}" >>"$GITHUB_OUTPUT"
+
+      - name: Stel de wachtrij samen
+        id: queue
+        if: steps.window.outputs.proceed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Alleen open PR's met een merge-wave-label. Sorteren op wave, dan op
+          # PR-nummer, zodat de orde voorspelbaar is en niet van de API-volgorde
+          # afhangt.
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 \
+            --json number,title,labels,mergeable,mergeStateStatus \
+            >/tmp/prs.json
+
+          python3 - <<'PY' >/tmp/queue.txt
+          import json, re, os
+
+          wave_re = re.compile(r"^merge-wave/(\d+)$")
+          rows = []
+          for pr in json.load(open("/tmp/prs.json")):
+              labels = [l["name"] for l in pr["labels"]]
+              waves = [int(m.group(1)) for m in map(wave_re.match, labels) if m]
+              if not waves:
+                  continue
+              rows.append((min(waves), pr["number"], pr["mergeable"],
+                           pr["mergeStateStatus"], pr["title"]))
+          for wave, num, mergeable, state, title in sorted(rows):
+              print(f"{wave}\t{num}\t{mergeable}\t{state}\t{title}")
+          PY
+
+          if [[ ! -s /tmp/queue.txt ]]; then
+            echo "count=0" >>"$GITHUB_OUTPUT"
+            echo "Geen PR's met een merge-wave-label. Niets te doen."
+            exit 0
+          fi
+
+          echo "Volledige wachtrij (wave, PR, mergeable, state, titel):"
+          cat /tmp/queue.txt
+
+          # Standaard doet één run alleen de laagste openstaande wave. Dat is wat
+          # waves bedoelen: per avond één stap, met een dag ertussen om te zien
+          # of het goed ging. Alles in één run kan met de all_waves-input.
+          if [[ "${{ inputs.all_waves }}" == "true" ]]; then
+            echo "all_waves gezet: de hele wachtrij wordt in deze run verwerkt."
+          else
+            lowest="$(cut -f1 /tmp/queue.txt | sort -n | head -1)"
+            awk -F'\t' -v w="${lowest}" '$1 == w' /tmp/queue.txt >/tmp/queue.wave
+            mv /tmp/queue.wave /tmp/queue.txt
+            echo "Alleen wave ${lowest} in deze run:"
+            cat /tmp/queue.txt
+          fi
+
+          count="$(wc -l </tmp/queue.txt | tr -d ' ')"
+          echo "count=${count}" >>"$GITHUB_OUTPUT"
+
+      - name: Merge en verifieer per PR
+        if: steps.window.outputs.proceed == 'true' && steps.queue.outputs.count != '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          SETTLE_SECONDS: "60"
+          PROBE_ATTEMPTS: "10"
+          PROBE_INTERVAL: "20"
+        run: |
+          set -euo pipefail
+
+          probe_hosts=()
+          while IFS= read -r line; do
+            line="${line%%#*}"
+            line="$(echo "${line}" | tr -d '[:space:]')"
+            [[ -n "${line}" ]] && probe_hosts+=("${line}")
+          done <.github/merge-probe-hosts.txt
+
+          if [[ "${#probe_hosts[@]}" -eq 0 ]]; then
+            echo "error: geen probe-hosts geconfigureerd; weiger blind te mergen" >&2
+            exit 1
+          fi
+          echo "Probe-hosts: ${probe_hosts[*]}"
+
+          # Wacht tot alle probe-hosts weer gezond zijn. Een rolling update duurt
+          # even, dus meerdere pogingen; pas als alle pogingen op zijn is het een
+          # echte fout.
+          probe_all() {
+            local attempt host body code
+            for ((attempt = 1; attempt <= PROBE_ATTEMPTS; attempt++)); do
+              local all_ok=true
+              for host in "${probe_hosts[@]}"; do
+                code="$(curl -s -m 15 -o /tmp/status.json -w '%{http_code}' \
+                  "https://${host}/status.php" || echo "000")"
+                body="$(cat /tmp/status.json 2>/dev/null || true)"
+                if [[ "${code}" != "200" ]] \
+                  || ! grep -q '"installed":true' <<<"${body}" \
+                  || grep -q '"maintenance":true' <<<"${body}"; then
+                  echo "  poging ${attempt}: ${host} niet gezond (HTTP ${code})"
+                  all_ok=false
+                fi
+              done
+              if [[ "${all_ok}" == "true" ]]; then
+                echo "  alle probe-hosts gezond (poging ${attempt})"
+                return 0
+              fi
+              sleep "${PROBE_INTERVAL}"
+            done
+            return 1
+          }
+
+          escalate() {
+            local pr="$1" reason="$2"
+            echo "::error::${reason}"
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Scheduled merge gestopt na PR #${pr}" \
+              --body "$(printf '%s\n\n%s\n\n%s\n' \
+                "De geplande merge-run is gestopt. Reden: ${reason}" \
+                "Laatste gemergede PR: #${pr}. Latere waves zijn niet verwerkt en staan nog open." \
+                "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")" \
+              >/dev/null
+          }
+
+          echo "Beginsituatie controleren voordat er iets gemerged wordt."
+          if ! probe_all; then
+            echo "::error::Probe-hosts waren al niet gezond vóór de eerste merge."
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Scheduled merge niet gestart: vloot was al niet gezond" \
+              --body "De run stopte vóór de eerste merge omdat minstens één probe-host niet gezond was. Niets gemerged. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              >/dev/null
+            exit 1
+          fi
+
+          while IFS=$'\t' read -r wave pr mergeable state title; do
+            echo "::group::wave ${wave} — PR #${pr}: ${title}"
+
+            # Opnieuw ophalen: de wachtrij is een momentopname en er kan
+            # inmiddels gepusht of gemerged zijn.
+            fresh="$(gh pr view "${pr}" --repo "$GITHUB_REPOSITORY" \
+              --json state,mergeable,mergeStateStatus,statusCheckRollup)"
+
+            pr_state="$(jq -r '.state' <<<"${fresh}")"
+            pr_mergeable="$(jq -r '.mergeable' <<<"${fresh}")"
+            pr_merge_state="$(jq -r '.mergeStateStatus' <<<"${fresh}")"
+            failing="$(jq -r '[.statusCheckRollup[]?
+              | select((.conclusion // "") | test("FAILURE|CANCELLED|TIMED_OUT"))]
+              | length' <<<"${fresh}")"
+            pending="$(jq -r '[.statusCheckRollup[]?
+              | select((.status // "") == "IN_PROGRESS" or (.status // "") == "QUEUED")]
+              | length' <<<"${fresh}")"
+
+            if [[ "${pr_state}" != "OPEN" ]]; then
+              echo "Overgeslagen: staat niet meer open (${pr_state})."
+              echo "::endgroup::"
+              continue
+            fi
+            if [[ "${pr_mergeable}" != "MERGEABLE" || "${pr_merge_state}" == "DIRTY" ]]; then
+              echo "Overgeslagen: niet mergebaar (${pr_mergeable}/${pr_merge_state})."
+              echo "::endgroup::"
+              continue
+            fi
+            if [[ "${failing}" != "0" || "${pending}" != "0" ]]; then
+              echo "Overgeslagen: ${failing} falende en ${pending} lopende checks."
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "dry-run: zou PR #${pr} mergen en daarna de probe-hosts checken."
+              echo "::endgroup::"
+              continue
+            fi
+
+            echo "Mergen..."
+            if ! gh pr merge "${pr}" --repo "$GITHUB_REPOSITORY" --merge; then
+              escalate "${pr}" "gh pr merge faalde op PR #${pr}"
+              echo "::endgroup::"
+              exit 1
+            fi
+
+            echo "Wachten ${SETTLE_SECONDS}s zodat Argo kan syncen en de pods kunnen rollen."
+            sleep "${SETTLE_SECONDS}"
+
+            if ! probe_all; then
+              escalate "${pr}" "probe-hosts niet gezond na het mergen van PR #${pr}"
+              echo "::endgroup::"
+              exit 1
+            fi
+
+            echo "PR #${pr} gemerged en vloot gezond."
+            echo "::endgroup::"
+          done </tmp/queue.txt
+
+          echo "Wachtrij afgewerkt."

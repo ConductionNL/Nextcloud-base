@@ -8,6 +8,51 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Toegevoegd — 2026-08-05 (geplande merge na 17:00, in waves)
+
+`.github/workflows/scheduled-merge.yaml` merget PR's automatisch na 17:00
+Amsterdam, in wave-orde, en stopt bij het eerste probleem. Reden: een merge naar
+main *is* de uitrol — 76 tenant-apps staan op `automated` sync met `selfHeal` —
+maar Argo dwingt het uitrolvenster niet af (het deny-window in de AppProject dekt
+alleen `platform-*`). Tot nu toe was "mergen na 17:00" iets wat iemand moest
+onthouden.
+
+Werking:
+- **Opt-in per PR** via een `merge-wave/<n>`-label. Zonder dat label doet de
+  workflow niets met een PR; er wordt nooit iets gemerged omdat het per ongeluk
+  groen stond. Het change-label van de governance-gate blijft daarnaast vereist.
+- **Eén wave per run.** Standaard verwerkt een run alleen de laagste openstaande
+  wave, dus per avond één stap met een dag ertussen. `all_waves` als input doet
+  de hele wachtrij in één keer.
+- **Verificatie zonder credentials.** Na elke merge wordt `/status.php` van de
+  hosts in `.github/merge-probe-hosts.txt` gecontroleerd op HTTP 200,
+  `installed:true` en `maintenance:false`, met tien pogingen van 20s zodat een
+  rolling update de tijd krijgt. De lijst dekt canary plus één MariaDB- en één
+  PostgreSQL-tenant, zodat een fout die maar één engine raakt ook opvalt. Dit is
+  bewust een publieke check: er zijn geen repo-secrets en dus geen cluster-toegang
+  vanuit CI.
+- **Escaleren, niet doorgaan.** Faalt een probe, dan stopt de run, blijven latere
+  waves staan, en komt er een issue met de faalreden en de betrokken PR. Geen
+  automatische rollback — die keuze is te ingrijpend voor een cron.
+- Er wordt ook vóór de eerste merge geprobed. Was de vloot al niet gezond, dan
+  wordt er niets gemerged.
+
+Twee dingen expliciet:
+- **Zomertijd.** GitHub-cron kent alleen UTC. Daarom vuren twee crons (15:05 en
+  16:05 UTC) en beslist een check op `TZ=Europe/Amsterdam` welke doorgaat. De
+  bestaande `office-hours-tenant-only-guard.yaml` doet dit fout — die rekent met
+  `date -u` en verschuift daardoor twee uur in de zomer. Die workflow draait niet
+  (hij staat in `nextcloud-platform/.github/`, dat GitHub negeert) en is hier niet
+  aangeraakt.
+- **Venster.** Ma–do vanaf 17:00 plus de nacht erna tot 07:00. Vrijdagavond en
+  het weekend niet: dan is er niemand om een probleem op te pakken. De
+  waarheidstabel voor die conditie is met twaalf gevallen getest.
+
+Voorwaarde die nog niet geregeld is: `main` heeft **geen** branch protection —
+geen required checks, geen required review. De workflow controleert daarom zelf
+dat een PR groen en `MERGEABLE/CLEAN` is voordat hij merget, maar dat is een
+vangnet in de automatisering en geen rem op de repo.
+
 ### Gewijzigd — 2026-08-05 (sync-window-governance: config en docs kloppend gemaakt)
 
 Geen gedragswijziging. `CLAUDE.md` stelde dat de AppProject sync-blokkades tijdens
