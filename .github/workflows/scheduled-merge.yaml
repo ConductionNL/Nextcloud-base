@@ -250,6 +250,84 @@ jobs:
               && ! grep -q '"maintenance":true' <<<"${body}"
           }
 
+          # host_version <host> — de versie die de tenant zelf rapporteert.
+          # /status.php geeft o.a. {"versionstring":"32.0.13"}. Dit is het enige
+          # publieke signaal dat vertelt WAT er draait in plaats van of het leeft.
+          host_version() {
+            local host="$1"
+            curl -s -m 15 "https://${host}/status.php" 2>/dev/null \
+              | grep -oE '"versionstring":"[^"]*"' \
+              | cut -d'"' -f4
+          }
+
+          # expected_version <sha> — de Nextcloud-versie die bij die commit hoort.
+          # image.tag uit common.yaml, zonder de -fpm-variant-suffix, want
+          # versionstring rapporteert alleen het versienummer.
+          #
+          # Geldig omdat geen enkele probe-tenant image.tag overschrijft: alle
+          # tag-regels in values/tenants/ zitten op één uitzondering na onder
+          # `frontend:` (de reactfront), niet onder `image:`. Gecontroleerd
+          # 2026-08-05. Zet een probe-tenant ooit een eigen image.tag, dan wacht
+          # deze check op een versie die die tenant nooit krijgt.
+          expected_version() {
+            local sha="$1"
+            git show "${sha}:nextcloud-platform/values/common.yaml" 2>/dev/null \
+              | awk '/^image:/{f=1} f && /^[[:space:]]+tag:/{gsub(/[";]/,"",$2); print $2; exit}' \
+              | sed 's/-fpm$//;s/-apache$//'
+          }
+
+          # await_version <verwachte-versie> <host...>
+          # Wacht tot elke host de verwachte versie rapporteert. Dit is het enige
+          # bewijs van AANKOMST dat we zonder cluster-credentials hebben: zolang een
+          # host de oude versie meldt, heeft hij de wijziging niet.
+          await_version() {
+            local want="$1"; shift
+            local hosts=("$@") attempt host got all_ok
+            for ((attempt = 1; attempt <= PROBE_ATTEMPTS; attempt++)); do
+              all_ok=true
+              for host in "${hosts[@]}"; do
+                got="$(host_version "${host}")"
+                if [[ "${got}" != "${want}" ]]; then
+                  echo "  poging ${attempt}/${PROBE_ATTEMPTS}: ${host} meldt '${got}', verwacht '${want}'"
+                  all_ok=false
+                fi
+              done
+              if [[ "${all_ok}" == "true" ]]; then
+                echo "  versie ${want} aangekomen op alle hosts (poging ${attempt})"
+                return 0
+              fi
+              sleep "${PROBE_INTERVAL}"
+            done
+            return 1
+          }
+
+          # verify_layer <fase> <oude-sha> <nieuwe-sha> <host...>
+          # Wacht op aankomst als de versie meetbaar verandert, en valt anders terug
+          # op een gezondheidscheck. Zegt in de log expliciet WAT er is vastgesteld,
+          # zodat een groene run niet meer belooft dan hij heeft gemeten.
+          verify_layer() {
+            local phase="$1" old_sha="$2" new_sha="$3"; shift 3
+            local hosts=("$@") want before
+            want="$(expected_version "${new_sha}")"
+            before="$(expected_version "${old_sha}")"
+
+            if [[ -n "${want}" && "${want}" != "${before}" ]]; then
+              echo "  ${phase}: versie gaat van '${before}' naar '${want}' — wachten op aankomst"
+              if ! await_version "${want}" "${hosts[@]}"; then
+                return 1
+              fi
+              # Aangekomen is niet hetzelfde als stabiel: nu pas de gezondheidscheck.
+              probe_until "${HEALTHY_STREAK}" "${hosts[@]}"
+              return $?
+            fi
+
+            echo "  ${phase}: geen versiewijziging in deze commit, dus geen publiek"
+            echo "  aankomstsignaal. Dit is een gezondheidscheck, geen bewijs dat de"
+            echo "  wijziging is toegepast."
+            settle "${phase}"
+            probe_until "${HEALTHY_STREAK}" "${hosts[@]}"
+          }
+
           # probe_until <benodigde-streak> <host...>
           # Vraagt HEALTHY_STREAK opeenvolgende gezonde rondes voordat het als
           # gezond geldt. Eén gezonde meting zegt weinig: die kan een pod treffen die
@@ -415,9 +493,10 @@ jobs:
             if [[ "${kind}" == "tenant" ]]; then
               promote_to release-accept "${main_after}"
               promote_to release "${main_after}"
-              settle "tenant-promotie"
-              if ! probe_until "${HEALTHY_STREAK}" \
-                "${ACCEPT_HOSTS[@]}" "${LIVE_HOSTS[@]}"; then
+              # Een tenant-toevoeging wijzigt de versie niet, dus hier is er per
+              # definitie geen aankomstsignaal: alleen een gezondheidscheck.
+              if ! verify_layer "tenant-promotie" "${release_before}" \
+                "${main_after}" "${ACCEPT_HOSTS[@]}" "${LIVE_HOSTS[@]}"; then
                 demote_to release "${release_before}" "${main_after}"
                 demote_to release-accept "${accept_before}" "${main_after}"
                 escalate "Scheduled merge: vloot niet gezond na tenant-PR #${pr}" \
@@ -431,21 +510,22 @@ jobs:
               echo "::endgroup::"; continue
             fi
 
-            # Stap 1: canary. Die volgt main en heeft de wijziging dus al.
-            echo "Canary pollen..."
-            settle "canary"
-            if ! probe_until "${HEALTHY_STREAK}" "${CANARY_HOSTS[@]}"; then
-              canary_failed=true
-            else
+            # Stap 1: canary. Die volgt main, dus de vergelijking is main-vóór
+            # (release_before staat op de vorige gepromoveerde commit) tegen main-na.
+            echo "Canary verifiëren..."
+            if verify_layer "canary" "${release_before}" "${main_after}" \
+              "${CANARY_HOSTS[@]}"; then
               canary_failed=false
+            else
+              canary_failed=true
             fi
 
             if [[ "${canary_failed}" == "false" ]]; then
               # Stap 2: accept. Productie blijft hier nog buiten.
               echo "Canary gezond. Promoveren naar accept."
               promote_to release-accept "${main_after}"
-              settle "accept"
-              if ! probe_until "${HEALTHY_STREAK}" "${ACCEPT_HOSTS[@]}"; then
+              if ! verify_layer "accept" "${accept_before}" "${main_after}" \
+                "${ACCEPT_HOSTS[@]}"; then
                 demote_to release-accept "${accept_before}" "${main_after}"
                 escalate "Scheduled merge: accept niet gezond na PR #${pr}" \
                   "Canary was gezond, maar na de promotie naar accept bleven de accept-probes
@@ -458,8 +538,8 @@ jobs:
               # Stap 3: productie.
               echo "Accept gezond. Promoveren naar de rest."
               promote_to release "${main_after}"
-              settle "live"
-              if ! probe_until "${HEALTHY_STREAK}" "${LIVE_HOSTS[@]}"; then
+              if ! verify_layer "live" "${release_before}" "${main_after}" \
+                "${LIVE_HOSTS[@]}"; then
                 demote_to release "${release_before}" "${main_after}"
                 escalate "Scheduled merge: productie niet gezond na PR #${pr}" \
                   "Canary en accept waren gezond, maar na de laatste promotie bleven de

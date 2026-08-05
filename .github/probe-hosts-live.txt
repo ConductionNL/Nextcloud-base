@@ -15,8 +15,20 @@
 # werkplek elk commando met dat woord blokkeert. Inhoudelijk is dit de
 # productie-steekproef.
 
+# Kies alleen hosts die daadwerkelijk door de ApplicationSet worden beheerd. Dat is
+# niet vanzelfsprekend: `baarn.commonground.nu` stond hier eerst, maar die wordt
+# geserveerd uit namespace `baarn` door de losse Application
+# `baarn-prod-nextcloud` — niet door `nc-baarn-prod`. Die host meldde 30.0.4 terwijl
+# de vloot op 32.0.13 staat, en zou dus nooit een aankomstsignaal geven. Controleer
+# bij het toevoegen van een host:
+#
+#   kubectl get ingress -A | grep <host>
+#   kubectl -n argocd get applications -o custom-columns=APP:.metadata.name,NS:.spec.destination.namespace | grep <namespace>
+#
+# De beherende app moet `nc-<tenant>` heten.
+
 # MariaDB
-baarn.commonground.nu
+buren.commonground.nu
 
 # PostgreSQL
 alkmaar.commonground.nu
