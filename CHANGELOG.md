@@ -93,6 +93,33 @@ inventarisatie.
   als iemand ze later onder de ApplicationSet brengt.
 - `values/templates/tenant-template-postgres.yaml` is nu grotendeels dubbel met
   `tenant-template.yaml`; samenvoegen is een aparte opruiming.
+### Gewijzigd — 2026-08-05 (geplande merge werkt de hele wachtrij af)
+
+`scheduled-merge.yaml` verwerkte standaard alleen de laagste openstaande wave, dus
+één stap per avond. Dat was een zelfgemaakte flessenhals: vier klaarstaande PR's
+zouden vier avonden kosten zonder dat het iets veiliger maakte. De veiligheid zit
+in de canary-poort per PR en in het stoppen bij het eerste probleem, niet in
+wachten tot morgen.
+
+Eén run werkt nu de hele wachtrij af, in wave-orde en één PR per keer, met de
+volledige keten per PR: merge → canary pollen → promoveren → vloot pollen. Waves
+bepalen dus de volgorde, niet het tempo.
+
+De `all_waves`-input is vervangen door `max_prs`: leeg bij een geplande run (hele
+rij), een getal als je in een handmatige run bewust één stap wil zetten.
+
+### 2026-08-03 — pre-commit-hookbron naar GitHub
+- `.pre-commit-config.yaml`: de techbook-hook komt van
+  `github.com/ConductionNL/techbook` in plaats van `codeberg.org`. De pin
+  `edf269ee…` blijft ongewijzigd: die commit bestaat op beide forges en is
+  daar voorouder van `main`. Host-only dus — de gates (`docs-contract`,
+  `docs-claims`) gedragen zich identiek.
+- Waarom: dit was de laatste harde Codeberg-afhankelijkheid buiten talos.
+  Zolang die bestond moest `techbook` naar twee forges gepusht blijven
+  worden, en dat is niet volgehouden — 7 van de 9 repos zijn daar uit
+  elkaar gelopen. De bron van het patroon zat in
+  `techbook/scripts/rollout_precommit_hook.sh`, dat deze URL in élke repo
+  schreef; die is in dezelfde ronde omgezet.
 
 ### Gewijzigd — 2026-08-05 (canary-poort: twee refs, promotie en rollback)
 
