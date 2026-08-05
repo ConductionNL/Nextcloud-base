@@ -3,12 +3,6 @@ tenant:
   name: canary-accept
   environment: accept
   wave: "0"
-  # Laadt values/canary-overrides.yaml. Stond hier niet, waardoor de
-  # canary-laag alleen canary-prod raakte en elke PoC dus op productie werd
-  # gevalideerd. Let op: dit brengt de volledige canary-set mee, inclusief
-  # persistence.enabled: false (stateless emptyDir-PoC) — bewust geaccepteerd,
-  # dit is een canary.
-  canary: true
   dbType: postgres
   apps:
     enabled:

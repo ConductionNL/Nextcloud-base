@@ -194,20 +194,3 @@ nextcloud:
       else
         log "DB is empty or unreachable — proceeding with fresh install"
       fi
-
-# ---------------------------------------------------------------------------
-# image.pullPolicy: Always -> IfNotPresent
-# Status: IN VALIDATION op de canary-tenants (sinds 2026-08-05)
-# Reason: image.tag is gepind (common.yaml), dus Always levert bij elke pod-start
-#         een registry-round-trip op zonder dat er iets nieuws te halen valt. Dat
-#         kost pull-tijd en maakt elke herstart afhankelijk van de beschikbaarheid
-#         van de registry — precies het verkeerde moment om dat te zijn.
-# Risk:   bij een mutable tag zou IfNotPresent een verouderd image vastzetten.
-#         Niet van toepassing zolang image.tag een concrete versie is; gaat de tag
-#         ooit floaten, dan moet dit terug naar Always.
-# Note:   pullPolicy zit in het pod-template, dus in common.yaml zou dit alle 76
-#         tenant-deployments in één keer omrollen. Vandaar eerst hier.
-# Graduate to: common.yaml na een volle week zonder pull-fouten op canary
-# ---------------------------------------------------------------------------
-image:
-  pullPolicy: IfNotPresent
