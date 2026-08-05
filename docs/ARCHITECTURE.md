@@ -27,9 +27,11 @@ This platform spans **four repos**. None is self-contained; a change often touch
 `ConductionNL`-org is opgeheven en de terugmigratie is uitgevoerd; `git push origin …`
 deployt dus wél.
 
-> **Aanvulling 2026-08-05: welke ref een tenant leest, hangt af van `tenant.canary`.**
-> De ApplicationSet zet `targetRevision` per tenant: canary volgt `HEAD` (main),
-> alle andere tenants volgen de branch `release`. Een merge naar main raakt dus
+> **Aanvulling 2026-08-05: welke ref een tenant leest, hangt af van `tenant.wave`.**
+> De ApplicationSet zet `targetRevision` per tenant: `wave: "0"` volgt `HEAD` (main),
+> alle andere tenants volgen de branch `release`. Wave 0 zijn `canary-prod` en
+> `canary-accept`. (Niet `tenant.canary` — die vlag hoort bij de geparkeerde
+> emptyDir/S3-PoC in `canary-overrides.yaml` en staat op geen enkele tenant.) Een merge naar main raakt dus
 > alleen canary. `release` schuift vooruit als canary gezond blijkt — automatisch
 > via `.github/workflows/scheduled-merge.yaml`, of met de hand met
 > `git push origin main:release`. De git-generator volgt óók `release`, zodat een

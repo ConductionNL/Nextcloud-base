@@ -16,7 +16,7 @@ geen moment waarop je iets kon valideren voordat iedereen het kreeg. De canary w
 alleen "eerst" doordat hij extra overrides had, niet in tijd.
 
 **De ApplicationSet kiest nu per tenant een ref:**
-- canary-tenants (`tenant.canary: true`) volgen `HEAD` (main)
+- wave-0-tenants (`tenant.wave: "0"` — canary-prod en canary-accept) volgen `HEAD` (main)
 - alle andere tenants volgen de branch `release`
 - de git-generator volgt óók `release`, zodat een Application en de values waaruit
   hij rendert altijd van dezelfde commit komen. Zou de generator main volgen, dan
