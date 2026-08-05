@@ -12,26 +12,32 @@ chart:
 # DATABASE CONFIGURATION
 # =============================================================================
 # Choose ONE of three options by setting database.type:
-#   - "mariadb"   : In-cluster MariaDB per tenant (simplest, default)
-#   - "postgres"  : In-cluster PostgreSQL per tenant  
+#   - "postgres"  : In-cluster PostgreSQL per tenant (DEFAULT sinds 2026-08-05)
+#   - "mariadb"   : In-cluster MariaDB per tenant (legacy, expliciet opt-in)
 #   - "external"  : External PostgreSQL with PgBouncer (production)
+#
+# tenant.dbType is een verplicht veld (scripts/validate-values.sh), dus geen
+# tenant erft deze waarde stilzwijgend. De db-profielen in values/db/ zetten de
+# enabled-toggles hieronder alsnog expliciet en gaan dus altijd voor.
 #
 # Override in env/*.yaml or tenant values
 # =============================================================================
 
 database:
-  # Options: mariadb, postgres, external
-  type: mariadb
+  # Options: postgres, mariadb, external
+  type: postgres
 
 # -----------------------------------------------------------------------------
-# Option 1: MariaDB (default, simplest)
+# Option 1: MariaDB (legacy — expliciet tenant.dbType: mariadb vereist)
 # -----------------------------------------------------------------------------
 # Each tenant gets their own MariaDB pod
-# Good for: getting started, development, small deployments
-# Drawback: less resilient during node upgrades (but data in PVC survives)
+# Good for: bestaande tenants die er al op staan
+# Drawback: less resilient during node upgrades (but data in PVC survives), en
+# de opstartcyclus van de bitnami-image kent een deadlock-risico — zie
+# values/db/mariadb.yaml en docs/DEBUGGING.md.
 
 mariadb:
-  enabled: true  # Set to false if using postgres or external
+  enabled: false  # Set to true via values/db/mariadb.yaml (dbType: mariadb)
   auth:
     database: nextcloud
     username: nextcloud
@@ -58,7 +64,10 @@ mariadb:
 # Drawback: same resilience concerns as MariaDB
 
 postgresql:
-  enabled: false  # Set to true for in-cluster PostgreSQL
+  # De enabled-toggles zijn eigendom van de profiel-laag (values/db/*.yaml), die
+  # na dit bestand wordt gemerged. Hier bewust uit: een tenant krijgt PostgreSQL
+  # doordat values/db/postgres.yaml wordt geladen, niet door deze regel.
+  enabled: false
   auth:
     database: nextcloud
     username: nextcloud

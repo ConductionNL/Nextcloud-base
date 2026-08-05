@@ -62,7 +62,7 @@ spec:
             valueFiles:
               - "$values/nextcloud-platform/values/common.yaml"
               - "$values/nextcloud-platform/values/env/{{ .tenant.environment }}.yaml"
-              - "$values/nextcloud-platform/values/db/{{ default \"mariadb\" .tenant.dbType }}.yaml"
+              - "$values/nextcloud-platform/values/db/{{ default \"postgres\" .tenant.dbType }}.yaml"
               - "$values/nextcloud-platform/values/canary-overrides{{ if ne (toString .tenant.canary) \"true\" }}-DISABLED{{ end }}.yaml"
               - "$values/nextcloud-platform/values/tenants/tenant-{{ .tenant.name }}.yaml"
             values: |
@@ -201,7 +201,7 @@ spec:
             values: |
               tenant:
                 name: "{{ .tenant.name }}"
-                dbType: "{{ default "mariadb" .tenant.dbType }}"
+                dbType: "{{ default "postgres" .tenant.dbType }}"
               secrets:
                 managed: {{ default false .tenant.secrets.managed }}
       
