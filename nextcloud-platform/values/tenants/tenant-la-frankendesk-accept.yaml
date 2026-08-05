@@ -1,0 +1,17 @@
+---
+tenant:
+  name: la-frankendesk-accept
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    host: la-frankendesk.openwoo.app
+    branding:
+      organisationName: "La Frankendesk"
