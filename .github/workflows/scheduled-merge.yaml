@@ -22,8 +22,10 @@
 # gezonde canary. Dat is de borging.
 #
 # Wachtrij: opt-in per PR via een `merge-wave/<n>`-label. Zonder dat label doet
-# deze workflow niets met een PR. Standaard verwerkt een run alleen de laagste
-# openstaande wave — per avond een stap, met een dag ertussen.
+# deze workflow niets met een PR. Eén run werkt de HELE wachtrij af, in wave-orde
+# en één PR per keer. Waves zijn de volgorde, niet een rem — de veiligheid zit in
+# de canary-poort per PR en in het stoppen bij het eerste probleem. Wachten tot de
+# volgende avond zou alleen een flessenhals toevoegen.
 #
 # Tenant-only PR's (`change/tenant-additive`) worden direct na de merge
 # gepromoveerd zonder canary-poort. Een nieuw tenant-bestand kan bestaande
@@ -57,11 +59,11 @@ name: Scheduled merge (canary-poort, na 17:00 Amsterdam)
         required: false
         default: false
         type: boolean
-      all_waves:
-        description: "Alle waves in één run in plaats van alleen de laagste"
+      max_prs:
+        description: "Maximaal aantal PR's in deze run (leeg = de hele wachtrij)"
         required: false
-        default: false
-        type: boolean
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -154,17 +156,24 @@ jobs:
             exit 0
           fi
 
-          echo "Volledige wachtrij (wave, PR, soort, titel):"
+          # De hele wachtrij in één run, in wave-orde, één PR per keer. Waves zijn
+          # de volgorde, niet een rem: wachten tot morgen zou een flessenhals zijn
+          # die niets toevoegt. De veiligheid zit in de canary-poort per PR en in
+          # het stoppen bij het eerste probleem.
+          echo "Wachtrij (wave, PR, soort, titel):"
           cat /tmp/queue.txt
 
-          # Eén wave per run, tenzij anders gevraagd.
-          if [[ "${{ inputs.all_waves }}" == "true" ]]; then
-            echo "all_waves gezet: de hele wachtrij wordt in deze run verwerkt."
-          else
-            lowest="$(cut -f1 /tmp/queue.txt | sort -n | head -1)"
-            awk -F'\t' -v w="${lowest}" '$1 == w' /tmp/queue.txt >/tmp/queue.wave
-            mv /tmp/queue.wave /tmp/queue.txt
-            echo "Alleen wave ${lowest} in deze run:"
+          # max_prs is er voor een handmatige run waarin je bewust één stap wil
+          # zetten. Bij een geplande run is hij leeg en gaat de hele rij door.
+          max_prs="${{ inputs.max_prs }}"
+          if [[ -n "${max_prs}" ]]; then
+            if [[ ! "${max_prs}" =~ ^[0-9]+$ ]]; then
+              echo "error: max_prs moet een getal zijn, kreeg '${max_prs}'" >&2
+              exit 1
+            fi
+            head -n "${max_prs}" /tmp/queue.txt >/tmp/queue.limited
+            mv /tmp/queue.limited /tmp/queue.txt
+            echo "Beperkt tot de eerste ${max_prs}:"
             cat /tmp/queue.txt
           fi
 
