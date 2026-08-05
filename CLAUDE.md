@@ -96,12 +96,31 @@ operationele regel, ken het verschil):
 |---|---|---|
 | Platform-services (`platform-redis`, `-pgbouncer`, `-postgres`, `-externalsecrets`, `-policies`) | AppProject `nextcloud-platform-core`, deny window `platform-*` | **Ja** — ma–vr 07:00–17:00 geen sync, ook niet handmatig (`manualSync: false`) |
 | `argo/` zelf (ApplicationSet, AppProjects) | app `nextcloud-platform-bootstrap` | **Geen window, maar ook geen `automated`** — komt alleen door als een mens die app synct |
-| Tenant-apps (`nc-*`, 76 stuks) | AppProject `nextcloud-platform` | **Nee, en dat is opzet.** Zie de policy-comment in `argo/projects/nextcloud-platform.yaml` |
+| Tenant-apps (`nc-*`, 76 stuks) | AppProject `nextcloud-platform` | **Geen tijdvenster, en dat is opzet.** Wat hen wél beschermt is de ref-splitsing hieronder: ze volgen `release`, niet main |
 
-Tenant-apps staan op `automated` met `selfHeal`, dus een merge naar `main` rolt
-bij hen **direct** uit, op elk uur van de dag. Let op wat dat betekent voor een
-wijziging in `values/common.yaml` of `values/db/*.yaml`: die fan-out raakt alle
-tenants tegelijk en wacht op niets.
+**Twee refs sinds 2026-08-05.** De ApplicationSet kiest per tenant een
+`targetRevision` op basis van `tenant.wave`: wave `"0"` volgt `HEAD` (main), alle
+andere volgen de branch `release`. Wave 0 zijn `canary-prod` en `canary-accept`.
+Let op: níet `tenant.canary` — die vlag hoort bij de geparkeerde emptyDir/S3-PoC
+in `canary-overrides.yaml` en staat op geen enkele tenant. Een merge naar main is dus **niet** meer de uitrol voor de
+vloot — alleen canary krijgt hem. `release` schuift pas vooruit als canary gezond
+blijkt, en dat doet `.github/workflows/scheduled-merge.yaml`. De generator volgt
+ook `release`, zodat een Application en zijn values altijd van dezelfde commit
+komen.
+
+Praktisch betekent dat:
+
+- **main is de canary-ref.** Wat je daar merget, staat binnen enkele minuten op
+  `canary.commonground.nu` en `canary.accept.commonground.nu` en nergens anders.
+- **`release` is de vloot-ref.** Die verschuift alleen via de scheduled workflow,
+  of met de hand: `git push origin main:release` (fast-forward).
+- **Rollback van de vloot is een pointer terugzetten**, geen revert:
+  `git push --force-with-lease origin <oude-sha>:refs/heads/release`.
+- Tenant-apps staan nog steeds op `automated` met `selfHeal` — dat corrigeert
+  drift binnen de ref die ze volgen.
+- Een nieuwe tenant verschijnt pas na promotie, omdat de generator `release`
+  volgt. Voor `change/tenant-additive`-PR's promoveert de workflow direct na de
+  merge, zonder canary-poort.
 
 **De operationele regel is strenger dan wat Argo afdwingt.** Voor het verschil
 bestaat geen technische rem — die discipline ligt bij de committer, via
