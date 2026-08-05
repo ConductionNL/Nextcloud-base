@@ -83,12 +83,20 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          mapfile -t FLEET_HOSTS < <(
+          read_hosts() {
+            local file="$1" line
             while IFS= read -r line; do
               line="${line%%#*}"
               line="$(echo "${line}" | tr -d '[:space:]')"
               [[ -n "${line}" ]] && echo "${line}"
-            done <.github/probe-hosts-fleet.txt
+            done <"${file}"
+          }
+
+          # Een tenant-toevoeging gaat in één keer naar accept én de rest, dus beide
+          # steekproeven worden gemeten.
+          mapfile -t FLEET_HOSTS < <(
+            read_hosts .github/probe-hosts-accept.txt
+            read_hosts .github/probe-hosts-live.txt
           )
           if [[ "${#FLEET_HOSTS[@]}" -eq 0 ]]; then
             echo "error: probe-lijst is leeg; weiger blind te promoveren" >&2
@@ -121,22 +129,30 @@ jobs:
             return 1
           }
 
-          git fetch origin release --quiet
+          git fetch origin release release-accept --quiet
           release_before="$(git rev-parse origin/release)"
-          echo "release staat op ${release_before}, promoveren naar ${GITHUB_SHA}"
+          accept_before="$(git rev-parse origin/release-accept)"
+          echo "release ${release_before}, release-accept ${accept_before}"
+          echo "promoveren naar ${GITHUB_SHA}"
 
+          # Beide refs, want de generator volgt `release`: zou alleen
+          # release-accept schuiven, dan bestaat de Application van een nieuwe
+          # accept-tenant nog niet. En een nieuwe prod-tenant heeft `release` nodig.
+          git push origin "${GITHUB_SHA}:refs/heads/release-accept"
           git push origin "${GITHUB_SHA}:refs/heads/release"
 
           sleep "${SETTLE_SECONDS}"
           if ! probe_until; then
-            echo "Vloot niet gezond; release terugzetten naar ${release_before}"
+            echo "Vloot niet gezond; beide refs terugzetten"
             git push --force-with-lease="refs/heads/release:${GITHUB_SHA}" \
               origin "${release_before}:refs/heads/release"
+            git push --force-with-lease="refs/heads/release-accept:${GITHUB_SHA}" \
+              origin "${accept_before}:refs/heads/release-accept"
             gh issue create --repo "$GITHUB_REPOSITORY" \
               --title "Promotie van tenant-wijziging teruggedraaid" \
               --body "Een tenant-only push naar main is gepromoveerd, maar de
-          vloot-probes bleven falen. \`release\` is teruggezet naar
-          ${release_before}; main staat op ${GITHUB_SHA}.
+          vloot-probes bleven falen. \`release\` is teruggezet naar ${release_before} en
+          \`release-accept\` naar ${accept_before}; main staat op ${GITHUB_SHA}.
 
           Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
               >/dev/null || echo "::warning::issue aanmaken faalde"

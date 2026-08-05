@@ -1,12 +1,13 @@
-# Vloot-hosts: scheduled-merge.yaml controleert deze NA de promotie naar
-# `release`, dus nadat de niet-canary tenants de wijziging hebben gekregen.
+# Accept-hosts: scheduled-merge.yaml controleert deze NA de promotie naar
+# `release-accept` en VOOR de promotie naar `release`. Zolang deze niet gezond
+# zijn, ziet productie de wijziging niet.
 #
 # Eén host per regel; regels met # en lege regels worden overgeslagen. De check is
 # publiek (geen credentials): HTTP 200 + "installed":true + "maintenance":false.
 #
-# Houd de lijst kort en representatief. Een steekproef per database-engine, zodat
-# een fout die maar één engine raakt ook opvalt. Deze tenants volgen `release` en
-# krijgen de wijziging dus pas bij promotie.
+# Hier horen alleen tenants met `environment: accept`, want alleen die volgen
+# `release-accept`. Een steekproef per database-engine, zodat een fout die maar één
+# engine raakt ook opvalt.
 #
 # Een host die hier staat maar niet bestaat laat de run falen en de promotie
 # terugdraaien. Voeg dus alleen tenants toe die daadwerkelijk live zijn.

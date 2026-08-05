@@ -8,18 +8,31 @@
 # per tenant een ref kiest, volgt canary main en volgt de rest `release`. Deze
 # workflow is wat die twee refs bij elkaar brengt.
 #
-# De keten per PR:
+# De keten per PR, drie stappen met een poort ertussen:
 #
-#   probe canary+vloot vooraf   -> alles gezond? anders niets doen
-#   merge naar main             -> alleen canary krijgt de wijziging
-#   poll canary                 -> Argo synct, pods rollen, /status.php moet 200 geven
-#     canary gezond             -> promoveer: `release` schuift naar main
-#       vloot gezond            -> klaar
-#       vloot ziek              -> `release` terug naar de vorige commit
-#     canary ziek               -> revert de merge op main (zie hieronder)
+#   probe alles vooraf      -> gezond? anders niets doen
+#   merge naar main         -> alleen canary (wave 0) krijgt de wijziging
+#   poll canary             -> gezond? dan pas verder
+#     promoveer release-accept  -> accept-tenants krijgen hem
+#     poll accept               -> gezond? dan pas verder
+#       promoveer release       -> productie krijgt hem
+#       poll live               -> ziek? `release` terug
+#     accept ziek               -> `release-accept` terug, productie ongemoeid
+#   canary ziek             -> geen ref verschoven, revert op main (zie onder)
 #
-# De vloot ziet een kapotte commit dus nooit: `release` verschuift alleen na een
-# gezonde canary. Dat is de borging.
+# Productie loopt dus altijd achter op accept, en accept op canary. Een kapotte
+# commit komt niet verder dan de laag waar hij stukloopt.
+#
+# WAAROM DE WACHTTIJDEN ZO LANG ZIJN: Argo's reconcile staat op 180s en daarna moet
+# de pod nog rollen. Met een korte pauze gaf de probe groen terwijl de doeltenants
+# nog op de oude commit liepen — precies wat er op 2026-08-05 in run 31033945944
+# gebeurde, waar de canary-probe 31 seconden na de merge slaagde. De poort keurde
+# toen niets. Vandaar SETTLE_SECONDS van 300 plus een streak van meerdere gezonde
+# metingen op rij.
+#
+# WAT DEZE POORT NIET DOET: hij bewijst niet dat de wijziging is aangekomen, alleen
+# dat er niets is omgevallen. Daarvoor zou CI de gedeployde revisie van de Argo-app
+# moeten kunnen uitvragen, en dat vraagt een token dat er nu niet is.
 #
 # Wachtrij: opt-in per PR via een `merge-wave/<n>`-label. Zonder dat label doet
 # deze workflow niets met een PR. Eén run werkt de HELE wachtrij af, in wave-orde
@@ -186,12 +199,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
-          # Canary moet Argo's sync-interval plus een pod-roll overleven, vandaar
-          # ruimer dan de vloot-check die daarna komt.
-          CANARY_ATTEMPTS: "24"
-          FLEET_ATTEMPTS: "18"
+          # SETTLE_SECONDS is de minimale wachttijd vóórdat een probe meetelt, en
+          # dat getal is niet willekeurig. Argo's `timeout.reconciliation` staat op
+          # de default van 180s, en daarna moet de pod nog rollen. Met de vorige
+          # waarde van 30s gaf de probe groen op poging 1 terwijl de doel-tenants nog
+          # op de oude commit liepen — gemeten in run 31033945944 (probe geslaagd 31s
+          # na de merge) en bevestigd doordat een vloot-tenant pas ~3 minuten later
+          # op de nieuwe revisie stond. De poort keurde dus niets.
+          SETTLE_SECONDS: "300"
+          PROBE_ATTEMPTS: "18"
           PROBE_INTERVAL: "20"
-          SETTLE_SECONDS: "30"
+          # Eén gezonde meting kan een pod treffen die nog niet is begonnen aan zijn
+          # rolling update. Drie op rij, met PROBE_INTERVAL ertussen, dekt dat af.
+          HEALTHY_STREAK: "3"
         run: |
           set -euo pipefail
 
@@ -208,14 +228,17 @@ jobs:
           }
 
           mapfile -t CANARY_HOSTS < <(read_hosts .github/probe-hosts-canary.txt)
-          mapfile -t FLEET_HOSTS < <(read_hosts .github/probe-hosts-fleet.txt)
+          mapfile -t ACCEPT_HOSTS < <(read_hosts .github/probe-hosts-accept.txt)
+          mapfile -t LIVE_HOSTS < <(read_hosts .github/probe-hosts-live.txt)
 
-          if [[ "${#CANARY_HOSTS[@]}" -eq 0 || "${#FLEET_HOSTS[@]}" -eq 0 ]]; then
+          if [[ "${#CANARY_HOSTS[@]}" -eq 0 || "${#ACCEPT_HOSTS[@]}" -eq 0 \
+            || "${#LIVE_HOSTS[@]}" -eq 0 ]]; then
             echo "error: probe-lijsten zijn leeg; weiger blind te mergen" >&2
             exit 1
           fi
           echo "Canary-hosts: ${CANARY_HOSTS[*]}"
-          echo "Vloot-hosts : ${FLEET_HOSTS[*]}"
+          echo "Accept-hosts: ${ACCEPT_HOSTS[*]}"
+          echo "Live-hosts  : ${LIVE_HOSTS[*]}"
 
           host_healthy() {
             local host="$1" code body
@@ -227,25 +250,42 @@ jobs:
               && ! grep -q '"maintenance":true' <<<"${body}"
           }
 
-          # probe_until <attempts> <host...>
+          # probe_until <benodigde-streak> <host...>
+          # Vraagt HEALTHY_STREAK opeenvolgende gezonde rondes voordat het als
+          # gezond geldt. Eén gezonde meting zegt weinig: die kan een pod treffen die
+          # nog niet aan zijn rolling update begonnen is.
           probe_until() {
-            local attempts="$1"; shift
-            local hosts=("$@") attempt host all_ok
-            for ((attempt = 1; attempt <= attempts; attempt++)); do
+            local streak_needed="$1"; shift
+            local hosts=("$@") attempt host all_ok streak=0
+            for ((attempt = 1; attempt <= PROBE_ATTEMPTS; attempt++)); do
               all_ok=true
               for host in "${hosts[@]}"; do
                 if ! host_healthy "${host}"; then
-                  echo "  poging ${attempt}/${attempts}: ${host} nog niet gezond"
+                  echo "  poging ${attempt}/${PROBE_ATTEMPTS}: ${host} nog niet gezond"
                   all_ok=false
                 fi
               done
               if [[ "${all_ok}" == "true" ]]; then
-                echo "  gezond (poging ${attempt})"
-                return 0
+                streak=$((streak + 1))
+                echo "  gezond (poging ${attempt}, ${streak}/${streak_needed} op rij)"
+                if [[ "${streak}" -ge "${streak_needed}" ]]; then
+                  return 0
+                fi
+              else
+                # Eén slechte ronde zet de teller terug: we willen een aaneengesloten
+                # gezonde periode, geen gemiddelde.
+                streak=0
               fi
               sleep "${PROBE_INTERVAL}"
             done
             return 1
+          }
+
+          # settle <fase> — wacht tot Argo gereconcilieerd kan hebben en de pods
+          # gerold zijn. Zonder deze pauze meet de probe de oude staat.
+          settle() {
+            echo "  wachten ${SETTLE_SECONDS}s ($1): Argo reconcile (180s) + pod-roll"
+            sleep "${SETTLE_SECONDS}"
           }
 
           escalate() {
@@ -259,22 +299,23 @@ jobs:
               >/dev/null || echo "::warning::issue aanmaken faalde"
           }
 
-          # Schuift `release` naar de meegegeven commit. Fast-forward, dus dit kan
-          # niets overschrijven wat er niet al in zit.
+          # promote_to <ref> <sha> — schuift een release-ref naar de commit.
+          # Fast-forward, dus dit kan niets overschrijven wat er niet al in zit.
           promote_to() {
-            local sha="$1"
-            echo "Promoveren: release -> ${sha}"
-            git push origin "${sha}:refs/heads/release"
+            local ref="$1" sha="$2"
+            echo "Promoveren: ${ref} -> ${sha}"
+            git push origin "${sha}:refs/heads/${ref}"
           }
 
-          # Zet `release` terug. Dit is de goedkoopste rollback die er is: alleen
-          # een pointer, geen nieuwe commit, en main blijft ongemoeid. Wel een
-          # force-push — uitsluitend op `release`, nooit op main.
+          # demote_to <ref> <oude-sha> <huidige-sha> — zet een release-ref terug. Dit
+          # is de goedkoopste rollback die er is: alleen een pointer, geen nieuwe
+          # commit, en main blijft ongemoeid. Wel een force-push — uitsluitend op een
+          # release-ref, nooit op main.
           demote_to() {
-            local old="$1" new="$2"
-            echo "Terugdraaien: release ${new} -> ${old}"
-            git push --force-with-lease="refs/heads/release:${new}" \
-              origin "${old}:refs/heads/release"
+            local ref="$1" old="$2" new="$3"
+            echo "Terugdraaien: ${ref} ${new} -> ${old}"
+            git push --force-with-lease="refs/heads/${ref}:${new}" \
+              origin "${old}:refs/heads/${ref}"
           }
 
           # Een diff die een image-tag of chart-versie aanraakt kan een
@@ -313,7 +354,11 @@ jobs:
           }
 
           echo "::group::Beginsituatie"
-          if ! probe_until 3 "${CANARY_HOSTS[@]}" "${FLEET_HOSTS[@]}"; then
+          # Hier geen settle: we meten de staat zoals hij nu is, niet na een
+          # wijziging. Wel een streak, zodat een toevallige hik niet meteen de
+          # hele run blokkeert.
+          if ! probe_until "${HEALTHY_STREAK}" \
+            "${CANARY_HOSTS[@]}" "${ACCEPT_HOSTS[@]}" "${LIVE_HOSTS[@]}"; then
             escalate "Scheduled merge niet gestart: vloot was al niet gezond" \
               "De run stopte vóór de eerste merge omdat minstens één probe-host niet gezond was. Er is niets gemerged en niets gepromoveerd."
             exit 1
@@ -348,8 +393,9 @@ jobs:
               echo "::endgroup::"; continue
             fi
 
-            git fetch origin main release --quiet
+            git fetch origin main release release-accept --quiet
             release_before="$(git rev-parse origin/release)"
+            accept_before="$(git rev-parse origin/release-accept)"
 
             echo "Mergen naar main (alleen canary krijgt dit)..."
             if ! gh pr merge "${pr}" --repo "$GITHUB_REPOSITORY" --merge; then
@@ -362,48 +408,74 @@ jobs:
             main_after="$(git rev-parse origin/main)"
             echo "main staat nu op ${main_after}, release nog op ${release_before}"
 
-            # Tenant-only: geen canary-poort. Een nieuw tenant-bestand kan
-            # bestaande tenants niet breken, en zonder promotie ziet de generator
-            # (die `release` volgt) de tenant helemaal niet.
+            # Tenant-only: geen canary-poort. Een nieuw tenant-bestand kan bestaande
+            # tenants niet breken, en zonder promotie ziet de generator (die
+            # `release` volgt) de tenant helemaal niet. Beide refs schuiven mee,
+            # anders zou een accept-tenant wél renderen en een prod-tenant niet.
             if [[ "${kind}" == "tenant" ]]; then
-              promote_to "${main_after}"
-              sleep "${SETTLE_SECONDS}"
-              if ! probe_until "${FLEET_ATTEMPTS}" "${FLEET_HOSTS[@]}"; then
-                demote_to "${release_before}" "${main_after}"
+              promote_to release-accept "${main_after}"
+              promote_to release "${main_after}"
+              settle "tenant-promotie"
+              if ! probe_until "${HEALTHY_STREAK}" \
+                "${ACCEPT_HOSTS[@]}" "${LIVE_HOSTS[@]}"; then
+                demote_to release "${release_before}" "${main_after}"
+                demote_to release-accept "${accept_before}" "${main_after}"
                 escalate "Scheduled merge: vloot niet gezond na tenant-PR #${pr}" \
-                  "PR #${pr} is gemerged en gepromoveerd, maar de vloot-probes bleven falen.
-          \`release\` is teruggezet naar ${release_before}, dus de tenants draaien weer op de
-          vorige commit. main staat nog op ${main_after} — de merge zelf is niet ongedaan
-          gemaakt."
+                  "PR #${pr} is gemerged en gepromoveerd, maar de probes bleven falen.
+          Beide release-refs zijn teruggezet (release naar ${release_before},
+          release-accept naar ${accept_before}). main staat nog op ${main_after} — de merge
+          zelf is niet ongedaan gemaakt."
                 echo "::endgroup::"; exit 1
               fi
               echo "PR #${pr} gemerged, gepromoveerd en vloot gezond."
               echo "::endgroup::"; continue
             fi
 
-            echo "Canary pollen (Argo moet syncen en de pods moeten rollen)..."
-            sleep "${SETTLE_SECONDS}"
-            if probe_until "${CANARY_ATTEMPTS}" "${CANARY_HOSTS[@]}"; then
-              echo "Canary gezond. Promoveren naar de vloot."
-              promote_to "${main_after}"
-              sleep "${SETTLE_SECONDS}"
-              if ! probe_until "${FLEET_ATTEMPTS}" "${FLEET_HOSTS[@]}"; then
-                demote_to "${release_before}" "${main_after}"
-                escalate "Scheduled merge: vloot niet gezond na promotie van PR #${pr}" \
-                  "Canary was gezond, maar na de promotie bleven de vloot-probes falen.
-          \`release\` is teruggezet naar ${release_before}. main staat nog op ${main_after}:
-          canary houdt de wijziging, de vloot niet. Dat verschil is nu het
-          onderzoeksmateriaal."
+            # Stap 1: canary. Die volgt main en heeft de wijziging dus al.
+            echo "Canary pollen..."
+            settle "canary"
+            if ! probe_until "${HEALTHY_STREAK}" "${CANARY_HOSTS[@]}"; then
+              canary_failed=true
+            else
+              canary_failed=false
+            fi
+
+            if [[ "${canary_failed}" == "false" ]]; then
+              # Stap 2: accept. Productie blijft hier nog buiten.
+              echo "Canary gezond. Promoveren naar accept."
+              promote_to release-accept "${main_after}"
+              settle "accept"
+              if ! probe_until "${HEALTHY_STREAK}" "${ACCEPT_HOSTS[@]}"; then
+                demote_to release-accept "${accept_before}" "${main_after}"
+                escalate "Scheduled merge: accept niet gezond na PR #${pr}" \
+                  "Canary was gezond, maar na de promotie naar accept bleven de accept-probes
+          falen. \`release-accept\` is teruggezet naar ${accept_before}. Productie is niet
+          geraakt: \`release\` staat nog op ${release_before}. main en canary houden de
+          wijziging — dat verschil is het onderzoeksmateriaal."
                 echo "::endgroup::"; exit 1
               fi
-              echo "PR #${pr} gemerged, canary gezond, vloot gezond."
+
+              # Stap 3: productie.
+              echo "Accept gezond. Promoveren naar de rest."
+              promote_to release "${main_after}"
+              settle "live"
+              if ! probe_until "${HEALTHY_STREAK}" "${LIVE_HOSTS[@]}"; then
+                demote_to release "${release_before}" "${main_after}"
+                escalate "Scheduled merge: productie niet gezond na PR #${pr}" \
+                  "Canary en accept waren gezond, maar na de laatste promotie bleven de
+          live-probes falen. \`release\` is teruggezet naar ${release_before}.
+          \`release-accept\` blijft op ${main_after}, dus accept houdt de wijziging en
+          productie niet — precies het verschil dat je wil kunnen vergelijken."
+                echo "::endgroup::"; exit 1
+              fi
+              echo "PR #${pr} gemerged, canary gezond, accept gezond, productie gezond."
               echo "::endgroup::"; continue
             fi
 
-            # Canary niet gezond. De vloot heeft de wijziging nooit gezien, want
-            # `release` is niet verschoven — dat is de borging. Rest de vraag of we
-            # canary zelf terugdraaien.
-            echo "::warning::Canary niet gezond na PR #${pr}. release is niet verschoven."
+            # Canary niet gezond. Accept en productie hebben de wijziging nooit
+            # gezien, want geen van beide release-refs is verschoven — dat is de
+            # borging. Rest de vraag of we canary zelf terugdraaien.
+            echo "::warning::Canary niet gezond na PR #${pr}. Geen ref verschoven."
             if migration_bearing "${main_after}"; then
               escalate "Scheduled merge: canary stuk na PR #${pr}, GEEN automatische revert" \
                 "De canary-probes bleven falen na PR #${pr}. \`release\` is niet verschoven, dus de vloot is niet geraakt.
