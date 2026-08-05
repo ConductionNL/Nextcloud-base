@@ -62,6 +62,12 @@ spec:
             valueFiles:
               - "$values/nextcloud-platform/values/common.yaml"
               - "$values/nextcloud-platform/values/env/{{ .tenant.environment }}.yaml"
+              # Fallback for a tenant file without tenant.dbType. This is the
+              # effective platform default — the enabled-flags in common.yaml are
+              # always overridden by the db/ profile, which is layered after it.
+              # Changed mariadb -> postgres on 2026-08-04 (MariaDB is legacy).
+              # No effect on existing tenants: all 77 tenant files declare dbType,
+              # so this branch is never taken for any of them.
               - "$values/nextcloud-platform/values/db/{{ default \"postgres\" .tenant.dbType }}.yaml"
               - "$values/nextcloud-platform/values/canary-overrides{{ if ne (toString .tenant.canary) \"true\" }}-DISABLED{{ end }}.yaml"
               - "$values/nextcloud-platform/values/tenants/tenant-{{ .tenant.name }}.yaml"

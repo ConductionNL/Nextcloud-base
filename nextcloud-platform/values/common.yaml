@@ -11,33 +11,43 @@ chart:
 # =============================================================================
 # DATABASE CONFIGURATION
 # =============================================================================
-# Choose ONE of three options by setting database.type:
-#   - "postgres"  : In-cluster PostgreSQL per tenant (DEFAULT sinds 2026-08-05)
-#   - "mariadb"   : In-cluster MariaDB per tenant (legacy, expliciet opt-in)
-#   - "external"  : External PostgreSQL with PgBouncer (production)
+# Select with `tenant.dbType` in the tenant file:
+#   - "postgres"  : In-cluster PostgreSQL per tenant (DEFAULT, use this)
+#   - "mariadb"   : In-cluster MariaDB per tenant — LEGACY, being phased out
+#   - "external"  : Shared PostgreSQL with PgBouncer — not usable yet,
+#                   see docs/CNPG-MIGRATIE.md
 #
-# tenant.dbType is een verplicht veld (scripts/validate-values.sh), dus geen
-# tenant erft deze waarde stilzwijgend. De db-profielen in values/db/ zetten de
-# enabled-toggles hieronder alsnog expliciet en gaan dus altijd voor.
+# `tenant.dbType` is a required field (it is in REQUIRED_FIELDS of
+# scripts/validate-values.sh), so no tenant ever inherits an engine silently —
+# omit it and CI fails. All 77 tenant files declare it today.
 #
-# Override in env/*.yaml or tenant values
+# Where the default actually lives: the ApplicationSet
+# (argo/applicationsets/nextcloud-tenants.yaml) layers
+# `values/db/{{ default "postgres" .tenant.dbType }}.yaml` AFTER this file, and
+# each db/ profile sets all four enabled-flags explicitly. So the flags below are
+# always overridden for a real tenant — they are documentation, not the switch.
 # =============================================================================
 
 database:
-  # Options: postgres, mariadb, external
+  # Vestigial: nothing reads .Values.database.type. Kept in step with the
+  # direction so it does not contradict the ApplicationSet default.
+  # Options: postgres, mariadb (legacy), external
   type: postgres
 
 # -----------------------------------------------------------------------------
-# Option 1: MariaDB (legacy — expliciet tenant.dbType: mariadb vereist)
+# Option 1: MariaDB — LEGACY, being phased out
 # -----------------------------------------------------------------------------
-# Each tenant gets their own MariaDB pod
-# Good for: bestaande tenants die er al op staan
-# Drawback: less resilient during node upgrades (but data in PVC survives), en
-# de opstartcyclus van de bitnami-image kent een deadlock-risico — zie
-# values/db/mariadb.yaml en docs/DEBUGGING.md.
+# Do not choose this for a new tenant; see docs/DATABASE.md. Kept because 22
+# tenants still run on it. Note these pods keep tight limits (below) while
+# measured MariaDB memory p90 is 291Mi — accepted for the phase-out period.
+#
+# De opstartcyclus van de bitnami-image kent bovendien een deadlock-risico dat op
+# 2026-08-04 twee productie-tenants platlegde. values/db/mariadb.yaml dekt dat af
+# met een startupProbe en innodb_buffer_pool_load_at_startup=0; docs/DEBUGGING.md
+# beschrijft hoe je het herkent.
 
 mariadb:
-  enabled: false  # Set to true via values/db/mariadb.yaml (dbType: mariadb)
+  enabled: false  # overridden to true by values/db/mariadb.yaml
   auth:
     database: nextcloud
     username: nextcloud
@@ -57,17 +67,12 @@ mariadb:
         memory: 512Mi
 
 # -----------------------------------------------------------------------------
-# Option 2: PostgreSQL in-cluster
+# Option 2: PostgreSQL in-cluster — DEFAULT for new tenants
 # -----------------------------------------------------------------------------
-# Each tenant gets their own PostgreSQL pod
-# Good for: PostgreSQL features, slightly better performance
-# Drawback: same resilience concerns as MariaDB
+# Each tenant gets their own PostgreSQL pod.
 
 postgresql:
-  # De enabled-toggles zijn eigendom van de profiel-laag (values/db/*.yaml), die
-  # na dit bestand wordt gemerged. Hier bewust uit: een tenant krijgt PostgreSQL
-  # doordat values/db/postgres.yaml wordt geladen, niet door deze regel.
-  enabled: false
+  enabled: true  # overridden to false by values/db/mariadb.yaml and db/external.yaml
   auth:
     database: nextcloud
     username: nextcloud
