@@ -288,6 +288,30 @@ jobs:
               | grep -qE '^\+[[:space:]]*(tag|version|chartVersion):'
           }
 
+          # GitHub berekent mergeability lazy. Direct na een merge is de waarde voor
+          # de volgende PR's `UNKNOWN` — dat betekent "nog niet berekend", niet
+          # "niet mergebaar". Eén uitvraag was daardoor genoeg om elke PR ná de
+          # eerste over te slaan; gemeten in run 31026343726 op 2026-08-05, waar
+          # #22 en #21 beide op UNKNOWN/UNKNOWN werden overgeslagen. Uitvragen
+          # triggert de berekening, dus doorvragen tot er een echte waarde staat.
+          fetch_pr_state() {
+            local pr="$1" attempt fresh mergeable
+            for ((attempt = 1; attempt <= 12; attempt++)); do
+              fresh="$(gh pr view "${pr}" --repo "$GITHUB_REPOSITORY" \
+                --json state,mergeable,mergeStateStatus,statusCheckRollup)"
+              mergeable="$(jq -r '.mergeable' <<<"${fresh}")"
+              if [[ "${mergeable}" != "UNKNOWN" ]]; then
+                [[ "${attempt}" -gt 1 ]] \
+                  && echo "  mergeability na ${attempt} pogingen: ${mergeable}" >&2
+                echo "${fresh}"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "  mergeability bleef UNKNOWN na 12 pogingen (1 minuut)" >&2
+            echo "${fresh}"
+          }
+
           echo "::group::Beginsituatie"
           if ! probe_until 3 "${CANARY_HOSTS[@]}" "${FLEET_HOSTS[@]}"; then
             escalate "Scheduled merge niet gestart: vloot was al niet gezond" \
@@ -299,8 +323,7 @@ jobs:
           while IFS=$'\t' read -r wave pr kind title; do
             echo "::group::wave ${wave} — PR #${pr} (${kind}): ${title}"
 
-            fresh="$(gh pr view "${pr}" --repo "$GITHUB_REPOSITORY" \
-              --json state,mergeable,mergeStateStatus,statusCheckRollup)"
+            fresh="$(fetch_pr_state "${pr}")"
             pr_state="$(jq -r '.state' <<<"${fresh}")"
             pr_mergeable="$(jq -r '.mergeable' <<<"${fresh}")"
             pr_merge_state="$(jq -r '.mergeStateStatus' <<<"${fresh}")"
