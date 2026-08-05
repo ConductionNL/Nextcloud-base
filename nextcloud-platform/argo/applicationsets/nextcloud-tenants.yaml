@@ -21,10 +21,20 @@ spec:
   # Generator: create one Application per tenant file
   # Alle tenant-*.yaml bestanden worden automatisch opgepikt
   # UITGEZONDERD: templates/tenant-template.yaml (staat in andere folder)
+  # De generator volgt `release`, niet main. Zo komen een Application en de
+  # values-bestanden waaruit hij rendert altijd van dezelfde commit. Zou de
+  # generator main volgen, dan bestond een nieuwe tenant-Application al terwijl
+  # zijn values-bestand nog niet op `release` staat; met
+  # `ignoreMissingValueFiles: true` wordt dat bestand dan stil overgeslagen en
+  # rendert de tenant met alleen de defaults. Dat faalt niet, het gaat verkeerd.
+  #
+  # Gevolg: een nieuwe tenant verschijnt pas na promotie. Voor tenant-only
+  # wijzigingen promoveert scheduled-merge.yaml direct na de merge, dus dat is een
+  # kwestie van een minuut.
   generators:
     - git:
         repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
-        revision: HEAD
+        revision: release
         files:
           - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
   
@@ -170,8 +180,16 @@ spec:
                   prefix: "{{ $name }}/"
         
         # Our GitOps repo for values files
+        #
+        # Canary volgt main, alle andere tenants volgen `release`. Daarmee is een
+        # merge naar main niet langer de uitrol voor de hele vloot: canary krijgt
+        # hem eerst, en pas als die gezond blijkt schuift scheduled-merge.yaml
+        # `release` vooruit. Rollback is het terugzetten van die ene pointer.
+        #
+        # Alle drie de git-sources hieronder MOETEN dezelfde ref gebruiken, anders
+        # rendert een tenant values van de ene commit tegen charts van een andere.
         - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
-          targetRevision: HEAD
+          targetRevision: '{{ if eq (toString .tenant.canary) "true" }}HEAD{{ else }}release{{ end }}'
           ref: values
 
         # AverageValue HPA — DISABLED fleet-wide.
@@ -181,7 +199,7 @@ spec:
         # stateless/S3-primary HA path lands (cf. env/prod.yaml: replicaCount 1,
         # hpa.enabled false). Re-enable per-environment only once RS>1 is safe.
         - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
-          targetRevision: HEAD
+          targetRevision: '{{ if eq (toString .tenant.canary) "true" }}HEAD{{ else }}release{{ end }}'
           path: charts/tenant-hpa
           helm:
             releaseName: "nextcloud-hpa"
@@ -194,7 +212,7 @@ spec:
         # script-applied secrets are never touched. Needs ESO + the ClusterSecretStore
         # / ClusterGenerator (platform/externalsecrets) + the S3 seed Secret.
         - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
-          targetRevision: HEAD
+          targetRevision: '{{ if eq (toString .tenant.canary) "true" }}HEAD{{ else }}release{{ end }}'
           path: charts/tenant-secret
           helm:
             releaseName: "nextcloud-secret"

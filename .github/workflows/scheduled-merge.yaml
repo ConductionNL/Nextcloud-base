@@ -1,31 +1,42 @@
 ---
-# Merget goedgekeurde PR's automatisch na 17:00 Amsterdam, in wave-orde, en stopt
-# bij het eerste probleem.
+# Merget PR's na 17:00 Amsterdam, valideert op canary, en promoveert pas daarna
+# naar de rest van de vloot. Gaat het mis, dan draait hij terug.
 #
-# Waarom dit bestaat: een merge naar main IS de uitrol. 76 tenant-apps staan op
-# `automated` sync met `selfHeal`, dus wat er op main landt gaat meteen live. De
-# operationele regel is dat platform-wijzigingen buiten kantooruren uitrollen,
-# maar Argo dwingt dat niet af (het deny-window in de AppProject dekt alleen
-# `platform-*`). Deze workflow maakt van "merge na 17:00" een handeling die
-# vanzelf op het juiste moment gebeurt, in plaats van iets wat iemand moet
-# onthouden.
+# Waarom dit bestaat: tot 2026-08-05 volgden alle 76 tenant-apps `HEAD` van main.
+# Een merge was daarmee de uitrol voor iedereen tegelijk — er was geen moment
+# waarop je iets kon testen voordat de vloot het kreeg. Sinds de ApplicationSet
+# per tenant een ref kiest, volgt canary main en volgt de rest `release`. Deze
+# workflow is wat die twee refs bij elkaar brengt.
 #
-# Hoe je een PR in de wachtrij zet:
-#   1. Zorg dat hij groen is en `MERGEABLE/CLEAN` staat.
-#   2. Geef hem het juiste change-label (`change/platform` of
-#      `change/tenant-additive`) — dat eist de governance-gate al.
-#   3. Voeg een wave-label toe: `merge-wave/0`, `merge-wave/1`, ...
-#      Lagere waves gaan eerst. Zet bij elkaar horende PR's in dezelfde wave
-#      alleen als ze los van elkaar kunnen falen.
+# De keten per PR:
 #
-# Zonder wave-label doet deze workflow niets met een PR. Dat is de opt-in: er
-# wordt nooit iets gemerged omdat het per ongeluk groen stond.
+#   probe canary+vloot vooraf   -> alles gezond? anders niets doen
+#   merge naar main             -> alleen canary krijgt de wijziging
+#   poll canary                 -> Argo synct, pods rollen, /status.php moet 200 geven
+#     canary gezond             -> promoveer: `release` schuift naar main
+#       vloot gezond            -> klaar
+#       vloot ziek              -> `release` terug naar de vorige commit
+#     canary ziek               -> revert de merge op main (zie hieronder)
 #
-# Wat er gebeurt bij een probleem: de run stopt onmiddellijk, latere waves
-# blijven staan, en er komt een issue met de faalreden en de betrokken PR. Geen
-# automatische rollback — die keuze is te ingrijpend om aan een cron te laten.
+# De vloot ziet een kapotte commit dus nooit: `release` verschuift alleen na een
+# gezonde canary. Dat is de borging.
+#
+# Wachtrij: opt-in per PR via een `merge-wave/<n>`-label. Zonder dat label doet
+# deze workflow niets met een PR. Standaard verwerkt een run alleen de laagste
+# openstaande wave — per avond een stap, met een dag ertussen.
+#
+# Tenant-only PR's (`change/tenant-additive`) worden direct na de merge
+# gepromoveerd zonder canary-poort. Een nieuw tenant-bestand kan bestaande
+# tenants niet breken, en de generator volgt `release`, dus zonder promotie zou
+# de tenant helemaal niet verschijnen.
+#
+# Wat expliciet NIET automatisch gebeurt: een revert op main van een wijziging die
+# data heeft gemigreerd. Een image-tag of chart-versie terugzetten draait
+# `occ upgrade` niet terug en zet een oude binary op een nieuw schema. Zulke PR's
+# worden gedetecteerd op hun diff en dan wordt er alleen gealarmeerd. De vloot is
+# op dat moment al beschermd doordat `release` niet is verschoven.
 
-name: Scheduled merge (na 17:00 Amsterdam)
+name: Scheduled merge (canary-poort, na 17:00 Amsterdam)
 
 "on":
   schedule:
@@ -37,17 +48,17 @@ name: Scheduled merge (na 17:00 Amsterdam)
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Alleen tonen wat er gemerged zou worden"
+        description: "Alleen tonen wat er zou gebeuren"
         required: false
         default: true
         type: boolean
       ignore_window:
-        description: "Tijdvenster negeren (voor een handmatige run buiten 17:00-07:00)"
+        description: "Tijdvenster negeren (handmatige run buiten 17:00-07:00)"
         required: false
         default: false
         type: boolean
       all_waves:
-        description: "Alle waves in één run doen in plaats van alleen de laagste"
+        description: "Alle waves in één run in plaats van alleen de laagste"
         required: false
         default: false
         type: boolean
@@ -57,18 +68,22 @@ permissions:
   pull-requests: write
   issues: write
 
-# Twee runs die tegelijk mergen zouden elkaars uitrol in de war schoppen.
+# Deelt de groep met promote-tenant-changes.yaml: twee workflows die dezelfde
+# `release`-pointer verzetten mogen nooit tegelijk lopen.
 concurrency:
-  group: scheduled-merge
+  group: release-pointer
   cancel-in-progress: false
 
 jobs:
   merge-queue:
-    name: Merge wachtrij in wave-orde
+    name: Merge, valideer op canary, promoveer
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Volledige historie: nodig om te reverten en om `release` te verzetten.
+          fetch-depth: 0
 
       - name: Controleer tijdvenster (Europe/Amsterdam)
         id: window
@@ -76,14 +91,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Bewust lokale tijd en niet `date -u`: de policy is in Amsterdamse
-          # tijd geformuleerd, en met UTC schuift het venster twee uur op in de
-          # zomer en één uur in de winter.
+          # Bewust lokale tijd en niet `date -u`: de policy is in Amsterdamse tijd
+          # geformuleerd, en met UTC schuift het venster twee uur op in de zomer en
+          # één uur in de winter.
           local_hour="$(TZ=Europe/Amsterdam date +%H)"
           local_dow="$(TZ=Europe/Amsterdam date +%u)"   # 1=ma ... 7=zo
-          local_stamp="$(TZ=Europe/Amsterdam date '+%F %T %Z')"
-
-          echo "Amsterdam: ${local_stamp} (dag ${local_dow}, uur ${local_hour})"
+          echo "Amsterdam: $(TZ=Europe/Amsterdam date '+%F %T %Z') (dag ${local_dow}, uur ${local_hour})"
 
           if [[ "${{ inputs.ignore_window }}" == "true" ]]; then
             echo "Venster genegeerd op verzoek van de handmatige run."
@@ -91,9 +104,9 @@ jobs:
             exit 0
           fi
 
-          # Toegestaan: maandag t/m donderdag vanaf 17:00, en de nacht erna tot
-          # 07:00. Vrijdagavond en het weekend niet — dan is er niemand om een
-          # probleem op te pakken.
+          # Toegestaan: ma t/m do vanaf 17:00, en de nacht erna tot 07:00.
+          # Vrijdagavond en het weekend niet — dan is er niemand om een probleem
+          # op te pakken.
           proceed=false
           if [[ "${local_dow}" -ge 1 && "${local_dow}" -le 4 && "${local_hour}" -ge 17 ]]; then
             proceed=true
@@ -115,15 +128,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Alleen open PR's met een merge-wave-label. Sorteren op wave, dan op
-          # PR-nummer, zodat de orde voorspelbaar is en niet van de API-volgorde
-          # afhangt.
           gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 \
             --json number,title,labels,mergeable,mergeStateStatus \
             >/tmp/prs.json
 
           python3 - <<'PY' >/tmp/queue.txt
-          import json, re, os
+          import json, re
 
           wave_re = re.compile(r"^merge-wave/(\d+)$")
           rows = []
@@ -132,10 +142,10 @@ jobs:
               waves = [int(m.group(1)) for m in map(wave_re.match, labels) if m]
               if not waves:
                   continue
-              rows.append((min(waves), pr["number"], pr["mergeable"],
-                           pr["mergeStateStatus"], pr["title"]))
-          for wave, num, mergeable, state, title in sorted(rows):
-              print(f"{wave}\t{num}\t{mergeable}\t{state}\t{title}")
+              kind = "tenant" if "change/tenant-additive" in labels else "platform"
+              rows.append((min(waves), pr["number"], kind, pr["title"]))
+          for wave, num, kind, title in sorted(rows):
+              print(f"{wave}\t{num}\t{kind}\t{title}")
           PY
 
           if [[ ! -s /tmp/queue.txt ]]; then
@@ -144,12 +154,10 @@ jobs:
             exit 0
           fi
 
-          echo "Volledige wachtrij (wave, PR, mergeable, state, titel):"
+          echo "Volledige wachtrij (wave, PR, soort, titel):"
           cat /tmp/queue.txt
 
-          # Standaard doet één run alleen de laagste openstaande wave. Dat is wat
-          # waves bedoelen: per avond één stap, met een dag ertussen om te zien
-          # of het goed ging. Alles in één run kan met de all_waves-input.
+          # Eén wave per run, tenzij anders gevraagd.
           if [[ "${{ inputs.all_waves }}" == "true" ]]; then
             echo "all_waves gezet: de hele wachtrij wordt in deze run verwerkt."
           else
@@ -163,51 +171,67 @@ jobs:
           count="$(wc -l </tmp/queue.txt | tr -d ' ')"
           echo "count=${count}" >>"$GITHUB_OUTPUT"
 
-      - name: Merge en verifieer per PR
+      - name: Merge, valideer en promoveer
         if: steps.window.outputs.proceed == 'true' && steps.queue.outputs.count != '0'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
-          SETTLE_SECONDS: "60"
-          PROBE_ATTEMPTS: "10"
+          # Canary moet Argo's sync-interval plus een pod-roll overleven, vandaar
+          # ruimer dan de vloot-check die daarna komt.
+          CANARY_ATTEMPTS: "24"
+          FLEET_ATTEMPTS: "18"
           PROBE_INTERVAL: "20"
+          SETTLE_SECONDS: "30"
         run: |
           set -euo pipefail
 
-          probe_hosts=()
-          while IFS= read -r line; do
-            line="${line%%#*}"
-            line="$(echo "${line}" | tr -d '[:space:]')"
-            [[ -n "${line}" ]] && probe_hosts+=("${line}")
-          done <.github/merge-probe-hosts.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if [[ "${#probe_hosts[@]}" -eq 0 ]]; then
-            echo "error: geen probe-hosts geconfigureerd; weiger blind te mergen" >&2
+          read_hosts() {
+            local file="$1" line
+            while IFS= read -r line; do
+              line="${line%%#*}"
+              line="$(echo "${line}" | tr -d '[:space:]')"
+              [[ -n "${line}" ]] && echo "${line}"
+            done <"${file}"
+          }
+
+          mapfile -t CANARY_HOSTS < <(read_hosts .github/probe-hosts-canary.txt)
+          mapfile -t FLEET_HOSTS < <(read_hosts .github/probe-hosts-fleet.txt)
+
+          if [[ "${#CANARY_HOSTS[@]}" -eq 0 || "${#FLEET_HOSTS[@]}" -eq 0 ]]; then
+            echo "error: probe-lijsten zijn leeg; weiger blind te mergen" >&2
             exit 1
           fi
-          echo "Probe-hosts: ${probe_hosts[*]}"
+          echo "Canary-hosts: ${CANARY_HOSTS[*]}"
+          echo "Vloot-hosts : ${FLEET_HOSTS[*]}"
 
-          # Wacht tot alle probe-hosts weer gezond zijn. Een rolling update duurt
-          # even, dus meerdere pogingen; pas als alle pogingen op zijn is het een
-          # echte fout.
-          probe_all() {
-            local attempt host body code
-            for ((attempt = 1; attempt <= PROBE_ATTEMPTS; attempt++)); do
-              local all_ok=true
-              for host in "${probe_hosts[@]}"; do
-                code="$(curl -s -m 15 -o /tmp/status.json -w '%{http_code}' \
-                  "https://${host}/status.php" || echo "000")"
-                body="$(cat /tmp/status.json 2>/dev/null || true)"
-                if [[ "${code}" != "200" ]] \
-                  || ! grep -q '"installed":true' <<<"${body}" \
-                  || grep -q '"maintenance":true' <<<"${body}"; then
-                  echo "  poging ${attempt}: ${host} niet gezond (HTTP ${code})"
+          host_healthy() {
+            local host="$1" code body
+            code="$(curl -s -m 15 -o /tmp/status.json -w '%{http_code}' \
+              "https://${host}/status.php" || echo "000")"
+            body="$(cat /tmp/status.json 2>/dev/null || true)"
+            [[ "${code}" == "200" ]] \
+              && grep -q '"installed":true' <<<"${body}" \
+              && ! grep -q '"maintenance":true' <<<"${body}"
+          }
+
+          # probe_until <attempts> <host...>
+          probe_until() {
+            local attempts="$1"; shift
+            local hosts=("$@") attempt host all_ok
+            for ((attempt = 1; attempt <= attempts; attempt++)); do
+              all_ok=true
+              for host in "${hosts[@]}"; do
+                if ! host_healthy "${host}"; then
+                  echo "  poging ${attempt}/${attempts}: ${host} nog niet gezond"
                   all_ok=false
                 fi
               done
               if [[ "${all_ok}" == "true" ]]; then
-                echo "  alle probe-hosts gezond (poging ${attempt})"
+                echo "  gezond (poging ${attempt})"
                 return 0
               fi
               sleep "${PROBE_INTERVAL}"
@@ -216,85 +240,167 @@ jobs:
           }
 
           escalate() {
-            local pr="$1" reason="$2"
-            echo "::error::${reason}"
+            local title="$1" body="$2"
+            echo "::error::${title}"
             gh issue create --repo "$GITHUB_REPOSITORY" \
-              --title "Scheduled merge gestopt na PR #${pr}" \
-              --body "$(printf '%s\n\n%s\n\n%s\n' \
-                "De geplande merge-run is gestopt. Reden: ${reason}" \
-                "Laatste gemergede PR: #${pr}. Latere waves zijn niet verwerkt en staan nog open." \
-                "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")" \
-              >/dev/null
+              --title "${title}" \
+              --body "${body}
+
+          Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              >/dev/null || echo "::warning::issue aanmaken faalde"
           }
 
-          echo "Beginsituatie controleren voordat er iets gemerged wordt."
-          if ! probe_all; then
-            echo "::error::Probe-hosts waren al niet gezond vóór de eerste merge."
-            gh issue create --repo "$GITHUB_REPOSITORY" \
-              --title "Scheduled merge niet gestart: vloot was al niet gezond" \
-              --body "De run stopte vóór de eerste merge omdat minstens één probe-host niet gezond was. Niets gemerged. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-              >/dev/null
+          # Schuift `release` naar de meegegeven commit. Fast-forward, dus dit kan
+          # niets overschrijven wat er niet al in zit.
+          promote_to() {
+            local sha="$1"
+            echo "Promoveren: release -> ${sha}"
+            git push origin "${sha}:refs/heads/release"
+          }
+
+          # Zet `release` terug. Dit is de goedkoopste rollback die er is: alleen
+          # een pointer, geen nieuwe commit, en main blijft ongemoeid. Wel een
+          # force-push — uitsluitend op `release`, nooit op main.
+          demote_to() {
+            local old="$1" new="$2"
+            echo "Terugdraaien: release ${new} -> ${old}"
+            git push --force-with-lease="refs/heads/release:${new}" \
+              origin "${old}:refs/heads/release"
+          }
+
+          # Een diff die een image-tag of chart-versie aanraakt kan een
+          # datamigratie hebben gedraaid. Die reverten zet een oude binary op een
+          # nieuw schema, wat erger is dan de storing.
+          migration_bearing() {
+            local sha="$1"
+            # charts/ staat in de repo-root, values/ onder nextcloud-platform/.
+            git diff "${sha}^1" "${sha}" -- \
+              'nextcloud-platform/values/**' 'charts/**' \
+              | grep -qE '^\+[[:space:]]*(tag|version|chartVersion):'
+          }
+
+          echo "::group::Beginsituatie"
+          if ! probe_until 3 "${CANARY_HOSTS[@]}" "${FLEET_HOSTS[@]}"; then
+            escalate "Scheduled merge niet gestart: vloot was al niet gezond" \
+              "De run stopte vóór de eerste merge omdat minstens één probe-host niet gezond was. Er is niets gemerged en niets gepromoveerd."
             exit 1
           fi
+          echo "::endgroup::"
 
-          while IFS=$'\t' read -r wave pr mergeable state title; do
-            echo "::group::wave ${wave} — PR #${pr}: ${title}"
+          while IFS=$'\t' read -r wave pr kind title; do
+            echo "::group::wave ${wave} — PR #${pr} (${kind}): ${title}"
 
-            # Opnieuw ophalen: de wachtrij is een momentopname en er kan
-            # inmiddels gepusht of gemerged zijn.
             fresh="$(gh pr view "${pr}" --repo "$GITHUB_REPOSITORY" \
               --json state,mergeable,mergeStateStatus,statusCheckRollup)"
-
             pr_state="$(jq -r '.state' <<<"${fresh}")"
             pr_mergeable="$(jq -r '.mergeable' <<<"${fresh}")"
             pr_merge_state="$(jq -r '.mergeStateStatus' <<<"${fresh}")"
-            failing="$(jq -r '[.statusCheckRollup[]?
-              | select((.conclusion // "") | test("FAILURE|CANCELLED|TIMED_OUT"))]
-              | length' <<<"${fresh}")"
-            pending="$(jq -r '[.statusCheckRollup[]?
-              | select((.status // "") == "IN_PROGRESS" or (.status // "") == "QUEUED")]
-              | length' <<<"${fresh}")"
+            failing="$(jq -r '[.statusCheckRollup[]? | select((.conclusion // "") | test("FAILURE|CANCELLED|TIMED_OUT"))] | length' <<<"${fresh}")"
+            pending="$(jq -r '[.statusCheckRollup[]? | select((.status // "") == "IN_PROGRESS" or (.status // "") == "QUEUED")] | length' <<<"${fresh}")"
 
             if [[ "${pr_state}" != "OPEN" ]]; then
               echo "Overgeslagen: staat niet meer open (${pr_state})."
-              echo "::endgroup::"
-              continue
+              echo "::endgroup::"; continue
             fi
             if [[ "${pr_mergeable}" != "MERGEABLE" || "${pr_merge_state}" == "DIRTY" ]]; then
               echo "Overgeslagen: niet mergebaar (${pr_mergeable}/${pr_merge_state})."
-              echo "::endgroup::"
-              continue
+              echo "::endgroup::"; continue
             fi
             if [[ "${failing}" != "0" || "${pending}" != "0" ]]; then
               echo "Overgeslagen: ${failing} falende en ${pending} lopende checks."
-              echo "::endgroup::"
-              continue
+              echo "::endgroup::"; continue
             fi
 
             if [[ "${DRY_RUN}" == "true" ]]; then
-              echo "dry-run: zou PR #${pr} mergen en daarna de probe-hosts checken."
-              echo "::endgroup::"
-              continue
+              echo "dry-run: zou #${pr} mergen, canary pollen en bij succes promoveren."
+              echo "::endgroup::"; continue
             fi
 
-            echo "Mergen..."
+            git fetch origin main release --quiet
+            release_before="$(git rev-parse origin/release)"
+
+            echo "Mergen naar main (alleen canary krijgt dit)..."
             if ! gh pr merge "${pr}" --repo "$GITHUB_REPOSITORY" --merge; then
-              escalate "${pr}" "gh pr merge faalde op PR #${pr}"
-              echo "::endgroup::"
-              exit 1
+              escalate "Scheduled merge: mergen van PR #${pr} faalde" \
+                "\`gh pr merge\` gaf een fout op PR #${pr}. Er is niets gepromoveerd."
+              echo "::endgroup::"; exit 1
             fi
 
-            echo "Wachten ${SETTLE_SECONDS}s zodat Argo kan syncen en de pods kunnen rollen."
+            git fetch origin main --quiet
+            main_after="$(git rev-parse origin/main)"
+            echo "main staat nu op ${main_after}, release nog op ${release_before}"
+
+            # Tenant-only: geen canary-poort. Een nieuw tenant-bestand kan
+            # bestaande tenants niet breken, en zonder promotie ziet de generator
+            # (die `release` volgt) de tenant helemaal niet.
+            if [[ "${kind}" == "tenant" ]]; then
+              promote_to "${main_after}"
+              sleep "${SETTLE_SECONDS}"
+              if ! probe_until "${FLEET_ATTEMPTS}" "${FLEET_HOSTS[@]}"; then
+                demote_to "${release_before}" "${main_after}"
+                escalate "Scheduled merge: vloot niet gezond na tenant-PR #${pr}" \
+                  "PR #${pr} is gemerged en gepromoveerd, maar de vloot-probes bleven falen.
+          \`release\` is teruggezet naar ${release_before}, dus de tenants draaien weer op de
+          vorige commit. main staat nog op ${main_after} — de merge zelf is niet ongedaan
+          gemaakt."
+                echo "::endgroup::"; exit 1
+              fi
+              echo "PR #${pr} gemerged, gepromoveerd en vloot gezond."
+              echo "::endgroup::"; continue
+            fi
+
+            echo "Canary pollen (Argo moet syncen en de pods moeten rollen)..."
             sleep "${SETTLE_SECONDS}"
-
-            if ! probe_all; then
-              escalate "${pr}" "probe-hosts niet gezond na het mergen van PR #${pr}"
-              echo "::endgroup::"
-              exit 1
+            if probe_until "${CANARY_ATTEMPTS}" "${CANARY_HOSTS[@]}"; then
+              echo "Canary gezond. Promoveren naar de vloot."
+              promote_to "${main_after}"
+              sleep "${SETTLE_SECONDS}"
+              if ! probe_until "${FLEET_ATTEMPTS}" "${FLEET_HOSTS[@]}"; then
+                demote_to "${release_before}" "${main_after}"
+                escalate "Scheduled merge: vloot niet gezond na promotie van PR #${pr}" \
+                  "Canary was gezond, maar na de promotie bleven de vloot-probes falen.
+          \`release\` is teruggezet naar ${release_before}. main staat nog op ${main_after}:
+          canary houdt de wijziging, de vloot niet. Dat verschil is nu het
+          onderzoeksmateriaal."
+                echo "::endgroup::"; exit 1
+              fi
+              echo "PR #${pr} gemerged, canary gezond, vloot gezond."
+              echo "::endgroup::"; continue
             fi
 
-            echo "PR #${pr} gemerged en vloot gezond."
-            echo "::endgroup::"
+            # Canary niet gezond. De vloot heeft de wijziging nooit gezien, want
+            # `release` is niet verschoven — dat is de borging. Rest de vraag of we
+            # canary zelf terugdraaien.
+            echo "::warning::Canary niet gezond na PR #${pr}. release is niet verschoven."
+            if migration_bearing "${main_after}"; then
+              escalate "Scheduled merge: canary stuk na PR #${pr}, GEEN automatische revert" \
+                "De canary-probes bleven falen na PR #${pr}. \`release\` is niet verschoven, dus de vloot is niet geraakt.
+
+          Er is **niet** automatisch gereverteerd: de diff raakt een image-tag of
+          chart-versie, dus er kan een datamigratie zijn gedraaid. Een revert zou een oude
+          binary op een nieuw schema zetten. Dit vraagt een mens.
+
+          main: ${main_after} — release: ${release_before}"
+              echo "::endgroup::"; exit 1
+            fi
+
+            echo "Diff is declaratief, main terugdraaien..."
+            git checkout -B rollback-tmp "${main_after}" --quiet
+            if git revert --no-edit -m 1 "${main_after}" >/dev/null 2>&1 \
+              && git push origin HEAD:main --quiet; then
+              escalate "Scheduled merge: canary stuk na PR #${pr}, main gereverteerd" \
+                "De canary-probes bleven falen na PR #${pr}. \`release\` is nooit verschoven, dus de vloot is niet geraakt. De merge is op main gereverteerd, dus canary komt terug op de vorige staat.
+
+          PR #${pr} staat weer open te wachten op een fix; het wave-label is eraf gehaald zodat hij niet vanavond opnieuw wordt geprobeerd."
+              gh pr edit "${pr}" --repo "$GITHUB_REPOSITORY" \
+                --remove-label "merge-wave/${wave}" >/dev/null || true
+            else
+              escalate "Scheduled merge: canary stuk na PR #${pr} en de revert faalde" \
+                "De canary-probes bleven falen en de automatische revert op main lukte niet.
+          \`release\` is niet verschoven, dus de vloot is beschermd, maar canary staat nu op
+          een kapotte commit (${main_after}) en vraagt handwerk."
+            fi
+            echo "::endgroup::"; exit 1
           done </tmp/queue.txt
 
           echo "Wachtrij afgewerkt."
