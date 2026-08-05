@@ -99,8 +99,10 @@ operationele regel, ken het verschil):
 | Tenant-apps (`nc-*`, 76 stuks) | AppProject `nextcloud-platform` | **Geen tijdvenster, en dat is opzet.** Wat hen wél beschermt is de ref-splitsing hieronder: ze volgen `release`, niet main |
 
 **Twee refs sinds 2026-08-05.** De ApplicationSet kiest per tenant een
-`targetRevision`: canary-tenants volgen `HEAD` (main), alle andere volgen de
-branch `release`. Een merge naar main is dus **niet** meer de uitrol voor de
+`targetRevision` op basis van `tenant.wave`: wave `"0"` volgt `HEAD` (main), alle
+andere volgen de branch `release`. Wave 0 zijn `canary-prod` en `canary-accept`.
+Let op: níet `tenant.canary` — die vlag hoort bij de geparkeerde emptyDir/S3-PoC
+in `canary-overrides.yaml` en staat op geen enkele tenant. Een merge naar main is dus **niet** meer de uitrol voor de
 vloot — alleen canary krijgt hem. `release` schuift pas vooruit als canary gezond
 blijkt, en dat doet `.github/workflows/scheduled-merge.yaml`. De generator volgt
 ook `release`, zodat een Application en zijn values altijd van dezelfde commit
