@@ -96,18 +96,21 @@ spec:
   #
   # Policy:
   #   - Platform changes (Redis, PgBouncer, ESO) MUST wait until after 17:00 — manualSync: false.
+  #     Die apps zitten in AppProject nextcloud-platform-core; het window staat daar, op
+  #     "platform-*", en werkt.
   #   - Tenant apps (nc-*) have NO sync window: tenant changes mogen altijd door, ook tijdens
   #     kantooruren. Discipline voor shared-values fan-out ligt bij de committer
   #     (zie governance docs + /change-guard skill), niet bij Argo.
-  syncWindows:
-    - kind: deny
-      schedule: "0 7 * * 1-5"
-      duration: 10h
-      timeZone: Europe/Amsterdam
-      applications:
-        - "nextcloud-platform"
-      manualSync: false
-  
+  #
+  # Daarom heeft dit project bewust GEEN syncWindows. Hier stond een deny-window op
+  # applications: ["nextcloud-platform"] — een applicatie met die naam bestaat niet (de 76
+  # tenant-apps heten nc-<tenant>), dus het matchte niets en blokkeerde niets. Verwijderd omdat
+  # het dekking suggereerde die er niet is; het weghalen verandert geen uitrolgedrag.
+  #
+  # Wil je tenant-apps tóch gaan gaten, dan is dat een bewuste omkering van de policy hierboven
+  # en heb je manualSync: true nodig, anders kun je tussen 07:00 en 17:00 geen nieuwe tenant
+  # meer live zetten.
+
   # Roles for project access
   roles:
     - name: platform-admin
