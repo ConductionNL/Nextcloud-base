@@ -8,6 +8,36 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gewijzigd — 2026-08-05 (pullPolicy `Always` → `IfNotPresent`)
+
+`values/common.yaml`: `image.pullPolicy` voor de hoofd-Nextcloud-image staat niet
+langer op `Always`. Elke pod-start was daarmee een registry-round-trip naar Docker
+Hub zonder dat er iets nieuws te halen was, en die tellen mee tegen de anonieme
+limiet van 100 pulls/6u/IP.
+
+**Aanleiding:** de Docker Hub Pro-credential uit de rollout van 2026-05-02 is
+verlopen en geeft `401`. Hij wordt niet vernieuwd; het pull-secret is fleet-wide
+teruggetrokken, dus de vloot pullt weer anoniem. Zie `cluster-config/CHANGELOG.md`
+en `ROADMAP.md` 2026-08-03.
+
+**Veilig** omdat `image.tag` een concrete versie is (`32.0.13-fpm`), niet zwevend.
+Gaat die ooit floaten, dan moet dit terug naar `Always` — dat staat als
+waarschuwing bij de waarde zelf.
+
+**De fasering zit in de refs, niet in een values-bestand.** wave-0 (canary-prod,
+canary-accept) volgt main en krijgt dit bij de merge; de andere 74 volgen `release`
+en krijgen het pas bij promotie. Daarmee is dit de eerste wijziging die de
+canary-poort echt doorloopt.
+
+Twee eerdere versies van deze wijziging waren fout en zijn hier rechtgezet:
+- De regel stond in `values/canary-overrides.yaml`. Dat bestand wordt geladen op
+  `tenant.canary: true`, en die vlag staat op **geen enkele** tenant — de wijziging
+  was dus een no-op. Verwijderd daar.
+- Er werd `canary: true` toegevoegd aan `tenant-canary-accept.yaml` om dat te
+  repareren. Dat zou de geparkeerde emptyDir/S3-PoC activeren op die tenant,
+  inclusief de hardgecodeerde `trusted_domains: ['canary.commonground.nu']` en
+  S3-prefix `canary-prod/` uit `canary-overrides.yaml` — canary-accept zou zijn
+  eigen hostname niet meer vertrouwen. Teruggedraaid.
 ### Gewijzigd — 2026-08-05 (geplande merge werkt de hele wachtrij af)
 
 `scheduled-merge.yaml` verwerkte standaard alleen de laagste openstaande wave, dus
