@@ -8,18 +8,30 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
-### Gewijzigd — 2026-08-03 (pullPolicy `Always` → `IfNotPresent`)
-- `values/common.yaml`: de globale `image.pullPolicy` voor de
-  hoofd-Nextcloud-image staat niet langer op `Always`. Elke pod-start
-  was daarmee een registry-round-trip naar Docker Hub, en die tellen mee
-  tegen de anonieme limiet van 100 pulls/6u/IP.
+### Gewijzigd — 2026-08-05 (pullPolicy `Always` → `IfNotPresent`, eerst op canary)
+- `values/canary-overrides.yaml`: `image.pullPolicy: IfNotPresent` voor de
+  hoofd-Nextcloud-image. Elke pod-start was met `Always` een
+  registry-round-trip naar Docker Hub, en die tellen mee tegen de
+  anonieme limiet van 100 pulls/6u/IP.
+- **Herschreven op 2026-08-05 van fleet-wide naar canary-only.** Stond eerst in
+  `values/common.yaml`; dat rolt in één sync alle 76 tenant-deployments om, want
+  `pullPolicy` zit in het pod-template. Nu eerst op de canary-tenants, met een
+  graduation-regel in `common.yaml` bij de waarde die nog op `Always` staat.
+- `values/tenants/tenant-canary-accept.yaml`: `canary: true` toegevoegd. Dat stond
+  er niet, waardoor `canary-overrides.yaml` alleen `canary-prod` raakte en elke
+  PoC dus op een productie-tenant werd gevalideerd. Dit brengt de volledige
+  canary-set mee, inclusief `persistence.enabled: false` — bewust geaccepteerd.
+- **Let op — dit lost de aanleiding nog niet op.** De rate-limit raakt de hele
+  vloot; twee canary-tenants schelen daar niets in. De winst komt pas bij
+  graduatie naar `common.yaml`. Deze stap koopt alleen zekerheid dat
+  `IfNotPresent` niets breekt.
 - **Aanleiding:** de Docker Hub Pro-credential uit de rollout van
   2026-05-02 is na drie maanden verlopen en geeft `401`. Hij wordt niet
   vernieuwd; het pull-secret is fleet-wide teruggetrokken. De fleet pullt
   dus weer anoniem, en dit is de goedkoopste manier om onder die limiet
   te blijven tot er een registry-mirror staat. Zie
   `cluster-config/CHANGELOG.md` en `ROADMAP.md` 2026-08-03.
-- **Veilig** omdat `image.tag` vast gepind is (`32.0.5-fpm`), niet
+- **Veilig** omdat `image.tag` vast gepind is (inmiddels `32.0.13-fpm`), niet
   zwevend. De drie namespaces die wél een zwevende tag draaien
   (`moerdijk`, `openpdd-berkelland`, `zandbak-010` op `32-fpm`/`33-fpm`)
   worden niet door dit bestand aangestuurd en zijn dus niet geraakt.
@@ -29,6 +41,7 @@ platform-level changes — update it in the same commit as the change.
   rolling update per tenant. Niet fleet-wide in één sync, gezien de
   Multi-Attach-storm van 2026-05-02
   (`cluster-config/docs/rca-2026-05-02-pullsecret-rollout.md`).
+
 ### Gewijzigd — 2026-08-05 (sync-window-governance: config en docs kloppend gemaakt)
 
 Geen gedragswijziging. `CLAUDE.md` stelde dat de AppProject sync-blokkades tijdens

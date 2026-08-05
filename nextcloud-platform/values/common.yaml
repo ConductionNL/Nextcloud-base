@@ -119,7 +119,10 @@ externalDatabase:
 image:
   repository: nextcloud
   tag: "32.0.13-fpm"
-  pullPolicy: IfNotPresent
+  # Bewust nog Always. IfNotPresent staat in values/canary-overrides.yaml en wordt
+  # daar eerst gevalideerd; graduatie naar deze regel na een volle week zonder
+  # pull-fouten. Wijzigen hier rolt in één keer alle 76 tenant-deployments om.
+  pullPolicy: Always
 
 # Replica count (can be overridden per env/tenant)
 replicaCount: 1
