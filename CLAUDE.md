@@ -31,8 +31,11 @@ Key architectural innovation: **S3-primary storage** eliminates NFS dependencies
 ### Secret Management
 ```bash
 # Create tenant secrets (use --generate-passwords to auto-generate)
-./scripts/create-tenant-secret.sh <tenant-name> --mariadb --namespace <ns>
-./scripts/create-tenant-secret.sh <tenant-name> --mariadb --namespace <ns> --generate-passwords
+# Geef de db-vlag ALTIJD expliciet mee; die moet matchen met tenant.dbType.
+# Let op: de script-default staat nog op --mariadb terwijl het platform sinds
+# 2026-08-05 postgres als default heeft. Nooit op de default vertrouwen.
+./scripts/create-tenant-secret.sh <tenant-name> --postgres --namespace <ns>
+./scripts/create-tenant-secret.sh <tenant-name> --postgres --namespace <ns> --generate-passwords
 
 # Platform secrets
 ./scripts/create-platform-secrets.sh
@@ -63,7 +66,8 @@ tenant:
   name: orgname-prod         # Drives namespace (nc-orgname-prod) and hostname
   environment: prod           # Selects env values file
   wave: "1"                  # Rollout wave (0=canary, 1-3=progressive)
-  dbType: mariadb             # Selects db values file
+  dbType: postgres            # Selects db values file. Verplicht veld; postgres is
+                              # de default sinds 2026-08-05, mariadb is legacy.
   apps:
     enabled:
       - opencatalogi
@@ -152,7 +156,7 @@ GitHub Actions runs on every push/PR (`.github/workflows/validate.yaml`):
 ## Adding a New Tenant
 
 1. Copy `nextcloud-platform/values/templates/tenant-template.yaml` to `nextcloud-platform/values/tenants/tenant-{name}.yaml`
-2. Edit: name, environment, wave, dbType, apps
+2. Edit: name, environment, wave, dbType (postgres tenzij bewust mariadb), apps
 3. Create secrets: `./nextcloud-platform/scripts/create-tenant-secret.sh {name} --{dbType} --namespace {name} --generate-passwords`
 4. Commit and push — ApplicationSet auto-detects the new file and creates the Application
 

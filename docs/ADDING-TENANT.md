@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-03
+last_reviewed: 2026-08-05
 owner: info@conduction.nl
 ---
 
@@ -47,7 +47,9 @@ you do **not** hand-fill these. See `docs/ARCHITECTURE.md` for the big picture, 
 Edit the file and set:
 - `tenant.name` → `<organisatie>-<omgeving>` (e.g., `myorg-accept`, `myorg-prod`)
 - `tenant.environment` → `accept` or `prod`
-- `tenant.dbType` → `mariadb` or `postgres`
+- `tenant.dbType` → `postgres` (default voor nieuwe tenants), `mariadb` (legacy)
+  of `external`. Verplicht veld: laat je het weg, dan faalt `validate-values.sh`.
+  Kies `mariadb` alleen bewust — zie `docs/DATABASE.md`.
 - `tenant.apps.enabled` → the apps to install
 
 Hostname is derived (`<org>.<env>.commonground.nu` for accept/test, `<org>.commonground.nu`
@@ -100,11 +102,14 @@ cd nextcloud-platform/scripts
 cp env.example .env
 nano .env  # Fill in your credentials
 
-# For MariaDB tenant:
-./create-tenant-secret.sh <tenant-name> --mariadb
+# Geef de db-vlag altijd expliciet mee — de script-default staat nog op
+# --mariadb, terwijl het platform postgres als default heeft.
 
-# For PostgreSQL tenant:
+# For PostgreSQL tenant (platform-default):
 ./create-tenant-secret.sh <tenant-name> --postgres
+
+# For MariaDB tenant (legacy):
+./create-tenant-secret.sh <tenant-name> --mariadb
 
 # Or auto-generate all passwords:
 ./create-tenant-secret.sh <tenant-name> --postgres --generate-passwords

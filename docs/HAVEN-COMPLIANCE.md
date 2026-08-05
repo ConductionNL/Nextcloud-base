@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-03
+last_reviewed: 2026-08-05
 owner: info@conduction.nl
 ---
 
@@ -45,15 +45,39 @@ Every tenant is a set of Kubernetes resources generated from Git state and recon
 
 ## 3. Health probes
 
-`livenessProbe`, `readinessProbe`, and `startupProbe` are all enabled with tuned thresholds
-(startup allows up to 10 minutes for first boot before failing):
+Probes worden per workload gezet, niet platform-breed in één blok. De dekking is
+daarom per component gespecificeerd — een claim over "de Nextcloud-container"
+zegt niets over de database-subchart, en omgekeerd.
+
+**Nextcloud-container** — `livenessProbe`, `readinessProbe` en `startupProbe`
+alle drie aan, met een opstartbudget van 10 minuten:
 
 ```yaml
-# values/common.yaml:674-696
+# values/common.yaml (sectie "Probes")
 livenessProbe:  { enabled: true, initialDelaySeconds: 60, periodSeconds: 30, failureThreshold: 6 }
 readinessProbe: { enabled: true, initialDelaySeconds: 30, periodSeconds: 15, failureThreshold: 3 }
 startupProbe:   { enabled: true, initialDelaySeconds: 60, periodSeconds: 10, failureThreshold: 60 }
 ```
+
+**Database-subchart** — de bitnami-charts leveren standaard *geen* startupProbe.
+Het opstartbudget is dan wat liveness toestaat, en dat is kort: MariaDB kreeg
+`initialDelaySeconds: 120` + 3×10s ≈ 150s, PostgreSQL `initialDelaySeconds: 30`
++ 6×10s = 90s (gemeten via `helm template` op chart 8.9.0). Daarna schiet de
+kubelet de container af; bij een trage of hangende start levert dat een
+CrashLoopBackOff op in plaats van één zichtbare fout. Voor MariaDB is dat
+expliciet rechtgezet:
+
+```yaml
+# values/db/mariadb.yaml
+primary.startupProbe: { enabled: true, initialDelaySeconds: 30, periodSeconds: 10, failureThreshold: 60 }
+primary.livenessProbe: { enabled: true, initialDelaySeconds: 30, periodSeconds: 10, failureThreshold: 3 }
+```
+
+**Openstaand:** `values/db/postgres.yaml` heeft deze correctie nog niet en draait
+dus op die 90 seconden. PostgreSQL doet bij een onreine stop ook WAL-recovery,
+dus hetzelfde risico geldt daar — met een krapper budget dan MariaDB had. Dit is
+bewust buiten deze wijziging gehouden omdat het 55 van de 77 tenants raakt en een
+eigen sync-window verdient. Zie CHANGELOG 2026-08-05.
 
 ## 4. Resource governance
 

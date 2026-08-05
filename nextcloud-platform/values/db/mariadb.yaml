@@ -1,6 +1,7 @@
 ---
-# Database profile: MariaDB (default)
-# Included automatically by the ApplicationSet based on tenant.dbType (defaults to "mariadb").
+# Database profile: MariaDB (opt-in — zet tenant.dbType: mariadb)
+# Included by the ApplicationSet based on tenant.dbType. PostgreSQL is the
+# default sinds 2026-08-05; MariaDB moet expliciet in het tenant-bestand staan.
 # Keep tenant files minimal; put DB toggles here.
 
 mariadb:
@@ -10,6 +11,93 @@ mariadb:
     secretKeys:
       mariadb-root-password: mariadb-root-password
       mariadb-password: mariadb-password
+
+  primary:
+    # -------------------------------------------------------------------------
+    # Probes — zie docs/DEBUGGING.md "MariaDB komt niet op na een herstart"
+    # -------------------------------------------------------------------------
+    # Zonder startupProbe geldt alleen livenessProbe.initialDelaySeconds (chart-
+    # default 120s) als opstartbudget: op ~150s volgt SIGKILL, en bij een trage
+    # of hangende start levert dat een oneindige CrashLoopBackOff op in plaats
+    # van één zichtbare fout. Dat is precies wat epe-prod en dinkelland-prod op
+    # 2026-08-04 overkwam. InnoDB crash recovery van een grote database kan
+    # legitiem langer duren dan 150s; wordt hij daar middenin afgeschoten, dan
+    # begint recovery elke ronde opnieuw en komt hij nooit klaar.
+    #
+    # Budget hieronder: 30s + (60 x 10s) = 10 minuten, gelijk aan de
+    # platform-standaard voor de Nextcloud-container (values/common.yaml).
+    startupProbe:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 60
+      successThreshold: 1
+
+    # Pas scherp zodra startupProbe geslaagd is, dus een dode DB wordt sneller
+    # opgemerkt dan met het blinde venster van 120s uit de chart-default.
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+      successThreshold: 1
+
+    # -------------------------------------------------------------------------
+    # my.cnf
+    # -------------------------------------------------------------------------
+    # LET OP: dit blok VERVANGT de my.cnf van de subchart volledig. De inhoud is
+    # de gerenderde chart-default van nextcloud chart 8.9.0 (common.yaml:
+    # chart.version) plus één regel. Bij een chart-upgrade opnieuw vergelijken:
+    #
+    #   helm template nc nextcloud/nextcloud --version <nieuw> \
+    #     -f values/common.yaml -f values/env/accept.yaml \
+    #     | yq eval 'select(.kind=="ConfigMap" and (.metadata.name|test("mariadb"))) | .data["my.cnf"]'
+    #
+    # Waarom niet MARIADB_EXTRA_FLAGS via extraEnvVars: dat effect is niet
+    # zichtbaar in het gerenderde manifest. primary.extraFlags bestaat niet in
+    # deze subchart (getest: rendert geen args). Een expliciete my.cnf in git is
+    # de enige variant die je bij review kunt controleren.
+    configuration: |-
+      [mysqld]
+      skip-name-resolve
+      explicit_defaults_for_timestamp
+      basedir=/opt/bitnami/mariadb
+      datadir=/bitnami/mariadb/data
+      plugin_dir=/opt/bitnami/mariadb/plugin
+      port=3306
+      socket=/opt/bitnami/mariadb/tmp/mysql.sock
+      tmpdir=/opt/bitnami/mariadb/tmp
+      max_allowed_packet=16M
+      bind-address=*
+      pid-file=/opt/bitnami/mariadb/tmp/mysqld.pid
+      log-error=/opt/bitnami/mariadb/logs/mysqld.log
+      character-set-server=UTF8
+      collation-server=utf8_general_ci
+      slow_query_log=0
+      long_query_time=10.0
+      binlog_expire_logs_seconds=2592000
+
+      # De bitnami-entrypoint start mysqld eerst op de achtergrond voor
+      # mysql_upgrade en stopt hem ~1s na "ready for connections" weer. Valt die
+      # stop midden in het laden van de buffer pool uit ib_buffer_pool, dan kan
+      # de afgebroken load de shutdown laten deadlocken: geen "Shutdown
+      # completed", mysqld idle op ~7m CPU, en de kubelet schiet de container af.
+      # Zonder load bij het opstarten is er niets om af te breken.
+      # Prijs: koude cache na een herstart. Zie docs/DEBUGGING.md.
+      innodb_buffer_pool_load_at_startup=0
+
+      [client]
+      port=3306
+      socket=/opt/bitnami/mariadb/tmp/mysql.sock
+      default-character-set=UTF8
+      plugin_dir=/opt/bitnami/mariadb/plugin
+
+      [manager]
+      port=3306
+      socket=/opt/bitnami/mariadb/tmp/mysql.sock
+      pid-file=/opt/bitnami/mariadb/tmp/mysqld.pid
 
 postgresql:
   enabled: false

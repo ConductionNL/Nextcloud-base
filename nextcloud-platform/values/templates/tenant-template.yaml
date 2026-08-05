@@ -15,7 +15,8 @@
 #                           prod       : <org>.commonground.nu
 #   3. Pas environment aan: "accept" of "prod"
 #      - accept voor zowel "-accept" als "-test" tenants
-#   4. Maak secret aan: scripts/create-tenant-secret.sh {{TENANT_NAME}} --namespace {{TENANT_NAME}}
+#   4. Maak secret aan: scripts/create-tenant-secret.sh {{TENANT_NAME}} --postgres --namespace {{TENANT_NAME}}
+#      (geef de db-vlag altijd expliciet mee; die moet overeenkomen met tenant.dbType)
 #   5. Commit & push - ArgoCD pikt de nieuwe tenant automatisch op
 #
 # =============================================================================
@@ -24,7 +25,9 @@ tenant:
   name: {{TENANT_NAME}}
   environment: prod                    # "accept" of "prod"
   wave: "1"                            # 0=canary (eerst), 1+=productie waves
-  dbType: mariadb                      # mariadb|postgres|external
+  dbType: postgres                     # postgres (default) | mariadb (legacy) | external
+                                       # Verplicht veld: geen impliciete default.
+                                       # mariadb alleen bewust kiezen — zie docs/DATABASE.md
   # chartVersion: "8.9.0"              # optional: chart version override for canary/staged rollouts
   # hostname: {{HOSTNAME}}             # optional override; otherwise derived from tenant.name
   features:
@@ -49,37 +52,16 @@ tenant:
     #   openregister: "0.2.10-unstable.4"
 
 # =============================================================================
-# DATABASE: MariaDB (in-cluster)
+# DATABASE
 # =============================================================================
-# Elke tenant krijgt eigen MariaDB pod
-# Goed voor: development, kleine deployments
-# Alternatief: external PostgreSQL voor grotere setups
-mariadb:
-  enabled: true
-  image:
-    registry: docker.io
-    repository: bitnamilegacy/mariadb  # Legacy repo voor security compliance
-    tag: "11.2"
-  auth:
-    database: nextcloud
-    username: nextcloud
-    existingSecret: nextcloud-secrets
-    secretKeys:
-      mariadb-root-password: mariadb-root-password
-      mariadb-password: mariadb-password
-  primary:
-    persistence:
-      enabled: true
-      size: 8Gi
-
-# Disable alternatives
-internalDatabase:
-  enabled: false
-
-externalDatabase:
-  enabled: false
-  existingSecret:
-    enabled: false
+# Hier hoort GEEN database-configuratie. De ApplicationSet laadt op basis van
+# tenant.dbType automatisch het juiste profiel uit values/db/ (postgres.yaml,
+# mariadb.yaml of external.yaml), inclusief image-pin, probes en toggles.
+#
+# Zet je hier alsnog een mariadb:- of postgresql:-blok, dan overschrijft dat de
+# profiel-laag (het tenant-bestand wordt als laatste gemerged) en loop je de
+# platform-defaults mis — precies de valkuil die deze template eerder bevatte
+# met een vastgepinde MariaDB 11.2.
 
 # =============================================================================
 # NEXTCLOUD SETTINGS

@@ -1,11 +1,31 @@
 ---
-last_reviewed: 2026-06-23
+last_reviewed: 2026-08-05
 owner: info@conduction.nl
 ---
 
 # Database Options
 
-This platform supports three database configurations. Choose based on your needs.
+> ## MariaDB is legacy — use PostgreSQL for anything new
+>
+> **Do not pick MariaDB for a new tenant.** It is being phased out (decision of
+> 2026-08-04). PostgreSQL in-cluster (Option 2) is the direction. Option 1 below is
+> kept because 22 tenants still run on it, not as a recommendation.
+>
+> Caveat while the phase-out runs: the MariaDB pods keep the tight resource limits
+> from `values/common.yaml` (500m/512Mi, or the Bitnami `micro` preset's 384Mi on
+> older deployments). Measured MariaDB memory p90 is 291Mi, so those ceilings are
+> close — `moerdijk`'s repeated exit-137 restarts sat on a MariaDB pod against a
+> 384Mi limit. This is deliberately not being fixed, because those pods are going
+> away. See [CNPG-MIGRATIE.md](CNPG-MIGRATIE.md) for the measurements, including
+> the same limits-only pattern on the PostgreSQL side.
+
+This platform supports three database configurations.
+
+> **PostgreSQL is de default sinds 2026-08-05.** MariaDB blijft ondersteund, maar
+> is een legacy-keuze die je expliciet maakt. `tenant.dbType` is een verplicht
+> veld (`scripts/validate-values.sh`), dus een tenant erft nooit stilzwijgend een
+> engine; laat je het weg, dan faalt CI. De fallback in de ApplicationSet is
+> `postgres`.
 
 > DB config is layered: each profile lives in `values/db/<dbType>.yaml`
 > (`mariadb`, `postgres`, `external`) and is selected by `tenant.dbType` in the
@@ -13,15 +33,22 @@ This platform supports three database configurations. Choose based on your needs
 > `values/db/` for the authoritative values and `docs/ARCHITECTURE.md` for how the
 > ApplicationSet wires them together.
 
-## Option 1: MariaDB (Default - Simplest)
+## Option 1: MariaDB (LEGACY — being phased out)
 
-**Best for:** Getting started, development, small deployments
+**Best for:** nothing new. Existing tenants only, until they are migrated.
+
+> The platform default is **PostgreSQL** as of 2026-08-04. The fallback lives in
+> `argo/applicationsets/nextcloud-tenants.yaml`
+> (`db/{{ default "postgres" .tenant.dbType }}.yaml`), not in `common.yaml` — the
+> `db/` profile is layered after `common.yaml` and always wins. Still set
+> `tenant.dbType` explicitly in every tenant file rather than relying on the
+> fallback.
 
 Each tenant gets their own MariaDB pod managed by the Nextcloud Helm chart.
 
 ### Configuration
 
-Set `tenant.dbType: mariadb` (the default) in the tenant file; the matching
+Zet `tenant.dbType: mariadb` expliciet in het tenant-bestand; de matching
 profile `values/db/mariadb.yaml` is then layered in automatically. Illustrative
 excerpt of that profile:
 
@@ -45,6 +72,30 @@ mariadb:
 - ❌ One database pod per tenant (resource overhead)
 - ❌ Database pod can be affected by node upgrades
 - ❌ No connection pooling
+- ❌ De opstartcyclus van de bitnami-image kent een deadlock-risico (zie hieronder)
+
+### Opstartgedrag en probes (belangrijk)
+
+De bitnami-image start mysqld bij elke start eerst op de achtergrond voor
+`mysql_upgrade`, stopt hem ~1 seconde na `ready for connections`, en start hem
+daarna definitief. Valt die stop midden in het laden van de buffer pool uit
+`ib_buffer_pool`, dan kan de afgebroken load de shutdown laten deadlocken: er
+komt geen `Shutdown completed`, mysqld staat idle op enkele millicores, en de
+kubelet schiet de container af.
+
+`values/db/mariadb.yaml` dekt dit op twee manieren, en beide moeten blijven staan:
+
+| Instelling | Waarom |
+|---|---|
+| `innodb_buffer_pool_load_at_startup=0` in `primary.configuration` | Geen load bij het opstarten, dus niets om af te breken. Prijs: koude cache na een herstart. |
+| `primary.startupProbe` (budget 10 min) | Zonder startupProbe geldt alleen `livenessProbe.initialDelaySeconds` (chart-default 120s) als opstartbudget. InnoDB crash recovery van een grote database duurt legitiem langer; wordt hij daar middenin afgeschoten, dan begint recovery elke ronde opnieuw en komt hij nooit klaar. |
+
+Let op: `primary.configuration` **vervangt** de my.cnf van de subchart volledig.
+Bij een chart-upgrade moet de inhoud opnieuw vergeleken worden met de nieuwe
+chart-default — het commando daarvoor staat in `values/db/mariadb.yaml`.
+
+Voorval waar dit uit voortkomt: epe-prod en dinkelland-prod, 2026-08-04. Zie
+`docs/DEBUGGING.md` voor het herkennen en verhelpen.
 
 ---
 
@@ -217,6 +268,13 @@ When using external PostgreSQL, a Job automatically:
 > ⚠️ **Aspirational / not implemented.** This section describes a possible future
 > direction only. None of the below is wired into the platform today — do not
 > follow it as current guidance. The three options above are the supported set.
+>
+> **Before proposing this route, read [CNPG-MIGRATIE.md](CNPG-MIGRATIE.md).** It
+> holds the measurements: the cost case does not hold (the whole consolidation
+> gain is 4.4 GiB RAM and 2.2 cores across 58 tenants), and the prototype cluster
+> `nextcloud-pg` sat unrecoverable in `nextcloud-platform` for 62 days without
+> anyone being alerted. That document also lists the gates that must close before
+> any tenant data moves.
 
 For production, one option to consider is [CloudNativePG](https://cloudnative-pg.io/):
 
@@ -242,9 +300,10 @@ This provides:
 
 ## Comparison Table
 
-| Feature | MariaDB | PostgreSQL In-Cluster | External PostgreSQL |
+| Feature | MariaDB (legacy) | PostgreSQL In-Cluster | External PostgreSQL |
 |---------|---------|----------------------|---------------------|
-| Template | `tenant-template.yaml` | `tenant-template-postgres.yaml` | (custom) |
+| Default | Nee (legacy, expliciet) | **Ja** | Nee (expliciet) |
+| Template | `tenant-template-postgres.yaml` (+ `dbType: mariadb`) | `tenant-template.yaml` | (custom) |
 | Setup complexity | Easy | Easy | Medium |
 | Resource efficiency | Medium | Low (includes Redis) | High |
 | Connection pooling | No | No | Yes (PgBouncer) |
@@ -253,13 +312,19 @@ This provides:
 | Node upgrade resilience | Medium | Medium | High |
 | Multi-tenant efficiency | Medium | Low | High |
 | Managed DB support | No | No | Yes |
-| Recommended for | Simple deployments | PostgreSQL features | Production |
+| Recommended for | **nothing new — being phased out** | new tenants | Production, once the shared backend works |
+
+> The "External PostgreSQL" column describes the shared CNPG/PgBouncer path. That
+> backend is currently **not** in a usable state — see
+> [CNPG-MIGRATIE.md](CNPG-MIGRATIE.md). Treat this column as a design target, not
+> as an option you can pick today.
 
 ## Quick Reference
 
 | I want... | Use this template |
 |-----------|-------------------|
-| Simplest setup | `tenant-template.yaml` (MariaDB) |
-| PostgreSQL with extensions | `tenant-template-postgres.yaml` |
-| Shared database cluster | External PostgreSQL (custom setup) |
+| **A new tenant** | `tenant-template.yaml` — staat sinds 2026-08-05 op `dbType: postgres` |
+| PostgreSQL with extensions | `tenant-template-postgres.yaml` (grotendeels dubbel; samenvoegen is een aparte opruiming) |
+| MariaDB | don't — legacy, being phased out. Moet dan expliciet: `dbType: mariadb` |
+| Shared database cluster | not available yet, see [CNPG-MIGRATIE.md](CNPG-MIGRATIE.md) |
 

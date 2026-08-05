@@ -52,6 +52,79 @@ All notable changes to this repository are documented in this file.
 ### Notes
 - `classify-change.sh` carries a pre-existing shellcheck SC2207 warning on its
   `sort` line. Reported, not changed — unrelated to this fix.
+## 2026-08-04
+
+### Deprecated
+- **MariaDB is legacy and is being phased out.** PostgreSQL in-cluster is the
+  direction for new tenants. Documented in `docs/DATABASE.md`, which until now
+  presented MariaDB as "Option 1 (Default - Simplest)" and recommended it for
+  "Simple deployments" — the opposite of the intended direction. The comparison
+  and quick-reference tables now say so too.
+
+  State on 2026-08-04, so this is a direction and not a completed migration: 60
+  MariaDB pods running, and 22 of 78 tenant files still declare
+  `tenant.dbType: mariadb` against 55 `postgres`.
+
+  Recorded on purpose: the MariaDB pods keep their tight resource ceilings
+  (500m/512Mi from `common.yaml`, or the Bitnami `micro` preset's 384Mi on older
+  deployments) while measured MariaDB memory p90 is 291Mi. `moerdijk`'s repeated
+  exit-137 restarts sat on exactly that combination. No fix is planned, because
+  those pods are going away — an accepted risk for the duration of the phase-out,
+  not an oversight. See `docs/CNPG-MIGRATIE.md` for the measurements.
+
+### Changed
+- **Platform default for a new tenant is now PostgreSQL instead of MariaDB.**
+
+  The switch is in `argo/applicationsets/nextcloud-tenants.yaml`, not in
+  `common.yaml`. The ApplicationSet layers
+  `values/db/{{ default "mariadb" .tenant.dbType }}.yaml` *after* `common.yaml`,
+  and each `db/` profile sets all four database enabled-flags explicitly — so the
+  flags in `common.yaml` are always overridden and were never the switch. That
+  Go-template fallback is the effective default; it is now `postgres`.
+
+  **No existing tenant is affected.** All 77 tenant files declare
+  `tenant.dbType`, so the fallback branch is never taken for any of them.
+  Verified by merging `common.yaml` with each `db/` profile: `mariadb` →
+  `mariadb.enabled: true`, `postgres` → `postgresql.enabled: true`, `external` →
+  `externalDatabase.enabled: true`, unchanged in all three cases. The rendered
+  Application spec is therefore identical for every current tenant.
+
+  `common.yaml` is updated for consistency only, so it no longer states the
+  opposite of the direction: `database.type` → `postgres` (vestigial — nothing
+  reads `.Values.database.type`), `mariadb.enabled` → `false`,
+  `postgresql.enabled` → `true`, with comments recording that the `db/` profile
+  overrides them.
+
+- `docs/DATABASE.md`: the "External PostgreSQL" column is marked as a design
+  target rather than a selectable option, since the shared CNPG/PgBouncer backend
+  is not in a usable state (see `docs/CNPG-MIGRATIE.md`).
+
+### Added
+- `docs/CNPG-MIGRATIE.md`: afweging en plan voor consolidatie van de 58 losse
+  in-cluster PostgreSQL-instanties naar CloudNativePG. Conclusie: **niet
+  besluiten op kosten**. De volledige multiplexing-winst over 58 tenants is
+  4,4 GiB RAM en 2,2 cores, gemeten over 14 dagen; de posten die er wél waren
+  (requests, ~1045 GiB opruimbare Cinder-volumes) zijn zonder migratie op te
+  lossen.
+  Omdat het platform data bij de bron ophaalt en alleen toont, is er ook geen
+  backup- of PITR-eis — de enige resterende drijfveer is operationeel gemak, en
+  de prijs daarvoor is blast radius.
+  Bevat verder de forensiek van `nextcloud-pg`: die stond 62 dagen
+  `unrecoverable` in `nextcloud-platform` (instances zonder PVC's, `spec.backup`
+  afwezig) terwijl Argo `sync=Synced, health=Suspended` rapporteerde en er geen
+  enkele alertregel voor CNPG of Postgres bestaat.
+
+  Eén meetles staat er expliciet in omdat hij op élke storagetelling in dit
+  cluster van toepassing is: de `nfs`/`nfs-v4`-classes worden geserveerd door
+  `cluster.local/nfs-server-provisioner`, die géén quota handhaaft. De `capacity`
+  van zo'n PVC is een label, geen reservering — die volumes leven allemaal op één
+  Cinder-volume van 500Gi. Van de 145 volumes die op 2026-08-04 zijn opgeruimd was
+  65 Cinder-backed (1045 GiB, echt gefactureerd) en 80 NFS-backed (1080 GiB,
+  nominaal). Splits op provisioner voordat je een storagecijfer aan een besluit
+  hangt.
+
+  Verwijzingen bijgewerkt in `docs/index.md`, `README.md` en de aspirational
+  CloudNativePG-sectie van `docs/DATABASE.md`.
 
 ## 2026-06-24
 
