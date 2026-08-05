@@ -8,6 +8,21 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gewijzigd — 2026-08-05 (geplande merge werkt de hele wachtrij af)
+
+`scheduled-merge.yaml` verwerkte standaard alleen de laagste openstaande wave, dus
+één stap per avond. Dat was een zelfgemaakte flessenhals: vier klaarstaande PR's
+zouden vier avonden kosten zonder dat het iets veiliger maakte. De veiligheid zit
+in de canary-poort per PR en in het stoppen bij het eerste probleem, niet in
+wachten tot morgen.
+
+Eén run werkt nu de hele wachtrij af, in wave-orde en één PR per keer, met de
+volledige keten per PR: merge → canary pollen → promoveren → vloot pollen. Waves
+bepalen dus de volgorde, niet het tempo.
+
+De `all_waves`-input is vervangen door `max_prs`: leeg bij een geplande run (hele
+rij), een getal als je in een handmatige run bewust één stap wil zetten.
+
 ### 2026-08-03 — pre-commit-hookbron naar GitHub
 - `.pre-commit-config.yaml`: de techbook-hook komt van
   `github.com/ConductionNL/techbook` in plaats van `codeberg.org`. De pin
