@@ -1,0 +1,119 @@
+---
+# Governance gate for pull requests.
+#
+# docs/CHECKS-AND-BALANCES.md has described this workflow since 2026-06-23, but
+# it never existed — there were no workflows in this repository at all. Every
+# check it promises (classification, required labels, values validation, chart
+# renders) ran only when someone remembered to run scripts/verify.sh locally.
+#
+# What this enforces:
+#   1. classification — nextcloud-platform/scripts/classify-change.sh decides
+#      platform / tenant-additive / mixed from the PR diff.
+#   2. required label — platform and mixed need `change/platform`,
+#      tenant-only needs `change/tenant-additive`.
+#   3. values + renders — scripts/verify.sh, which wraps validate-values.sh and
+#      smoke-checks.sh. Dry-run only; no cluster access, no secrets needed.
+#
+# Deliberately NOT here: docs/CHECKS-AND-BALANCES.md also names
+# `.github/workflows/rollout-verify.yaml` (manual dispatch for test stages).
+# That one is still missing; writing it needs a decision about which stages it
+# should drive, which is not a documentation gap to be closed unilaterally.
+#
+# Tool versions are pinned so a CI run is reproducible and an upstream release
+# cannot change the outcome of a merge gate.
+
+name: governance-check
+
+on:
+  pull_request:
+    branches: [main]
+    # labeled/unlabeled zijn nodig omdat de label-check github.event.pull_request
+    # .labels uit de event-payload leest. Zonder deze types faalt elke
+    # platform-PR bij aanmaak (labelen kan niet vóór de PR bestaat) en is er
+    # daarna geen event dat de check opnieuw evalueert — een rerun herhaalt de
+    # oude payload. De enige uitweg was een extra push of de PR heropenen.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+env:
+  YQ_VERSION: v4.44.3
+  KUBECONFORM_VERSION: v0.6.7
+  HELM_VERSION: v3.16.2
+
+jobs:
+  classify:
+    name: Classify change and check label
+    runs-on: ubuntu-latest
+    outputs:
+      classification: ${{ steps.classify.outputs.classification }}
+      changed_tenants: ${{ steps.classify.outputs.changed_tenants }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # classify-change.sh diffs base against head, so it needs both.
+          fetch-depth: 0
+
+      - name: Classify
+        id: classify
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          bash nextcloud-platform/scripts/classify-change.sh "$base" "$head" | tee /tmp/classify.txt
+          # The script emits key=value lines; forward only those.
+          grep -E '^(classification|changed_tenant_count|changed_tenants|changed_files_count)=' \
+            /tmp/classify.txt >> "$GITHUB_OUTPUT"
+
+      - name: Require the matching label
+        env:
+          CLASSIFICATION: ${{ steps.classify.outputs.classification }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          case "$CLASSIFICATION" in
+            platform|mixed) required='change/platform' ;;
+            tenant-additive) required='change/tenant-additive' ;;
+            *) echo "::error::unknown classification '$CLASSIFICATION'"; exit 1 ;;
+          esac
+
+          echo "classification : $CLASSIFICATION"
+          echo "required label : $required"
+          echo "labels on PR   : ${LABELS:-<none>}"
+
+          if [[ ",${LABELS}," != *",${required},"* ]]; then
+            echo "::error::missing required label '${required}' for a ${CLASSIFICATION} change (see docs/CHECKS-AND-BALANCES.md)"
+            exit 1
+          fi
+
+  verify:
+    name: Validate values and render charts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned tools
+        run: |
+          set -euo pipefail
+          sudo curl -fsSL -o /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin kubeconform
+
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
+            | tar -xz -C /tmp
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+
+          python3 -m pip install --quiet yamllint
+
+          # kubectl ships on the GitHub runner image; smoke-checks.sh only needs
+          # the binary present — it renders locally and never contacts a cluster.
+          for c in yq yamllint helm kubeconform kubectl; do
+            command -v "$c" >/dev/null || { echo "::error::$c missing"; exit 1; }
+          done
+
+      - name: verify.sh
+        run: bash scripts/verify.sh
