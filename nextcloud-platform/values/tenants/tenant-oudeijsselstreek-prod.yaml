@@ -13,4 +13,6 @@ tenant:
       - openregister
   frontend:
     branding:
-      organisationName: "Gemeente Oudeijsselstreek"
+      organisationName: "Gemeente Oude IJsselstreek"
+      enabled: true
+      host: "open.oude-ijsselstreek.nl" 
