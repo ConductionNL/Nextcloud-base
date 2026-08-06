@@ -1,0 +1,17 @@
+---
+tenant:
+  name: oudeijsselstreek-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    host: open.oude-ijsselstreek.nl
+    branding:
+      organisationName: "Gemeente Oude IJsselstreek"
