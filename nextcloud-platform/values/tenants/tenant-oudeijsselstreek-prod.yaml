@@ -15,3 +15,6 @@ tenant:
     host: open.oude-ijsselstreek.nl
     branding:
       organisationName: "Gemeente Oude IJsselstreek"
+    tls:
+      secretName: oudeijsselstreek-frontend-tls
+      issuer: letsencrypt-prod
