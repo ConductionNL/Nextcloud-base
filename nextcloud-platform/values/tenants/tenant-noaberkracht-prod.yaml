@@ -15,3 +15,6 @@ tenant:
     host: open.noaberkracht.nl
     branding:
       organisationName: "Noaberkracht"
+    tls:
+      secretName: noaberkracht-frontend-tls
+      issuer: letsencrypt-prod
