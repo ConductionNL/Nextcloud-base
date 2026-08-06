@@ -1,0 +1,20 @@
+---
+tenant:
+  name: noaberkracht-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    host: open.noaberkracht.nl
+    branding:
+      organisationName: "Noaberkracht"
+    tls:
+      secretName: noaberkracht-frontend-tls
+      issuer: letsencrypt-prod
