@@ -1,0 +1,21 @@
+---
+tenant:
+  name: dryrun-accept
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    host: dryrun.example.org
+    tls:
+      secretName: dryrun-example-org-tls
+      issuer: none
+    branding:
+      organisationName: "Gemeente Dryrun"
+      themeClassname: "dru-run"
