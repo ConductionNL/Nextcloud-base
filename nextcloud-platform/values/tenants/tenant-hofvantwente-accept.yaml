@@ -19,7 +19,10 @@ tenant:
     host: acceptatie-open.hofvantwente.nl
     tls:
       secretName: acceptatie-open-hofvantwente-nl-tls
-      issuer: letsencrypt-prod
+      # Betaald certSIGN-cert (verloopt 11 sep 2026), handmatig gezaaid.
+      # issuer: none => geen cert-manager-annotatie op de Ingress, dus geen
+      # Certificate-object en geen Let's Encrypt die het klantcert overschrijft.
+      issuer: none
     branding:
       organisationName: Gemeente Hof van Twente
       themeClassname: hof-van-twente-theme

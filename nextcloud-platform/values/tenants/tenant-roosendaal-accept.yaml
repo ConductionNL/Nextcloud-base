@@ -18,7 +18,10 @@ tenant:
     host: acceptatie-open.roosendaal.nl
     tls:
       secretName: acceptatie-open-roosendaal-nl-tls
-      issuer: letsencrypt-prod
+      # Betaald certSIGN-cert (verloopt 18 okt 2026), handmatig gezaaid.
+      # issuer: none => geen cert-manager-annotatie op de Ingress, dus geen
+      # Certificate-object en geen Let's Encrypt die het klantcert overschrijft.
+      issuer: none
     branding:
       organisationName: gemeente Roosendaal
       themeClassname: roosendaal-theme
