@@ -8,6 +8,54 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gerepareerd — 2026-08-07 (betaalde klantcertificaten niet meer overschreven door Let's Encrypt)
+
+Zeven frontends in `values/tenants/` gaan van `frontend.tls.issuer:
+letsencrypt-prod` naar `issuer: none`.
+
+**Aanleiding:** bij de woo-pwa-tls-rollout van 2 juni heeft cert-manager op
+meerdere tenants het betaalde klantcertificaat in het cluster-secret
+overschreven met Let's Encrypt (vastgelegd in
+`CERTIFICATEN/UITVRAAG-betaalde-certs-20260603.md`). Voor zes daarvan zijn cert
+én key bewaard gebleven en vandaag nog geldig, maar git stuurde nog steeds
+Let's Encrypt aan — elk herstel zou opnieuw zijn overschreven. Meting in het
+cluster op 2026-08-07 bevestigt dat in alle zes namespaces nog een LE-cert
+staat waar een betaald cert hoort.
+
+**Mechanisme:** de `react-tenants` ApplicationSet (React-base) zet alleen een
+`cert-manager.io/cluster-issuer`-annotatie als de issuer gevuld is én niet
+`none`. Zonder annotatie maakt de ingress-shim geen Certificate-object, dus
+blijft een handmatig gezaaid secret staan. `buren-prod` draaide al zo.
+
+| Tenant | Host | Uitgever | Vervalt |
+|---|---|---|---|
+| roosendaal-prod | open.roosendaal.nl | certSIGN | 2026-10-18 |
+| roosendaal-accept | acceptatie-open.roosendaal.nl | certSIGN | 2026-10-18 |
+| oudeijsselstreek-prod | open.oude-ijsselstreek.nl | certSIGN | 2027-02-14 |
+| oudeijsselstreek-accept | acceptatie-open.oude-ijsselstreek.nl | certSIGN | 2027-02-14 |
+| noaberkracht-accept | acceptatie-open.noaberkracht.nl | Trust Provider | 2026-10-13 |
+| hofvantwente-accept | acceptatie-open.hofvantwente.nl | certSIGN | 2026-09-11 |
+
+Daarnaast `noorderzijlvest-prod`: die stond op `issuer:
+cert-manager-issuer-prod`, een ClusterIssuer die niet bestaat. Het Certificate
+bleef op `Ready=False` staan en het Sectigo-cert (2026-11-27) overleefde bij
+toeval. Nu expliciet `issuer: none`.
+
+**Zutphen blijft bewust op Let's Encrypt**: geldig certSIGN-cert aanwezig, maar
+de private key ontbreekt en moet bij de gemeente worden opgevraagd.
+
+**Volgorde is niet vrijblijvend.** Deze wijziging haalt alleen de annotatie weg;
+het bestaande LE-secret blijft werken, er valt niets om. Het betaalde cert in
+het secret zetten is een aparte clustermutatie en moet ná deze merge gebeuren —
+andersom pakt cert-manager het teruggezette cert binnen minuten weer af.
+
+**Let op:** de `react-tenants` generator volgt `HEAD` (main), niet `release`.
+Deze tenant-wijziging werkt dus direct bij de merge door op alle zeven
+frontends, zonder promotieketen.
+
+**Betaalde certs vernieuwen niet vanzelf** — de vervaldatums hierboven horen in
+een agenda, niet alleen in dit bestand.
+
 ### Gewijzigd — 2026-08-05 (pullPolicy `Always` → `IfNotPresent`)
 
 `values/common.yaml`: `image.pullPolicy` voor de hoofd-Nextcloud-image staat niet
