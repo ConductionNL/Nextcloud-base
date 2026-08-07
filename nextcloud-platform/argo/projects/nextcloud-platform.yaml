@@ -90,6 +90,19 @@ spec:
       kind: "*"
     - group: postgresql.cnpg.io
       kind: "*"
+    # Namespaced RBAC. The cluster-scoped whitelist below already permits
+    # ClusterRole and ClusterRoleBinding, so refusing the namespaced pair was
+    # backwards: a Role is bound to one namespace and is strictly the narrower
+    # of the two. Without this, an app that wants to grant its own pod a
+    # permission inside its own namespace has no option but a cluster-wide
+    # grant — the opposite of least privilege.
+    # Added 2026-08-07: openwoo-app-config's control-plane needs `get`/`update`
+    # on one ConfigMap in its own namespace and could not sync
+    # ("resource rbac.authorization.k8s.io:Role is not permitted in project").
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
   
   # Sync windows for controlled rollouts
   # All times are Amsterdam local time (Europe/Amsterdam handles CET/CEST automatically).
