@@ -18,7 +18,10 @@ tenant:
     host: acceptatie-open.noaberkracht.nl
     tls:
       secretName: acceptatie-open-noaberkracht-nl-tls
-      issuer: letsencrypt-prod
+      # Betaald Trust Provider-cert (verloopt 13 okt 2026), handmatig gezaaid.
+      # issuer: none => geen cert-manager-annotatie op de Ingress, dus geen
+      # Certificate-object en geen Let's Encrypt die het klantcert overschrijft.
+      issuer: none
     branding:
       organisationName: Gemeente Noaberkracht
       themeClassname: noaberkracht-theme

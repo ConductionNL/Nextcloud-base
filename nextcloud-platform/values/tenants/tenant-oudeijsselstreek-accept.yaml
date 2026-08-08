@@ -19,7 +19,10 @@ tenant:
     host: acceptatie-open.oude-ijsselstreek.nl
     tls:
       secretName: acceptatie-open-oude-ijsselstreek-nl-tls
-      issuer: letsencrypt-prod
+      # Betaald certSIGN-cert (verloopt 14 feb 2027), handmatig gezaaid.
+      # issuer: none => geen cert-manager-annotatie op de Ingress, dus geen
+      # Certificate-object en geen Let's Encrypt die het klantcert overschrijft.
+      issuer: none
     branding:
       organisationName: gemeente Oude IJsselstreek
       themeClassname: oude-ijsselstreek-theme
