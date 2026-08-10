@@ -15,7 +15,7 @@ tenant:
     host: acceptatie-open.noordwijk.nl
     tls:
       secretName: acceptatie-open-noordwijk-nl-tls
-      issuer: none
+      issuer: letsencrypt-prod
     branding:
       organisationName: "Gemeente Noordwijk"
       themeClassname: "noordwijk-thema"
