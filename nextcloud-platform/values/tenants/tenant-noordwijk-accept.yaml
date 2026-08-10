@@ -1,0 +1,21 @@
+---
+tenant:
+  name: noordwijk-accept
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    host: acceptatie-open.noordwijk.nl/
+    tls:
+      secretName: acceptatie-open-noordwijk-nl-tls
+      issuer: none
+    branding:
+      organisationName: "Gemeente Noordwijk"
+      themeClassname: "noordwijk-thema"
