@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-03
+last_reviewed: 2026-08-10
 owner: info@conduction.nl
 ---
 
@@ -50,6 +50,27 @@ hoofdstuk dat je nodig hebt.
 - `DEBUGGING.md` - database-shell/backup, logs, occ-status, one-liners
 - `EMERGENCY.md` - noodprocedures (crashloops, sync-falen, storage vol,
   alles uitschakelen)
+
+## Hoofdstuk 5 - Scripts
+
+De scripts in `nextcloud-platform/scripts/`. `scripts/verify.sh` bewaakt dat
+deze lijst compleet blijft.
+
+| Script | Wat het doet |
+|---|---|
+| `validate-values.sh` | Valideert alle tenant-bestanden (vereiste velden, verboden velden, patronen) |
+| `smoke-checks.sh` | Rendert de Helm-charts per tenant en valideert de manifests |
+| `classify-change.sh` | Classificeert een commit-range als `platform`, `tenant-additive` of `mixed` (gebruikt door de promotie-workflow) |
+| `collect-changelog.sh` | Voegt de per-PR changelog-fragmenten samen tot één sectie |
+| `create-platform-secrets.sh` | Maakt het platform-secret `pgbouncer-credentials` aan |
+| `create-postgres-admin-secret.sh` | Maakt het PostgreSQL-adminsecret dat de provisioning-Job gebruikt om tenant-databases en -users aan te maken |
+| `create-tenant-secret.sh` | Maakt `nextcloud-secrets` voor één tenant (`--postgres` of MariaDB) |
+| `cutover-tenant.sh` | Patcht `trusted_domains` en `overwrite.cli.url` in de live pod na het weghalen van een `tenant.hostname`-migratieoverride |
+| `argocd-sync.sh` | Forceert een hard refresh + sync voor één of meer Argo Applications |
+| `install-dev-tools.sh` | Installeert lokale tooling (yamllint, kubeconform, kube-score, conftest, gitleaks) |
+
+Verwijderen doe je niet met een script uit deze repo, maar met
+`openwoo-app-config/scripts/cleanup-tenant.sh` — zie `REMOVING-TENANT.md`.
 
 ## Conventies (gelden overal)
 

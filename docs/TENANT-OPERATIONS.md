@@ -1,12 +1,18 @@
 ---
-last_reviewed: 2026-08-03
+last_reviewed: 2026-08-10
 owner: info@conduction.nl
 ---
 
 # Tenant-operaties: reset, verwijderen, opnieuw opzetten
 
 Runbooks voor de tenant-levenscyclus. Namespace = de kale tenant-naam
-(de Argo Application heet `nc-<tenant>`, de namespace niet).
+(de Argo Applications heten `nc-<tenant>` en `<tenant>-reactfront`, de
+namespace niet).
+
+Eén tenantbestand levert **twee** Applications in dezelfde namespace: de
+Nextcloud-app (`nc-<tenant>`, appset `nextcloud-tenants`) en de WOO
+PWA-frontend (`<tenant>-reactfront`, appset `react-tenants` in React-base).
+Elke operatie hieronder raakt beide.
 
 ## Tenant Reset (Data wissen)
 
@@ -72,33 +78,40 @@ kubectl get secret nextcloud-secrets -n $NS -o jsonpath='{.data.nextcloud-passwo
 
 ## Tenant Volledig Verwijderen
 
+> **De canonieke procedure staat in [REMOVING-TENANT.md](REMOVING-TENANT.md)**
+> — inclusief backup, het uit de probe-lijsten halen van de host (verplichte
+> stap vóór het verwijderen van het tenantbestand), de frontend, en het
+> gereedschap `openwoo-app-config/scripts/cleanup-tenant.sh`. Volg die pagina;
+> hieronder staat alleen de verkorte GitOps-variant en het handmatige noodpad.
+
 ### Via GitOps (aanbevolen)
 
 ```bash
 TENANT=canary
 NS=$TENANT
 
-# 1. Verwijder tenant bestand uit Git
+# 1. Haal de host van deze tenant eerst uit .github/probe-hosts-*.txt
+#    (zie REMOVING-TENANT.md stap 2 — anders breekt de promotieketen)
+
+# 2. Verwijder tenant bestand uit Git
 git rm nextcloud-platform/values/tenants/tenant-$TENANT.yaml
 git commit -m "chore: remove tenant $TENANT"
 # Argo leest GitHub — push naar origin (een merge naar main deployt meteen)
 git push origin
 
-# 2. Argo CD verwijdert de Application (nc-$TENANT), MAAR de ApplicationSet
-#    heeft preserveResourcesOnDeletion: true. De namespace en alle resources
-#    (PVCs, secrets, deployments) blijven dus staan — dit is een opzettelijke
-#    safety feature. Handmatige cleanup is vereist (zie hieronder).
+# 3. Argo CD verwijdert BEIDE Applications (nc-$TENANT en $TENANT-reactfront).
+#    preserveResourcesOnDeletion: true bewaart de RESOURCES, niet de
+#    Applications: de namespace, PVCs, secrets, deployments en de
+#    frontend-Ingress blijven staan — de frontend serveert dus door.
+#    Handmatige cleanup is vereist (zie hieronder).
 
-# 3. Verifieer dat de Application weg is
-kubectl get application nc-$TENANT -n argocd  # Should return "not found"
+# 4. Verifieer dat beide Applications weg zijn
+kubectl get application -n argocd nc-$TENANT $TENANT-reactfront  # "not found"
 
-# 4. De namespace bestaat NOG — ruim handmatig op indien gewenst
+# 5. De namespace bestaat NOG — ruim handmatig op indien gewenst
 kubectl get ns $NS              # bestaat nog
 kubectl delete namespace $NS    # handmatige cleanup (cascade delete)
 ```
-
-> Zie ook [REMOVING-TENANT.md](REMOVING-TENANT.md) voor de volledige
-> verwijderprocedure en de achtergrond bij `preserveResourcesOnDeletion`.
 
 ### Handmatig (sneller, maar niet GitOps)
 
@@ -106,10 +119,11 @@ kubectl delete namespace $NS    # handmatige cleanup (cascade delete)
 TENANT=canary
 NS=$TENANT
 
-# 1. Verwijder Argo CD Application
+# 1. Verwijder beide Argo CD Applications
 kubectl delete application nc-$TENANT -n argocd
+kubectl delete application $TENANT-reactfront -n argocd
 
-# 2. Verwijder namespace (cascade delete)
+# 2. Verwijder namespace (cascade delete — Nextcloud én frontend)
 kubectl delete namespace $NS
 
 # 3. Verifieer
@@ -120,6 +134,9 @@ kubectl get ns $NS
 - S3 data (zie [STORAGE-OPERATIONS.md](STORAGE-OPERATIONS.md))
 - Database in externe PostgreSQL (indien gebruikt)
 - DNS records
+- De host in `.github/probe-hosts-accept.txt` / `probe-hosts-live.txt` —
+  staat de tenant daarin, dan blijft de promotieketen falen tot je hem
+  daar weghaalt
 
 ## Tenant Opnieuw Opzetten
 
@@ -131,6 +148,10 @@ TENANT=canary
 # Canonieke refresh: zet de Argo refresh-annotatie op de ApplicationSet.
 # Argo pikt de gewijzigde annotatie op en re-evalueert de generator.
 kubectl annotate applicationset nextcloud-tenants -n argocd \
+  argocd.argoproj.io/refresh=hard --overwrite
+
+# Idem voor de frontend-appset (React-base), die dezelfde tenantbestanden watcht
+kubectl annotate applicationset react-tenants -n argocd \
   argocd.argoproj.io/refresh=hard --overwrite
 
 # Dezelfde annotatie kan op de gegenereerde Application worden gezet:
