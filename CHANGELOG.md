@@ -8,6 +8,37 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gewijzigd — 2026-08-10 (docs-touched: documentatie wijzigt mee met de code)
+
+De gates keken tot nu toe naar de hele boom en nooit naar wat je pusht. Daarmee
+werd de docs-as-code-afspraak — documentatie wijzigt in dezelfde PR als de code
+die zij beschrijft — door niets afgedwongen. `docs-touched` is de diff-gate die
+dat wél doet.
+
+- `.pre-commit-config.yaml`: techbook-pin van de kale sha
+  `edf269eeea4fd28f150791a00d6600d645262a91` naar tag **`v0.2.0`**, en
+  `- id: docs-touched` toegevoegd. Die twee horen bij elkaar: de hook bestaat
+  pas vanaf `v0.2.0`, dus zonder de bump zou pre-commit hard falen op een
+  onbekende hook-id.
+- `.docs-touched.yaml` (nieuw): vier padregels — gedeelde values, Argo-wiring,
+  tenant-charts, en de scripts/gates zelf. Elke regel draagt een `reason` die
+  in de melding verschijnt, zodat de gate zichzelf uitlegt.
+- `docs/CHECKS-AND-BALANCES.md`: korte verwijzing bij de bestaande gates.
+
+**Mode is `warn`, met opzet.** De gate rapporteert volledig en geeft exit 0. We
+willen eerst een periode zien wát hij zou tegenhouden voordat hij pushes gaat
+weigeren; een padregel die te breed staat, merk je alleen door mee te kijken.
+Naar `enforce` is een aparte, bewuste wijziging.
+
+De padregels rijmen bewust met `nextcloud-platform/scripts/classify-change.sh`:
+wat dat script "platform" noemt is docs-plichtig, en `values/tenants/tenant-*.yaml`
+staat in `ignore`. Dat is de belangrijkste eigenschap van deze uitrol —
+tenant-PR's zijn dagelijks werk en mogen nooit op een docs-gate stuklopen.
+Nagemeten met een wegwerp-commit op één tenantbestand: geen bevinding.
+
+Vrijstelling blijft per commit mogelijk via de trailer `Docs-not-needed: <reden>`.
+Configformaat en verificatierecept staan in techbook `docs/docs-touched.md`.
+
 ### Gerepareerd — 2026-08-10 (server-side gate viel om op ontbrekend gereedschap)
 
 De `gate`-job faalde met exit 1 en géén uitleg. Oorzaak: `smoke-checks.sh` eist

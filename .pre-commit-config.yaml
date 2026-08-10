@@ -2,10 +2,11 @@
 #   pre-commit install --hook-type pre-push
 repos:
   - repo: https://github.com/ConductionNL/techbook
-    rev: edf269eeea4fd28f150791a00d6600d645262a91
+    rev: v0.2.0
     hooks:
       - id: docs-contract
       - id: docs-claims
+      - id: docs-touched
 
   - repo: local
     hooks:
