@@ -8,6 +8,19 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gerepareerd — 2026-08-10 (server-side gate viel om op ontbrekend gereedschap)
+
+De `gate`-job faalde met exit 1 en géén uitleg. Oorzaak: `smoke-checks.sh` eist
+`helm`, `yq`, `kubeconform` en `kubectl`, en `kubeconform` staat niet op de
+runner-image. De melding daarover gaat naar stdout, en `scripts/verify.sh` gooit
+stdout weg met `>/dev/null` — vandaar de stille exit.
+
+- `.github/workflows/ci.yml`: kubeconform installeren, versie én sha256 gepind
+  (v0.8.0), plus een stap die vooraf luid meldt welk gereedschap ontbreekt in
+  plaats van tien regels verderop stil om te vallen.
+
+Lokaal draaide dezelfde gate al groen; het verschil zat uitsluitend in de runner.
+
 ### Gerepareerd — 2026-08-07 (betaalde klantcertificaten niet meer overschreven door Let's Encrypt)
 
 Zeven frontends in `values/tenants/` gaan van `frontend.tls.issuer:
