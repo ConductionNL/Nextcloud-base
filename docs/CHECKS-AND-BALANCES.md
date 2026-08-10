@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-06-23
+last_reviewed: 2026-08-10
 owner: info@conduction.nl
 ---
 
@@ -38,6 +38,22 @@ Before merge, CI runs `scripts/verify.sh`, which wraps:
 This catches invalid values and Helm/rendering failures early. Both are dry-run:
 CI needs no cluster access and no secrets. The same gate runs locally via
 `./scripts/verify.sh` before pushing.
+
+### Docs change with the code (`docs-touched`)
+
+A third pre-push gate, `docs-touched`, reads the diff of the push: when it
+touches platform paths that `docs/` describes, documentation has to change in
+the same push. The path rules live in `.docs-touched.yaml` in the repo root and
+deliberately mirror the platform/tenant split of `classify-change.sh` — tenant
+files under `nextcloud-platform/values/tenants/` are exempt, so ordinary tenant
+PRs are never held up.
+
+The gate runs in **`mode: warn`**: it reports in full and blocks nothing, so we
+can see what it would catch before it starts refusing pushes. Switching it to
+`enforce` is a separate, deliberate change.
+
+Config format, the per-commit `Docs-not-needed:` exemption and the verification
+recipe are documented once, in techbook `docs/docs-touched.md`.
 
 ## 3) Configuration checks
 

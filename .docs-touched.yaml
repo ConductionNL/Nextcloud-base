@@ -1,0 +1,80 @@
+# Docs-as-code gate. Referentie: techbook docs/docs-touched.md.
+# Dit bestand staat in de repo-root en niet in args: van
+# .pre-commit-config.yaml — dat bestand wordt bij een uitrol in zijn
+# geheel herschreven, dus padlijsten daarin sneuvelen.
+#
+# De padregels hieronder rijmen bewust met
+# nextcloud-platform/scripts/classify-change.sh: wat die als "platform"
+# classificeert is hier docs-plichtig, en wat die als "tenant-additive"
+# ziet staat in `ignore`.
+version: 1
+
+# Eerst meekijken: de gate rapporteert volledig maar blokkeert niets.
+# Naar `enforce` zodra hij een periode rustig meedraait.
+mode: warn
+
+docs:
+  - "docs/**"
+  - "README.md"
+
+rules:
+  - name: platform-values
+    reason: >-
+      Gedeelde waarden gelden voor élke tenant, dus één regel hier heeft
+      fleet-brede werking. docs/ROLLOUTS.md, docs/CONFIG-CHANGES.md,
+      docs/DATABASE.md en docs/ADDING-TENANT.md beschrijven precies deze
+      bestanden; wijken code en runbook uiteen, dan rolt de volgende
+      operator een verkeerde procedure uit.
+    paths:
+      - "nextcloud-platform/values/common.yaml"
+      - "nextcloud-platform/values/env/**"
+      - "nextcloud-platform/values/db/**"
+      - "nextcloud-platform/values/templates/**"
+      - "nextcloud-platform/values/canary-overrides*.yaml"
+
+  - name: argo-wiring
+    reason: >-
+      De Argo-wiring en de platformmanifests bepalen wát er uitgerold wordt
+      en in welke volgorde. docs/ARCHITECTURE.md en docs/ROLLOUTS.md
+      beschrijven die keten; met selfHeal op vrijwel de hele fleet is een
+      ongedocumenteerde wijziging hier meteen fleet-breed zichtbaar.
+    paths:
+      - "nextcloud-platform/argo/**"
+      - "nextcloud-platform/platform/**"
+      - "nextcloud-platform/bootstrap/**"
+
+  - name: tenant-charts
+    reason: >-
+      De charts renderen de resources die elke tenant krijgt.
+      docs/SECRETS.md en docs/ARCHITECTURE.md leggen uit wat ze opleveren;
+      verandert de render, dan klopt die uitleg niet meer.
+    paths:
+      - "charts/**"
+
+  - name: gates-en-scripts
+    reason: >-
+      De scripts en gates zijn de afspraak over veilig uitrollen —
+      classificatie, validatie, smoke-checks. docs/CHECKS-AND-BALANCES.md
+      beschrijft die afspraak en hoort mee te wijzigen zodra het gedrag
+      verandert.
+    paths:
+      - "nextcloud-platform/scripts/**"
+      - "scripts/**"
+      - ".pre-commit-config.yaml"
+      - ".docs-touched.yaml"
+
+# Wijzigingen die per definitie geen documentatie vragen.
+ignore:
+  # Tenantbestanden zijn dagelijks werk en additief per tenant — precies
+  # de "tenant-additive" klasse uit classify-change.sh. Docs-plicht hier
+  # zou elke tenant-PR raken zonder dat er een runbook verandert.
+  - "nextcloud-platform/values/tenants/tenant-*.yaml"
+  - ".github/**"
+  # Changelog is de audit-trail, niet de uitleg; matcht op elk niveau.
+  - "CHANGELOG.md"
+  - "changelog.d/**"
+  - "**/*.lock"
+
+escape:
+  trailer: "Docs-not-needed"
+  min_reason_len: 10
