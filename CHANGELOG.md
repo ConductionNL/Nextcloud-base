@@ -51,6 +51,62 @@ stdout weg met `>/dev/null` — vandaar de stille exit.
   plaats van tien regels verderop stil om te vallen.
 
 Lokaal draaide dezelfde gate al groen; het verschil zat uitsluitend in de runner.
+### Gerepareerd — 2026-08-10 (verwijderpad: frontend, probe-lijsten en een backupcommando dat niet werkte)
+
+`docs/REMOVING-TENANT.md` beschreef een verwijderpad dat op drie punten niet
+overeenkwam met het platform.
+
+**1. De frontend ontbrak volledig.** De pagina deed alsof er één Application per
+tenant is. Er zijn er twee: `nc-<tenant>` (appset `nextcloud-tenants`, volgt
+`release`) en `<tenant>-reactfront` (appset `react-tenants` in React-base, volgt
+`HEAD`), in dezelfde namespace. Beide zetten `preserveResourcesOnDeletion: true`
+— die vlag bewaart de *resources*, maar de *Application zelf* wordt wél door de
+appset-controller verwijderd. Gevolg: na het verwijderen van het tenantbestand
+blijven het frontend-Deployment en de Ingress draaien en **serveert de frontend
+gewoon verkeer door** tot iemand opruimt. Toegevoegd aan het stappenoverzicht,
+de stap-voor-stap, de snelle referentie en de troubleshooting.
+
+**2. Het PostgreSQL-backupcommando werkte voor geen enkele tenant.** Het riep
+`pg_dump -h pgbouncer.nextcloud-platform.svc.cluster.local -U nextcloud_$TENANT`
+aan. Die topologie bestaat niet: `values/db/postgres.yaml` zet
+`externalDatabase.enabled: false` en draait een in-cluster Bitnami PostgreSQL in
+de tenant-namespace zelf, met database én user `nextcloud` (niet
+`nextcloud_<tenant>`). Vervangen door een `kubectl exec` op
+`statefulset/nextcloud-postgresql` (naam geverifieerd door de chart lokaal te
+renderen) dat het wachtwoord uit het gemounte secret-bestand leest. Het
+MariaDB-pad is bewust ongemoeid gelaten (legacy).
+
+**3. Geen waarschuwing over de probe-lijsten.** `.github/probe-hosts-accept.txt`
+en `probe-hosts-live.txt` bevatten vier échte tenants.
+`.github/workflows/promote-tenant-changes.yaml` leest beide lijsten (regel
+97-99) en eist dat álle hosts 200 + `"installed":true` geven; faalt er één, dan
+draait hij de promotie terug met `--force-with-lease` op `release` en
+`release-accept` (regel 147-151). Een tenant verwijderen zonder hem eerst uit de
+lijst te halen breekt dus de promotieketen voor de hele vloot. Toegevoegd als
+expliciete stap 2, vóór het verwijderen van het tenantbestand.
+
+Verder genoemd: `openwoo-app-config/scripts/cleanup-tenant.sh` als het
+gereedschap voor stap 5-7 (plan-eerst; zonder `--execute` verandert het niets).
+Het werd door geen enkele doc in deze repo genoemd.
+
+`docs/TENANT-OPERATIONS.md` verwijst nu naar `REMOVING-TENANT.md` als canonieke
+procedure in plaats van de inhoud te herhalen, en noemt de tweede Application.
+
+### Toegevoegd — 2026-08-10 (twee doc-asserties in `scripts/verify.sh`)
+
+Deze repo had als een van de weinige geen doc-assertie.
+
+- **Elke host in de probe-lijsten hoort bij een bestaand tenantbestand.** De
+  host is niet de tenantnaam; de assertie leidt hem af zoals de appset dat doet
+  (omgevingssuffix van `tenant.name`, terugval op `tenant.environment`, geen
+  omgevingslabel voor prod, `tenant.hostname` overschrijft alles). Dekt nu 4
+  hosts over 78 tenantbestanden.
+- **Elk script in `nextcloud-platform/scripts/` heeft een regel in
+  `docs/index.md`.** Patroon gelijk aan `cluster-config`. Hiervoor is een
+  scripts-overzicht aan `docs/index.md` toegevoegd (10 scripts).
+
+Beide gebruiken alleen `yq`, dat al in `Requires:` stond — geen nieuw
+gereedschap.
 
 ### Gerepareerd — 2026-08-07 (betaalde klantcertificaten niet meer overschreven door Let's Encrypt)
 
