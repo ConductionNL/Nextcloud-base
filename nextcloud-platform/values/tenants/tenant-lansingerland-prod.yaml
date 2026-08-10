@@ -2,7 +2,7 @@ tenant:
   name: lansingerland-prod
   environment: prod
   wave: "1"
-  dbType: mariadb
+  dbType: postgres
   features:
     appapi: false
   apps:
