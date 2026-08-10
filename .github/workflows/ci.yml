@@ -19,6 +19,9 @@
 # nog klopt met de code; daar is de periodieke semantische review voor.
 name: ci
 
+permissions:
+  contents: read
+
 on:
   pull_request:
   push:
