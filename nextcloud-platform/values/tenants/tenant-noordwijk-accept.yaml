@@ -18,4 +18,4 @@ tenant:
       issuer: letsencrypt-prod
     branding:
       organisationName: "Gemeente Noordwijk"
-      themeClassname: "noordwijk-thema"
+      themeClassname: "noordwijk-theme"

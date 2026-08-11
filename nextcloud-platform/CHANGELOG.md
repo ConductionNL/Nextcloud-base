@@ -18,10 +18,33 @@ All notable changes to this repository are documented in this file.
   — ongeldig. Niets in dit script keek naar `tenant.frontend.*`; de fout kwam
   ongehinderd op main. De portalbug zelf staat buiten deze repo en is apart
   gemeld.
+- `scripts/validate-values.sh` — `validate_frontend_keys()` weigert onbekende
+  sleutels onder `tenant.frontend`, `.branding` en `.tls`. Een sleutel die de
+  ApplicationSet niet leest (bijvoorbeeld `thema:` i.p.v. `themeClassname:`)
+  werd stil genegeerd: de tenant viel terug op het basisthema zonder dat iemand
+  het merkte. De allowlists spiegelen React-base's `react-tenants.yaml`.
+- `scripts/validate-values.sh` — `validate_frontend_branding()` toetst de VORM
+  van `themeClassname` (`<naam>-theme`). Vangt `-thema` i.p.v. `-theme`, wat
+  stilzwijgend geen thema oplevert omdat de waarde ongewijzigd doorgaat naar
+  `GATSBY_NL_DESIGN_THEME_CLASSNAME`.
+
+  Bewust alleen de vorm en geen lijst: de geldige thema's staan in
+  `ConductionNL/conduction-theme` (wijzigt vaak) en het image loopt daarop
+  achter. Een lijst in CI zou rood slaan op een net toegevoegd thema, én op
+  gebundelde NL Design System-thema's die niet uit conduction-theme komen
+  (`tilburg-theme`, `zwolle-theme` — beide in gebruik).
+- `scripts/check-themes.sh` — handmatige audit die `themeClassname` naast
+  conduction-theme én naast de CSS-bundle van een draaiend frontend-pod legt.
+  Rapporteert beide bronnen naast elkaar in plaats van één verdict te vellen,
+  want geen van beide is op zichzelf de waarheid.
 
 ### Fixed
 - `values/tenants/tenant-epe-accept.yaml` — `frontend.tag` teruggebracht tot
   alleen het tag-deel (`V1.0.260422-development`).
+- `values/tenants/tenant-noordwijk-accept.yaml` — `themeClassname` van
+  `noordwijk-thema` naar `noordwijk-theme`. `noordwijk-theme` bestaat in
+  conduction-theme én in de bundle; de site draaide dus zonder thema. Let op:
+  het uiterlijk van die site verandert hierdoor.
 
 ### Changed
 - `frontend.tag` uitgelijnd op de tag die al draaide, op zeven tenants:

@@ -60,6 +60,7 @@ deze lijst compleet blijft.
 |---|---|
 | `validate-values.sh` | Valideert alle tenant-bestanden (vereiste velden, verboden velden, patronen) |
 | `smoke-checks.sh` | Rendert de Helm-charts per tenant en valideert de manifests |
+| `check-themes.sh` | Handmatige audit: toetst `themeClassname` aan conduction-theme én aan de CSS-bundle van een draaiend frontend-pod (geen CI-check, zie het script voor de reden) |
 | `classify-change.sh` | Classificeert een commit-range als `platform`, `tenant-additive` of `mixed` (gebruikt door de promotie-workflow) |
 | `collect-changelog.sh` | Voegt de per-PR changelog-fragmenten samen tot één sectie |
 | `create-platform-secrets.sh` | Maakt het platform-secret `pgbouncer-credentials` aan |

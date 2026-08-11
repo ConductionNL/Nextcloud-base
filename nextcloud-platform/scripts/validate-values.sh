@@ -506,6 +506,81 @@ validate_frontend_image() {
     return $has_error
 }
 
+# Sleutels die de React-base ApplicationSet daadwerkelijk leest. Alles daarbuiten
+# wordt stil genegeerd: een tenant met `thema:` i.p.v. `themeClassname:` valt
+# terug op het basisthema zonder dat iemand het merkt. Bron:
+# React-base/react-platform/argo/applicationsets/react-tenants.yaml — houd deze
+# lijsten gelijk als daar een veld bijkomt.
+FRONTEND_KEYS=(
+    "enabled" "tag" "registry" "repository" "host" "upstreamHost"
+    "apiBaseUrl" "tls" "extraHosts" "branding" "env"
+)
+FRONTEND_BRANDING_KEYS=(
+    "organisationName" "themeClassname" "jumbotronImageUrl" "faviconUrl"
+    "footerHideLogo"
+)
+FRONTEND_TLS_KEYS=("secretName" "issuer")
+
+# Weiger onbekende sleutels onder tenant.frontend
+validate_frontend_keys() {
+    local file="$1"
+    local has_error=0
+
+    _check_keys() {
+        local path="$1" label="$2"
+        shift 2
+        local allowed=("$@")
+        local key
+        while IFS= read -r key; do
+            [ -z "$key" ] && continue
+            local found=0
+            for a in "${allowed[@]}"; do
+                if [ "$key" = "$a" ]; then
+                    found=1
+                    break
+                fi
+            done
+            if [ $found -eq 0 ]; then
+                log_error "$file: Onbekende sleutel '$key' onder $label. Niets leest hem, dus hij wordt stil genegeerd. Toegestaan: ${allowed[*]}"
+                has_error=1
+            fi
+        done < <(yq eval "$path // {} | keys | .[]" "$file" 2>/dev/null)
+    }
+
+    _check_keys '.tenant.frontend' 'tenant.frontend' "${FRONTEND_KEYS[@]}"
+    _check_keys '.tenant.frontend.branding' 'tenant.frontend.branding' "${FRONTEND_BRANDING_KEYS[@]}"
+    _check_keys '.tenant.frontend.tls' 'tenant.frontend.tls' "${FRONTEND_TLS_KEYS[@]}"
+
+    return $has_error
+}
+
+# Validate branding: themeClassname-vorm
+#
+# De geldige thema's staan in ConductionNL/conduction-theme (map per thema,
+# `<naam>-design-tokens` → klasse `<naam>-theme`) en worden in het image
+# gebundeld. Die lijst wijzigt vaak en het image loopt erop achter, dus toetsen
+# we hier alleen de VORM — een lijst in deze repo zou rood slaan op een thema dat
+# net is toegevoegd. Voor de inhoudelijke toets: scripts/check-themes.sh.
+#
+# Vangt de praktijkfout: `-thema` i.p.v. `-theme` (noordwijk, dinkelland,
+# 2026-08-11). De waarde gaat ongewijzigd door naar
+# GATSBY_NL_DESIGN_THEME_CLASSNAME; een klasse die niet bestaat levert stilzwijgend
+# geen thema op.
+validate_frontend_branding() {
+    local file="$1"
+    local theme
+    theme=$(yq eval '.tenant.frontend.branding.themeClassname // ""' "$file" 2>/dev/null)
+
+    [ -z "$theme" ] && return 0
+
+    if ! [[ "$theme" =~ ^[a-z0-9]+(-[a-z0-9]+)*-theme$ ]]; then
+        log_error "$file: Invalid themeClassname '$theme'. Verwacht '<naam>-theme' (kleine letters, koppeltekens). Let op '-thema' i.p.v. '-theme'."
+        return 1
+    fi
+
+    return 0
+}
+
 # Check for potential secrets in file content
 check_for_secrets() {
     local file="$1"
@@ -565,6 +640,8 @@ validate_tenant_file() {
     validate_wave "$file" || ((file_errors++))
     validate_bucket "$file" || ((file_errors++))
     validate_frontend_image "$file" || ((file_errors++))
+    validate_frontend_keys "$file" || ((file_errors++))
+    validate_frontend_branding "$file" || ((file_errors++))
     check_for_secrets "$file" || true  # Warnings only
     
     if [ $file_errors -eq 0 ]; then
