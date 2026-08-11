@@ -12,7 +12,7 @@ tenant:
   # legacy deploy; backend serveert zelf roosendaal.commonground.nu (geen
   # migrate-host), upstream default klopt. Favicon gaat live mee (ignore-diff).
   frontend:
-    tag: dev
+    tag: "V1.0.260422-development"
     host: open.roosendaal.nl
     tls:
       secretName: open-roosendaal-nl-tls

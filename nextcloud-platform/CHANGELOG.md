@@ -24,9 +24,11 @@ All notable changes to this repository are documented in this file.
   alleen het tag-deel (`V1.0.260422-development`).
 
 ### Changed
-- `values/tenants/tenant-{buren,helmond,hofvantwente,noaberkracht}-accept.yaml`
-  — `frontend.tag` van `latest`/`dev` naar `V1.0.260422-development`, de tag
-  die op deze tenants al draaide.
+- `frontend.tag` uitgelijnd op de tag die al draaide, op zeven tenants:
+  - `tenant-{buren,helmond,hofvantwente,noaberkracht}-accept.yaml` en
+    `tenant-{dinkelland,roosendaal}-prod.yaml` — van `latest`/`dev` naar
+    `V1.0.260422-development`;
+  - `tenant-openwoo-prod.yaml` — van `dev` naar `1.0.0-development.3`.
 
   Reden: React-base maakt de per-tenant image-pin bindend (zie zijn CHANGELOG
   van dezelfde datum). Tot nu toe was de image ignore-diffed, waardoor deze

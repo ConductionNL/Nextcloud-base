@@ -10,5 +10,5 @@ tenant:
       - openconnector
       - openregister
   frontend:
-    tag: dev
+    tag: "1.0.0-development.3"
     host: open.openwoo.app
