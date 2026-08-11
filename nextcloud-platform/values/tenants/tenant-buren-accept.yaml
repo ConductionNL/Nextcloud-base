@@ -11,4 +11,4 @@ tenant:
       - openconnector
       - openregister
   frontend:
-    tag: latest
+    tag: "V1.0.260422-development"

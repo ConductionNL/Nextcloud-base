@@ -2,6 +2,38 @@
 
 All notable changes to this repository are documented in this file.
 
+## 2026-08-11 (frontend image-reference)
+
+### Added
+- `scripts/validate-values.sh` — `validate_frontend_image()` valideert
+  `tenant.frontend.registry`, `.repository` en `.tag`. Een tag met `/` of `:`
+  is nu een harde fout, net als een `repository` met een tag erin, een
+  `registry` met een pad, en een `registry` zonder `repository`.
+
+  Aanleiding: de OpenWoo-provisioningportal schreef op 2026-08-11 de volledige
+  reference `woo-website-v2:V1.0.260422-development` in `tenant.frontend.tag`
+  van `epe-accept`. De React-base chart bouwt de image als
+  `<pwa.image.image>:<pwa.image.tag>`, dus dat rendert als
+  `docker.io/conduction2022/woo-website-v2:woo-website-v2:V1.0.260422-development`
+  — ongeldig. Niets in dit script keek naar `tenant.frontend.*`; de fout kwam
+  ongehinderd op main. De portalbug zelf staat buiten deze repo en is apart
+  gemeld.
+
+### Fixed
+- `values/tenants/tenant-epe-accept.yaml` — `frontend.tag` teruggebracht tot
+  alleen het tag-deel (`V1.0.260422-development`).
+
+### Changed
+- `values/tenants/tenant-{buren,helmond,hofvantwente,noaberkracht}-accept.yaml`
+  — `frontend.tag` van `latest`/`dev` naar `V1.0.260422-development`, de tag
+  die op deze tenants al draaide.
+
+  Reden: React-base maakt de per-tenant image-pin bindend (zie zijn CHANGELOG
+  van dezelfde datum). Tot nu toe was de image ignore-diffed, waardoor deze
+  bestanden ongestraft konden afwijken van wat live draaide. Zonder deze
+  uitlijning zou de React-base-wijziging ze terugrollen naar `latest`/`dev`.
+  Git volgt hier live, niet andersom — dat verandert niets aan wat er draait.
+
 ## 2026-08-04 (governance)
 
 ### Added

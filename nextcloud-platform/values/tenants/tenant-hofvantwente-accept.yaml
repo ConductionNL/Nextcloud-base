@@ -15,7 +15,7 @@ tenant:
   # Jumbotron komt uit de eigen Nextcloud (publicpreview) — host blijft gelijk.
   # Favicon is een inline data-URI en gaat live mee (ignore-diff).
   frontend:
-    tag: dev
+    tag: "V1.0.260422-development"
     host: acceptatie-open.hofvantwente.nl
     tls:
       secretName: acceptatie-open-hofvantwente-nl-tls

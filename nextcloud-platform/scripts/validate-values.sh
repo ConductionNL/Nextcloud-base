@@ -445,6 +445,67 @@ validate_bucket() {
     return 0
 }
 
+# Validate frontend image reference (tenant.frontend.registry/repository/tag)
+#
+# De WOO PWA image wordt door de React-base ApplicationSet samengesteld als
+# "<registry>/<repository>:<tag>". Elk deel heeft dus zijn eigen veld. Een
+# provisioningportal dat een volledige reference in één veld propt levert een
+# ongeldige image op (bv. tag "woo-website-v2:V1.0.260422-development" rendert
+# als "…/woo-website-v2:woo-website-v2:V1.0.260422-development"). Dat is op
+# 2026-08-11 op epe-accept gebeurd; deze functie vangt het af.
+validate_frontend_image() {
+    local file="$1"
+    local registry repository tag
+    registry=$(yq eval '.tenant.frontend.registry' "$file" 2>/dev/null)
+    repository=$(yq eval '.tenant.frontend.repository' "$file" 2>/dev/null)
+    tag=$(yq eval '.tenant.frontend.tag' "$file" 2>/dev/null)
+
+    local has_error=0
+
+    # Tag: alleen het tag-deel. Geen '/' (repository) en geen ':' (scheidingsteken).
+    if [ "$tag" != "null" ] && [ -n "$tag" ]; then
+        if [[ "$tag" == *[/:]* ]]; then
+            log_error "$file: tenant.frontend.tag '$tag' bevat '/' of ':'. Alleen het tag-deel hoort hier; gebruik tenant.frontend.repository en tenant.frontend.registry voor de rest."
+            has_error=1
+        elif ! [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
+            log_error "$file: Invalid tenant.frontend.tag '$tag'. Must match ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}\$."
+            has_error=1
+        fi
+    fi
+
+    # Repository: pad zonder registry-host en zonder tag.
+    if [ "$repository" != "null" ] && [ -n "$repository" ]; then
+        if [[ "$repository" == *:* ]]; then
+            log_error "$file: tenant.frontend.repository '$repository' bevat ':'. De tag hoort in tenant.frontend.tag."
+            has_error=1
+        elif ! [[ "$repository" =~ ^[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$ ]]; then
+            log_error "$file: Invalid tenant.frontend.repository '$repository'. Lowercase pad zonder leidende/afsluitende '/' (bv. 'conduction2022/woo-website-v2')."
+            has_error=1
+        fi
+    fi
+
+    # Registry: alleen een host met optionele poort, geen pad.
+    if [ "$registry" != "null" ] && [ -n "$registry" ]; then
+        if [[ "$registry" == */* ]]; then
+            log_error "$file: tenant.frontend.registry '$registry' bevat '/'. Alleen de host hoort hier (bv. 'docker.io'); het pad hoort in tenant.frontend.repository."
+            has_error=1
+        elif ! [[ "$registry" =~ ^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?$ ]]; then
+            log_error "$file: Invalid tenant.frontend.registry '$registry'. Verwacht een host met optionele poort (bv. 'ghcr.io' of 'registry.local:5000')."
+            has_error=1
+        fi
+
+        # Een registry zonder repository is betekenisloos: de ApplicationSet stelt
+        # de reference alleen samen als er een repository is, dus de registry zou
+        # stil genegeerd worden.
+        if [ "$repository" = "null" ] || [ -z "$repository" ]; then
+            log_error "$file: tenant.frontend.registry is gezet zonder tenant.frontend.repository. Zet beide, of geen van beide."
+            has_error=1
+        fi
+    fi
+
+    return $has_error
+}
+
 # Check for potential secrets in file content
 check_for_secrets() {
     local file="$1"
@@ -503,6 +564,7 @@ validate_tenant_file() {
     validate_hostname_convention "$file" || ((file_errors++))
     validate_wave "$file" || ((file_errors++))
     validate_bucket "$file" || ((file_errors++))
+    validate_frontend_image "$file" || ((file_errors++))
     check_for_secrets "$file" || true  # Warnings only
     
     if [ $file_errors -eq 0 ]; then

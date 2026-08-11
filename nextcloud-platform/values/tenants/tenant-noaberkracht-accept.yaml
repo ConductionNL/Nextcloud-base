@@ -14,7 +14,7 @@ tenant:
   # legacy deploy (jumbotron deelt bewust het tubbergen-asset; Noaberkracht =
   # samenwerking Tubbergen+Dinkelland). Favicon gaat live mee (ignore-diff).
   frontend:
-    tag: latest
+    tag: "V1.0.260422-development"
     host: acceptatie-open.noaberkracht.nl
     tls:
       secretName: acceptatie-open-noaberkracht-nl-tls
