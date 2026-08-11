@@ -14,7 +14,21 @@ tenant:
   frontend:
     tag: "V1.0.260422-development"
     host: open.epe.nl
-    
+    # Het tls-blok MOET hier staan, ook zonder cert-manager. Zonder secretName
+    # valt de react-tenants-ApplicationSet terug op de default
+    # wildcard-openwoo-tls (*.openwoo.app), en die naam past niet bij deze host:
+    # nginx serveert dan zijn fake-certificaat. Dat is op 2026-08-11 gebeurd toen
+    # het blok in zijn geheel werd weggehaald.
+    tls:
+      secretName: open-epe-nl-tls
+      # Sectigo OV (Gemeente Epe), verloopt 2026-09-02, met de hand geseed uit
+      # ns epe/epe-prod-reactfront-woo-website-frontend-tls op 2026-08-11.
+      # Let's Encrypt kan hier niet: het CAA-record van epe.nl staat alleen
+      # digicert, certSIGN, kpn, entrust, sectigo en ssl.com toe.
+      # issuer none = geen annotatie, geen Certificate, dus niets dat het
+      # klantcertificaat kan overschrijven.
+      # Verlenging: opvragen bij gemeente Epe (geen CertificateExpiringSoon-dekking).
+      issuer: none
     branding:
       organisationName: "gemeente Epe"
       themeClassname: "epe-theme"
