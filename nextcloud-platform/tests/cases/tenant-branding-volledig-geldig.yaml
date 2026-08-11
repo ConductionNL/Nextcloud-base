@@ -1,0 +1,16 @@
+---
+tenant:
+  name: canary-accept
+  environment: accept
+  wave: "0"
+  dbType: postgres
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    branding:
+      organisationName: Gemeente Canary
+      themeClassname: conduction-theme
+      footerHideLogo: true

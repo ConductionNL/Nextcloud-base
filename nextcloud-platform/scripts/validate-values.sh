@@ -28,14 +28,17 @@ NC='\033[0m' # No Color
 ERRORS=0
 WARNINGS=0
 
+# NB: tel op met $((...)) en niet met ((...)). Een post-increment vanaf 0 levert
+# de waarde 0 op, dus exitstatus 1 — en met `set -euo pipefail` breekt een kale
+# aanroep van deze functie dan de hele run af.
 log_error() {
     echo -e "${RED}ERROR:${NC} $1" >&2
-    ((ERRORS++))
+    ERRORS=$((ERRORS + 1))
 }
 
 log_warning() {
     echo -e "${YELLOW}WARNING:${NC} $1" >&2
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
 }
 
 log_success() {
@@ -677,7 +680,11 @@ main() {
     echo ""
     
     for file in "${files[@]}"; do
-        validate_tenant_file "$file"
+        # `|| true`: validate_tenant_file geeft het aantal fouten terug, en een
+        # kale aanroep zou met `set -e` de lus afbreken bij het eerste bestand
+        # met een fout — de rest van de vloot bleef dan ongevalideerd en de
+        # samenvatting verscheen nooit. De telling loopt via de globale ERRORS.
+        validate_tenant_file "$file" || true
         echo ""
     done
 

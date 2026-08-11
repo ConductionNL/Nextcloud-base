@@ -73,6 +73,17 @@ deze lijst compleet blijft.
 Verwijderen doe je niet met een script uit deze repo, maar met
 `openwoo-app-config/scripts/cleanup-tenant.sh` — zie `REMOVING-TENANT.md`.
 
+### Tests
+
+`nextcloud-platform/tests/run-tests.sh` houdt elke check in
+`validate-values.sh` aan een goed- én een foutgeval (`tests/cases/`, per case
+een `.yaml` met precies één afwijking en een `.expect` met `PASS` of de
+vereiste deelstrings). `scripts/verify.sh` draait de suite mee.
+
+Dat de validator over de echte vloot groen is, zegt alleen dat de huidige
+bestanden schoon zijn — niet dat een check nog aanslaat op een fout die niemand
+meer maakt. Een nieuwe check hoort dus met minstens twee cases te komen.
+
 ## Conventies (gelden overal)
 
 - **Namespace = kale tenant-naam** (bv. `straatje-accept`). De Argo-*applicatie*

@@ -33,12 +33,28 @@ All notable changes to this repository are documented in this file.
   achter. Een lijst in CI zou rood slaan op een net toegevoegd thema, én op
   gebundelde NL Design System-thema's die niet uit conduction-theme komen
   (`tilburg-theme`, `zwolle-theme` — beide in gebruik).
+- `tests/run-tests.sh` + `tests/cases/` — fixture-suite die elke check in
+  `validate-values.sh` aan een goed- én een foutgeval houdt (16 cases).
+  `scripts/verify.sh` draait hem mee. Mutatietest gedaan: elke check afzonderlijk
+  uitschakelen laat de suite roodslaan, dus hij hangt niet groen zonder iets te
+  bewijzen.
 - `scripts/check-themes.sh` — handmatige audit die `themeClassname` naast
   conduction-theme én naast de CSS-bundle van een draaiend frontend-pod legt.
   Rapporteert beide bronnen naast elkaar in plaats van één verdict te vellen,
   want geen van beide is op zichzelf de waarheid.
 
 ### Fixed
+- `scripts/validate-values.sh` — `log_error()` en `log_warning()` eindigden op
+  `((ERRORS++))`. Een post-increment vanaf 0 levert de waarde 0 op, dus
+  exitstatus 1; met `set -euo pipefail` brak een kale aanroep de run af. Samen
+  met de kale `validate_tenant_file "$file"` in de lus betekende dat: het
+  eerste bestand met een fout stopte de hele validatie, alle volgende tenants
+  bleven ongecontroleerd en de samenvatting verscheen nooit. De exitcode was
+  wel 1, dus CI werd rood — maar met een onvolledig rapport.
+
+  Nu tellen beide met `$((... + 1))` en is de lus-aanroep `|| true`; de telling
+  loopt via de globale `ERRORS`, dus de samenvatting is weer de waarheid.
+  Gevonden doordat de eerste fixture-test erop stukliep.
 - `values/tenants/tenant-epe-accept.yaml` — `frontend.tag` teruggebracht tot
   alleen het tag-deel (`V1.0.260422-development`).
 - `values/tenants/tenant-noordwijk-accept.yaml` — `themeClassname` van

@@ -130,4 +130,11 @@ if [[ "${#undocumented_scripts[@]}" -gt 0 ]]; then
 fi
 echo "doc-assertion OK (${script_count} scripts gedekt in de index)"
 
+# Fixture-tests voor validate-values.sh. De validator draait hierboven al over de
+# echte vloot, maar dat bewijst alleen dat de hUIDIGE bestanden schoon zijn — niet
+# dat een check nog aanslaat op een fout die niemand meer maakt. Deze suite houdt
+# elke check aan een goed- én een foutgeval.
+nextcloud-platform/tests/run-tests.sh >/dev/null
+echo "validator-tests OK"
+
 echo "verify: OK"

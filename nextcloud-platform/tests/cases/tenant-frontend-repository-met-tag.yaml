@@ -1,0 +1,14 @@
+---
+tenant:
+  name: canary-accept
+  environment: accept
+  wave: "0"
+  dbType: postgres
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    registry: docker.io
+    repository: conduction2022/woo-website-v2:V1
