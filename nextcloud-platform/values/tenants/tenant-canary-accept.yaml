@@ -9,4 +9,20 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # PROEF (2026-08-11): de BYO-certificaattak op canary. `issuer: none` zet géén
+  # cert-manager-annotatie op de Ingress, dus geen Certificate-object en geen
+  # Let's Encrypt die het gezaaide secret overschrijft. Dat is de tak die
+  # roosendaal-prod al gebruikt voor zijn gekochte certSIGN-cert; hier toetsen we
+  # hem met een self-signed cert op een host waar dat niemand pijn doet.
+  #
+  # Het secret `canary-selfsigned-tls` wordt HANDMATIG gezaaid en staat niet in
+  # git — zie React-base docs/ADDING-TENANT.md § "TLS-velden". Zonder dat secret
+  # serveert de Ingress geen bruikbaar cert, dus zaai eerst, push daarna.
+  #
+  # Terugdraaien = dit blok weghalen; de Ingress valt dan terug op
+  # wildcard-openwoo-tls (het gedeelde *.openwoo.app-cert).
+  frontend:
+    tls:
+      secretName: canary-selfsigned-tls
+      issuer: none
 
