@@ -20,6 +20,6 @@ tenant:
       secretName: acceptatie-open-tubbergen-nl-tls
       issuer: letsencrypt-prod
     branding:
-      organisationName: Gemeente tubbergen
+      organisationName: "Gemeente Tubbergen"
       themeClassname: tubbergen-theme
       jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-tubbergen/main/jumbotron.jpg"
