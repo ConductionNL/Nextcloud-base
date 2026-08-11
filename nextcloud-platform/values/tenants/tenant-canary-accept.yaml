@@ -9,4 +9,15 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Proefpin om te verifiëren dat een image-pin uit git daadwerkelijk op een
+  # bestaande Deployment landt (React-base, 2026-08-11). Tot die wijziging was
+  # de image ignore-diffed en bleef live op de platform-default staan.
+  # De tag wijkt bewust af van values/common.yaml, zodat de uitkomst
+  # ondubbelzinnig is. Verwijderen zodra de verificatie rond is.
+  frontend:
+    registry: "docker.io"
+    repository: "conduction2022/woo-website-v2"
+    tag: "V1.0.260519-development"
+    branding:
+      organisationName: "Canary (proefpin 2026-08-11)"
 
