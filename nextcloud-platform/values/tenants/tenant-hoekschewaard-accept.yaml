@@ -12,7 +12,7 @@ tenant:
 
   frontend:
     branding:
-      organisationName: Gemeente hoekschewaard
+      organisationName: "Gemeente Hoeksche Waard"
       themeClassname: conduction-theme
       jumbotronImageUrl: https://github.com/ConductionNL/woo-website-hoekschewaard/blob/main/Jumbotron.jpeg
     tag: latest
