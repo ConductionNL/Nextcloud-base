@@ -12,7 +12,7 @@ tenant:
       - openconnector
       - openregister
   frontend:
-    tag: "woo-website-v2:V1.0.260422-development"
+    tag: "V1.0.260422-development"
     host: open.tubbergen.nl
     tls:
       secretName: open-tubbergen-nl-tls
