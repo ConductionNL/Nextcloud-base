@@ -8,6 +8,40 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Gewijzigd — 2026-08-11 (epe-prod: `issuer: none`, want CAA sluit Let's Encrypt uit)
+
+`certificate/open-epe-nl-tls` in ns `epe-prod` bleef falen op een `invalid`
+order. Reden uit de challenge: `403 urn:ietf:params:acme:error:caa`. Het
+CAA-record van `epe.nl` staat alleen digicert, certSIGN, kpn, entrust, sectigo
+en ssl.com toe — Let's Encrypt staat er niet bij en kan er dus nooit uitgeven.
+
+- `nextcloud-platform/values/tenants/tenant-epe-prod.yaml`: `frontend.tls.issuer`
+  op **`none`**, met `secretName: open-epe-nl-tls` en een comment die de CA, de
+  vervaldatum en de herkomst vastlegt. Daarmee zet de `react-tenants`-
+  ApplicationSet geen `cert-manager.io/cluster-issuer` meer op de ingress, is er
+  geen ingress-shim en dus geen `Certificate` dat het klantcertificaat kan
+  overschrijven.
+
+Het certificaat zelf (Sectigo OV, `CN=open.epe.nl`, SAN ook `www.open.epe.nl`)
+bestond al in de oude namespace `epe` als
+`epe-prod-reactfront-woo-website-frontend-tls` en is met de hand overgezet naar
+`epe-prod` onder de naam `open-epe-nl-tls`. Buiten git, conform
+`openwoo-app-config/docs/custom-domain-cert.md`.
+
+**Waarom het `tls`-blok niet weg mag.** Commit `d2e07d9` haalde het hele blok
+weg om de LE-poging te stoppen. Dat stopt de poging, maar haalt ook de
+verwijzing naar het secret weg: zonder `secretName` valt de ApplicationSet
+terug op de default `wildcard-openwoo-tls` (`*.openwoo.app`), en die naam past
+niet bij `open.epe.nl`. Argo synct dat, nginx serveert zijn fake-certificaat en
+de site is stuk — met een geldig, geseed certificaat dat gewoon niet wordt
+aangewezen. Leeg is dus niet hetzelfde als `none`; dat staat nu als comment in
+het tenantbestand zelf.
+
+**Let op bij verlenging:** dit certificaat verloopt **2026-09-02** en valt met
+`issuer: none` buiten `CertificateExpiringSoon` — die alert leest een metriek
+die cert-manager alleen voor `Certificate`-objecten produceert. Deze comment en
+deze entry zijn de enige bewaking die er is.
+
 ### Gewijzigd — 2026-08-10 (docs-touched: documentatie wijzigt mee met de code)
 
 De gates keken tot nu toe naar de hele boom en nooit naar wat je pusht. Daarmee
