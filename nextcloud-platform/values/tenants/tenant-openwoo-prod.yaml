@@ -10,5 +10,10 @@ tenant:
       - openconnector
       - openregister
   frontend:
-    tag: "1.0.0-development.3"
+    tag: "1.0.0"
     host: open.openwoo.app
+    branding:
+      organisationName: "OpenWoo.app"
+      themeClassname: "openwoo-theme"
+      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/other/openwoo/jumbotron.svg"
+      faviconUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/other/openwoo/favicon.ico"
