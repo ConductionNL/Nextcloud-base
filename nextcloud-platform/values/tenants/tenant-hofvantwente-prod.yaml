@@ -1,0 +1,21 @@
+---
+tenant:
+  name: hofvantwente-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    host: open.hofvantwente.nl
+    tls:
+      secretName: open-hofvantwente-nl-tls
+      issuer: letsencrypt-prod
+    branding:
+      organisationName: "Gemeente Hofvantwente"
+      themeClassname: "hofvantwente-theme"
