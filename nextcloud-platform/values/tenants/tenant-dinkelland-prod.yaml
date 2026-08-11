@@ -12,6 +12,7 @@ tenant:
       - openconnector
       - openregister
   frontend:
+    tag: "latest"
     host: open.dinkelland.nl
     tls:
       secretName: open-dinkelland-nl-tls
