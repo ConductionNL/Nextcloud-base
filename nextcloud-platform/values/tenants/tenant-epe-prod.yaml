@@ -14,9 +14,7 @@ tenant:
   frontend:
     tag: "V1.0.260422-development"
     host: open.epe.nl
-    tls:
-      secretName: open-epe-nl-tls
-      issuer: letsencrypt-prod
+    
     branding:
       organisationName: "gemeente Epe"
       themeClassname: "epe-theme"
