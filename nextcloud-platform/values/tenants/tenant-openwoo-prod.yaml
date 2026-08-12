@@ -12,8 +12,8 @@ tenant:
   frontend:
     host: open.openwoo.app
     registry: "ghcr.io"
-      repository: "conductionnl/woo-website-v2"
-      tag: "1.0.0"
+    repository: "conductionnl/woo-website-v2"
+    tag: "1.0.0"
     branding:
       organisationName: "OpenWoo.app"
       themeClassname: "openwoo-theme"
