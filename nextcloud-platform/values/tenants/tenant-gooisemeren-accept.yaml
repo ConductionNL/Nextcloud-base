@@ -1,0 +1,22 @@
+---
+tenant:
+  name: gooisemeren-accept
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    host: acceptatie-open.gooisemeren.nl
+    tls:
+      secretName: acceptatie-open-gooisemeren-nl-tls
+      issuer: letsencrypt-prod
+    branding:
+      organisationName: "Gemeente Gooisemeren"
+      themeClassname: "gooise-meren-theme"
+      jumbotronImageUrl: "https://gooisemeren.commonground.nu/apps/files_sharing/publicpreview/r2PweGxKCpj2eYJ?file=/&fileId=13943&x=3440&y=1440&a=true&etag=535be4771a6b55edeb224dfb26eb8135"
