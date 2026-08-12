@@ -12,5 +12,13 @@ tenant:
       - openconnector
       - openregister
   frontend:
+    tag: "v1.0.0"
+    host: open.openwoo.app
+    registry: "ghcr.io"
+    repository: "conductionnl/woo-website-v2"
     branding:
-      organisationName: "Gemeente Voorschoten"
+      organisationName: "gemeente Voorschoten"
+      themeClassname: "voorschoten-theme"
+      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/other/voorschoten/jumbotron.webp"
+      faviconUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/other/voorschoten/favicon.ico"
+      footerHideLogo: "true"
