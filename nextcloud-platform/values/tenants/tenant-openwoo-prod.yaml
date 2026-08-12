@@ -10,7 +10,7 @@ tenant:
       - openconnector
       - openregister
   frontend:
-    tag: "1.0.0"
+    tag: "v1.0.0"
     host: open.openwoo.app
     registry: "ghcr.io"
     repository: "conductionnl/woo-website-v2"
