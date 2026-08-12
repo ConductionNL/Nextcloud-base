@@ -13,7 +13,7 @@
 # terugdraaien. Voeg dus alleen tenants toe die daadwerkelijk live zijn.
 
 # MariaDB
-gooisemeren.accept.commonground.nu
+
 
 # PostgreSQL
 almere.accept.commonground.nu
