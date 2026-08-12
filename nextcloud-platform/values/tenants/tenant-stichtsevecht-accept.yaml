@@ -12,6 +12,8 @@ tenant:
   # Migratie legacy frontend (ns stichtsevecht) 2026-07-06 — waardes 1:1 uit de
   # legacy deploy. Favicon is een inline data-URI en gaat live mee (ignore-diff).
   frontend:
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
     tag: latest
     host: acceptatie-open.stichtsevecht.nl
     tls:

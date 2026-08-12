@@ -15,6 +15,8 @@ tenant:
   # Jumbotron komt uit de eigen Nextcloud (publicpreview) — host blijft gelijk.
   # Favicon is een inline data-URI en gaat live mee (ignore-diff).
   frontend:
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
     tag: "V1.0.260422-development"
     host: acceptatie-open.hofvantwente.nl
     tls:

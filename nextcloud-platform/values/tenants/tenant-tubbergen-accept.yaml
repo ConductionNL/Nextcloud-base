@@ -14,6 +14,8 @@ tenant:
   # legacy deploy (favicon/footer-href waren daar leeg; theme deelt assets met
   # noaberkracht). Favicon evt. later live zetten (ignore-diff).
   frontend:
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
     tag: latest
     host: acceptatie-open.tubbergen.nl
     tls:

@@ -19,6 +19,8 @@ tenant:
   # open-buren-nl-tls (geen Argo-labels, overleeft cutover) — issuer "none"
   # zodat cert-manager er vanaf blijft.
   frontend:
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
     tag: latest
     host: open.buren.nl
     tls:

@@ -12,6 +12,8 @@ tenant:
       - openconnector
       - openregister
   frontend:
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
     tag: "V1.0.260422-development"
     host: open.epe.nl
     # Het tls-blok MOET hier staan, ook zonder cert-manager. Zonder secretName
