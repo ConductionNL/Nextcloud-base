@@ -13,6 +13,9 @@ tenant:
       - openregister
   frontend:
     host: open.buren.nl
+    tag: "v1.0.0"
+    registry: "ghcr.io"
+    repository: "conductionnl/woo-website-v2"
     tls:
       secretName: open-buren-nl-tls
       issuer: none
