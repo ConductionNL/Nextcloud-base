@@ -1,0 +1,41 @@
+# Default values — overschreven via de inline values van de ApplicationSet.
+# Rendert NIETS tenzij gateway.enabled true is. Bestaande tenants hebben geen
+# `tenant.gateway` in hun bestand en merken hier dus niets van.
+
+tenant:
+  name: ""
+  host: ""                 # volledige hostnaam, berekend door de ApplicationSet
+  tlsSecretName: ""        # bestaand per-host TLS-secret in deze namespace
+
+gateway:
+  enabled: false           # opt-in per tenant
+
+  name: platform-gateway
+  namespace: envoy-gateway-system
+
+  # De listener op de gedeelde Gateway. Voor commonground.nu-hosts is dat
+  # vandaag een per-host listener, want er is geen wildcard-certificaat voor
+  # die zone — zie docs/GATEWAY-API.md, dat is de rem op opschalen.
+  sectionName: ""
+
+  # De Gateway staat in een andere namespace en mag het TLS-secret van deze
+  # tenant alleen lezen met een ReferenceGrant. Die hoort hier, want hij is
+  # namespace-scoped en dus tenant-eigendom.
+  referenceGrant: true
+
+# Gedragspariteit met de ingress-nginx-annotaties uit values/common.yaml.
+# Deze waarden zijn GEMETEN aan de response van een draaiende tenant, niet
+# afgeleid uit de annotaties — zie docs/GATEWAY-API.md voor waarom dat verschil
+# maakt (hsts-max-age is geen geldige annotatie).
+route:
+  # nginx staat op 1800s; Envoy's default is 15s. Zonder dit breekt elke upload.
+  timeout: 1800s
+
+  hsts: "max-age=31536000; includeSubDomains"
+
+  cors:
+    allowOrigins: ["*"]
+    allowMethods: [GET, PUT, POST, DELETE, PATCH, OPTIONS]
+    allowHeaders: [X-Forwarded-For]
+    allowCredentials: true
+    maxAge: 1728000

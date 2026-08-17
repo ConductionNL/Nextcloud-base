@@ -9,3 +9,11 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # Gateway API-canary. Beide routes lopen NAAST de bestaande Ingress; er
+  # verschuift geen verkeer zolang het DNS-record naar ingress-nginx wijst.
+  # sectionName verwijst naar de per-host listener op de gedeelde Gateway —
+  # nodig omdat er geen wildcard-certificaat voor commonground.nu is.
+  gateway:
+    frontend: true
+    nextcloud: true
+    sectionName: https-canary-nextcloud

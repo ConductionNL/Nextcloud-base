@@ -1,0 +1,5 @@
+apiVersion: v2
+name: tenant-httproute
+description: Per-tenant Gateway API HTTPRoute naast de bestaande Ingress, voor de migratie weg van ingress-nginx. Rendert alleen voor tenants die gateway.nextcloud aanzetten.
+type: application
+version: 1.0.0

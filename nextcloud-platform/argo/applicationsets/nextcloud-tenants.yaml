@@ -249,6 +249,44 @@ spec:
                 dbType: "{{ default "postgres" .tenant.dbType }}"
               secrets:
                 managed: {{ default false .tenant.secrets.managed }}
+
+        # Gateway API-route naast de Ingress hierboven (migratie weg van
+        # ingress-nginx). Rendert niets tenzij het tenant-bestand
+        # `gateway.nextcloud: true` zet, dus bestaande tenants zien geen enkele
+        # wijziging in hun values — dat is met opzet: een blok dat áltijd wordt
+        # meegegeven zou alle 84 Applications tegelijk laten hersyncen.
+        #
+        # `gateway.sectionName` is verplicht bij het aanzetten. De gedeelde
+        # Gateway heeft per commonground.nu-host een eigen listener nodig, want
+        # voor die zone bestaat geen wildcard-certificaat. Dat is de rem op
+        # opschalen; zie docs/GATEWAY-API.md.
+        - repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
+          targetRevision: '{{ if eq (toString .tenant.wave) "0" }}HEAD{{ else if eq .tenant.environment "accept" }}release-accept{{ else }}release{{ end }}'
+          path: charts/tenant-httproute
+          helm:
+            releaseName: "nextcloud-httproute"
+            values: |
+              {{- $gw := default (dict) .tenant.gateway -}}
+              {{- if (index $gw "nextcloud") }}
+              {{- $name := .tenant.name -}}
+              {{- $suffix := regexFind "(accept|test|prod)$" $name -}}
+              {{- $org := regexReplaceAll "-(accept|test|prod)$" $name "" -}}
+              {{- $omgeving := default .tenant.environment $suffix -}}
+              {{- $computedHost := "" -}}
+              {{- if eq $omgeving "prod" -}}
+              {{- $computedHost = printf "%s.commonground.nu" $org -}}
+              {{- else -}}
+              {{- $computedHost = printf "%s.%s.commonground.nu" $org $omgeving -}}
+              {{- end -}}
+              {{- $host := default $computedHost .tenant.hostname }}
+              tenant:
+                name: "{{ $name }}"
+                host: "{{ $host }}"
+                tlsSecretName: "nextcloud-{{ $name }}-tls"
+              gateway:
+                enabled: true
+                sectionName: "{{ index $gw "sectionName" }}"
+              {{- end }}
       
       # Destination: tenant-specific namespace
       destination:
