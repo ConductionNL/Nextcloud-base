@@ -13,9 +13,20 @@ de Nextcloud-kant.
 ## De verdeling
 
 Cluster-infra bezit de `Gateway`. Deze repo bezit de **route** van een tenant:
-`charts/tenant-httproute`, meegerenderd door de ApplicationSet `nextcloud-tenants`
-als vierde source, precies zoals `tenant-hpa` en `tenant-secret`. Cluster-infra
-heeft daardoor geen schrijfrecht in tenant-namespaces nodig.
+`charts/tenant-httproute`. Cluster-infra heeft daardoor geen schrijfrecht in
+tenant-namespaces nodig.
+
+De route komt uit een **aparte ApplicationSet**, `nextcloud-tenant-routes`, en
+niet als vierde source in `nextcloud-tenants`. Dat is een bewuste keuze: een
+source toevoegen verandert de spec van alle 84 tenant-Applications en laat ze
+allemaal hersyncen, ook al rendert de chart voor 83 van hen niets. De
+post-selector op `tenant.gateway.nextcloud` genereert alleen iets voor tenants
+die het aanzetten — nul effect op de rest, en per gemigreerde tenant één kleine
+Application `nc-<tenant>-httproute` die je los kunt syncen en weggooien.
+
+`templatePatch` — het mechanisme waarmee `react-tenants` een key voorwaardelijk
+zet — kan dit niet: dat is een merge-patch en die vervángt lijsten, dus de hele
+`sources`-lijst zou erin herhaald moeten worden.
 
 De chart levert twee objecten: de `HTTPRoute` en een `ReferenceGrant` die de
 Gateway het TLS-secret van deze tenant laat lezen. Die grant hoort hier omdat

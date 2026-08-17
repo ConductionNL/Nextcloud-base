@@ -5,11 +5,20 @@ Het platform migreert weg van ingress-nginx: upstream gearchiveerd op
 `allow-snippet-annotations: true` + `annotations-risk-level: Critical` — elke
 namespace met Ingress-rechten kan er nginx-configuratie mee injecteren.
 
-Nieuwe lokale chart `charts/tenant-httproute`, meegerenderd door
-`nextcloud-tenants` als vierde source, net als `tenant-hpa` en `tenant-secret`.
-Levert een `HTTPRoute` naast de bestaande Ingress plus een `ReferenceGrant` die
-de gedeelde Gateway het TLS-secret van de tenant laat lezen. Die grant hoort
-hier omdat een ReferenceGrant altijd in de namespace staat die iets weggeeft.
+Nieuwe lokale chart `charts/tenant-httproute` en een aparte ApplicationSet
+`nextcloud-tenant-routes` die hem uitrolt. Levert een `HTTPRoute` naast de
+bestaande Ingress plus een `ReferenceGrant` die de gedeelde Gateway het
+TLS-secret van de tenant laat lezen. Die grant hoort hier omdat een
+ReferenceGrant altijd in de namespace staat die iets weggeeft.
+
+**Een aparte ApplicationSet en niet een vierde source in `nextcloud-tenants`.**
+Een source toevoegen verandert de spec van alle 84 tenant-Applications en laat
+ze allemaal hersyncen, ook al rendert de chart voor 83 van hen niets.
+`templatePatch` kan dit niet oplossen: dat is een merge-patch en die vervángt
+lijsten, dus de hele `sources`-lijst inclusief het inline values-blok van ruim
+honderd regels zou erin herhaald moeten worden. De post-selector op
+`tenant.gateway.nextcloud` genereert alleen iets voor tenants die het aanzetten
+— zelfde mechaniek als de `frontend.enabled`-selector in react-tenants.
 
 Opt-in per tenant:
 

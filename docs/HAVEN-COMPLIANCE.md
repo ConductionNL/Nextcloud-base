@@ -25,9 +25,10 @@ Every tenant is a set of Kubernetes resources generated from Git state and recon
   `argo/applicationsets/nextcloud-tenants.yaml`.
 - Each tenant Application is **multi-source**: the core Nextcloud workload comes from the
   upstream, community-maintained `nextcloud/nextcloud` Helm chart
-  (`https://nextcloud.github.io/helm/`); this repo supplies layered values plus a thin companion
-  chart, `platform/tenant-resources`, for the platform-specific glue (ExternalSecret,
-  NetworkPolicy, PDB, ServiceMonitor, namespace, database provisioning job).
+  (`https://nextcloud.github.io/helm/`); this repo supplies layered values plus two small
+  companion charts, `charts/tenant-hpa` and `charts/tenant-secret`. Tenants that have
+  migrated to Gateway API get a third, `charts/tenant-httproute`, from the separate
+  `nextcloud-tenant-routes` ApplicationSet.
 - `syncPolicy.automated: { prune: true, selfHeal: true }` — cluster drift is corrected
   automatically back to Git state, and Git state is the only path to changing the cluster (see
   `docs/ARCHITECTURE.md` §2, "Golden rule: Argo reads GitHub").
@@ -92,10 +93,20 @@ Crash-safe, maar permanent down.
 - Platform-level governance templates exist for tenant namespaces: `ResourceQuota`,
   `LimitRange`, `PriorityClass` — `platform/policies/{resource-quotas,limit-ranges,priority-classes}.yaml`.
 
-## 5. Availability: PodDisruptionBudget
+## 5. Availability: PodDisruptionBudget — open gap
 
-Every tenant gets a `PodDisruptionBudget` from the companion chart:
-`platform/tenant-resources/templates/pdb.yaml`.
+**Corrected 2026-08-17.** This section claimed every tenant gets a
+`PodDisruptionBudget` from a companion chart `platform/tenant-resources`. That chart was
+never referenced by any ApplicationSet and has been deleted; the claim was false.
+
+What actually runs: the only `PodDisruptionBudget` in a tenant namespace comes from the
+`postgresql` subchart and protects the database, not the Nextcloud workload. Measured
+2026-08-17: **zero** PDBs across the fleet select `app.kubernetes.io/name: nextcloud`.
+
+The practical impact is limited today because `replicaCount` is 1 and HPA is disabled for
+the reason in §6 — a PDB over a single replica cannot protect much. It becomes a real gap
+the moment the stateless/S3-primary HA path lands. Deciding whether to add one is open work,
+deliberately not folded into the change that found this.
 
 ## 6. Horizontal scaling — status and honest gap
 
@@ -120,8 +131,9 @@ User-facing files are **not** subject to this constraint — see §8.
   (`argo/applicationsets/nextcloud-tenants.yaml`), which is also how NetworkPolicies scope
   allowed traffic (§9) without per-tenant manual updates.
 - Prometheus scrape annotations are set by default (`podAnnotations` in `values/common.yaml`),
-  and a `ServiceMonitor` template ships in the companion chart
-  (`platform/tenant-resources/templates/servicemonitor.yaml`).
+  and each tenant has a `ServiceMonitor` — verified present in every tenant namespace on
+  2026-08-17. It comes from the **upstream** `nextcloud` chart, not from a companion chart of
+  ours; the earlier citation to `platform/tenant-resources` was wrong.
 
 ## 8. Resilience to infrastructure churn (S3-primary storage)
 
@@ -134,9 +146,21 @@ reachable independent of cluster node state. See README.md → "Waarom S3 Primar
 ## 9. Multi-tenant isolation
 
 - One Kubernetes namespace per tenant, named after `tenant.name`.
-- `NetworkPolicy` (`platform/tenant-resources/templates/networkpolicy.yaml`) restricts traffic to
-  namespaces carrying the shared `app.kubernetes.io/part-of: nextcloud-platform` label — new
-  tenants are isolated by default without any manual policy update.
+- **Corrected 2026-08-17 — the Nextcloud workload has no NetworkPolicy.** This section cited
+  `platform/tenant-resources/templates/networkpolicy.yaml` as the source of default isolation.
+  That chart was never deployed by any ApplicationSet and has been deleted.
+
+  What actually runs in a tenant namespace, measured 2026-08-17: one `NetworkPolicy` from the
+  `postgresql` subchart, and three (`default-deny`, `allow-ingress`, `allow-egress`) from the
+  **React frontend** chart. None of them selects the Nextcloud pod. The claim that "new tenants
+  are isolated by default" did not hold for the Nextcloud workload itself.
+
+  The namespace label the policies key on (`app.kubernetes.io/part-of: nextcloud-platform`) *is*
+  applied, via `managedNamespaceMetadata` in the tenant ApplicationSet — so the mechanism is in
+  place, only the policy that would use it is missing.
+
+  Closing this is open work and a deliberate decision, not a documentation fix: a default-deny
+  over a live fleet of ~50 tenants needs its own change with a staged rollout.
 
 ## 10. Auditability and rollback
 
