@@ -13,8 +13,14 @@ tenant:
       - openregister
   frontend:
     host: open.oude-ijsselstreek.nl
+    tag: "v1.0.0"
+    registry: "ghcr.io"
+    repository: "conductionnl/woo-website-v2"
     branding:
-      organisationName: "Gemeente Oude IJsselstreek"
+      organisationName: gemeente Oude IJsselstreek
+      themeClassname: oude-ijsselstreek-theme
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/oude-ijsselstreek/jumbotron.webp
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/oude-ijsselstreek/favicon.ico
     tls:
       secretName: oudeijsselstreek-frontend-tls
       # Betaald certSIGN-cert (verloopt 14 feb 2027), handmatig gezaaid.

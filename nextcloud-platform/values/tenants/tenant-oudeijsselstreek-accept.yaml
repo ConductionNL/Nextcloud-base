@@ -15,7 +15,9 @@ tenant:
   # oude-ijsselstreek.nl, tenant-naam niet). LET OP cutover: legacy app heet
   # oudeijsselstreek-accept-react (geen adoptie door de appset).
   frontend:
-    tag: dev
+    tag: "v1.0.0"
+    registry: "ghcr.io"
+    repository: "conductionnl/woo-website-v2"
     host: acceptatie-open.oude-ijsselstreek.nl
     tls:
       secretName: acceptatie-open-oude-ijsselstreek-nl-tls
@@ -26,4 +28,5 @@ tenant:
     branding:
       organisationName: gemeente Oude IJsselstreek
       themeClassname: oude-ijsselstreek-theme
-      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-oude-ijsselstreek/main/jumbotron.jpg"
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/oude-ijsselstreek/jumbotron.webp
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/oude-ijsselstreek/favicon.ico
