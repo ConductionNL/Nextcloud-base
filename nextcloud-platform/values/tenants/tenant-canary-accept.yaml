@@ -17,10 +17,3 @@ tenant:
     frontend: true
     nextcloud: true
     sectionName: https-canary-nextcloud
-  # IPv6-canary (2026-08-18): zet het DNS-record achter de Cloudflare-proxy, zodat
-  # deze host AAAA krijgt zonder dat onze loadbalancer IPv6 doet. Kan hier veilig
-  # omdat het wildcard-certificaat via DNS-01 vernieuwt, niet via een
-  # HTTP-challenge door de proxy. Vereist een Configuration Rule met
-  # SSL: Full (strict) voor deze host — zie cluster-infra/docs/cloudflare-ipv6.md.
-  frontend:
-    proxied: true
