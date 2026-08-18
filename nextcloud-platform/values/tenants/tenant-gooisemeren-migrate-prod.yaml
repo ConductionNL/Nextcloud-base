@@ -33,8 +33,10 @@ tenant:
       secretName: gooisemeren-frontend-tls
       issuer: letsencrypt-prod
     branding:
-      organisationName: "Gemeente Gooise Meren"
-      themeClassname: gooise-meren-theme
+      organisationName: "gemeente Gooise Meren"
+      themeClassname: "gooise-meren-theme"
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/gooise-meren/jumbotron.webp
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/gooise-meren/favicon.ico
 
 # Gooise Meren is the only tenant with substantial local disk needs
 # (platform default is 50Gi in common.yaml).
