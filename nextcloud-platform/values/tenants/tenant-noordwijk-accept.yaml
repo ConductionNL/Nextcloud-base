@@ -21,6 +21,6 @@ tenant:
       issuer: letsencrypt-prod
     branding:
       organisationName: "Gemeente Noordwijk"
-      themeClassname: "noordwijk-theme"      
+      themeClassname: "noordwijk-theme"
       jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/noordwijk/jumbotron.webp
       faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/noordwijk/favicon.ico

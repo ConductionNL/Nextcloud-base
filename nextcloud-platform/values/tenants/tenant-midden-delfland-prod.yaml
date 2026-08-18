@@ -19,5 +19,5 @@ tenant:
       organisationName: "Gemeente Midden Delfland"
       themeClassname: "midden-delfland-theme"
       jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/midden-delfland/jumbotron.webp
-      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/midden-delfland/favicon.ico      footerHideLogo: "true"
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/midden-delfland/favicon.ico
       footerHideLogo: "true"
