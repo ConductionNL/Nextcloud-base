@@ -2,6 +2,13 @@
 
 Nextcloud pods cannot run at RS>1 because the `/var/www/html` code volume uses a RWO Cinder PVC — only one node can mount it at a time. With pod anti-affinity across nodes this permanently blocks high availability, HPA, and zero-downtime rolling updates. The infrastructure and HPA wiring already exist; only the storage constraint remains.
 
+> **Openstaand bij deze change: de PodDisruptionBudget.** Zolang `replicaCount`
+> 1 is, is er bewust geen PDB voor de Nextcloud-workload — `minAvailable: 1`
+> blokkeert dan node drains en `maxUnavailable: 1` beweert niets. Dat besluit en
+> de trigger staan in `openspec/changes/tenant-isolation-and-pdb`. Zodra déze
+> change RS>1 mogelijk maakt, vervalt de reden en hoort de PDB alsnog te komen.
+> Landt RS>1 zonder dat, dan is dat een omissie.
+
 ## What Changes
 
 - **BREAKING**: Replace the RWO Cinder StorageClass with a Cinder multi-attach (`tier-1m`) StorageClass that supports `ReadWriteMany` — all replica pods share the same `/var/www/html` volume

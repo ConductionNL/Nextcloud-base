@@ -2,6 +2,13 @@
 
 Nextcloud pods share a Cinder block volume (`cinder-rwx`) for `/var/www/html`. ext4 is not a cluster filesystem — concurrent writes from RS=2 pods cause inode corruption (confirmed 2026-03-09). Until this is solved, canary-prod is locked at RS=1 with no real HA. Eliminating the shared PVC entirely is the correct fix: S3 already handles data, Redis handles locking, and the application code can be baked into a versioned image. This unblocks RS=2+ HA for all tenants.
 
+> **Openstaand bij deze change: de PodDisruptionBudget.** Zolang `replicaCount`
+> 1 is, is er bewust geen PDB voor de Nextcloud-workload — `minAvailable: 1`
+> blokkeert dan node drains en `maxUnavailable: 1` beweert niets. Dat besluit en
+> de trigger staan in `openspec/changes/tenant-isolation-and-pdb`. Zodra déze
+> change RS>1 mogelijk maakt, vervalt de reden en hoort de PDB alsnog te komen.
+> Landt RS>1 zonder dat, dan is dat een omissie.
+
 ## What Changes
 
 - **New**: Dedicated image build repo (`nextcloud-image`) that produces `conduction/nextcloud:{nc-version}-{apps-version}` images with opencatalogi, openconnector, and openregister pre-installed, plus a declarative manifest for additional PHP extensions (e.g. `pdo_pgsql`, `soap`) — operators add an extension by editing the manifest, not the Dockerfile
