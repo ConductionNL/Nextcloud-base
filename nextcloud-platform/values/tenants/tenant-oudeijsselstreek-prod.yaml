@@ -21,6 +21,7 @@ tenant:
       themeClassname: oude-ijsselstreek-theme
       jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/oude-ijsselstreek/jumbotron.webp
       faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/oude-ijsselstreek/favicon.ico
+      footerHideLogo: true
     tls:
       secretName: oudeijsselstreek-frontend-tls
       # Betaald certSIGN-cert (verloopt 14 feb 2027), handmatig gezaaid.
