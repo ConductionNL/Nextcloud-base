@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-18 (later 2) — IPv6-canary: canary-accept achter de Cloudflare-proxy
+
+`tenant-canary-accept.yaml` krijgt `frontend.proxied: true`. React-base emit
+daarop de external-dns-annotatie `cloudflare-proxied`, waardoor het DNS-record
+achter de proxy komt en de host AAAA krijgt — onze loadbalancer is IPv4-only.
+
+Eén tenant, wave 0. Bewust niet als platform-default in React-base
+`values/common.yaml`: alle 92 frontend-apps staan op auto-sync met selfHeal, dus
+dat zou de hele vloot binnen minuten proxyen.
+
+`validate-values.sh` kent `proxied` nu als geldige sleutel onder
+`tenant.frontend` — die lijst moet gelijk blijven met wat de ApplicationSet leest.
+
+Voorwaarde aan de Cloudflare-kant: een Configuration Rule met SSL Full (strict)
+voor de geproxiede host.
+
 All notable changes to the Nextcloud multi-tenant GitOps platform are recorded here.
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).

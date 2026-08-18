@@ -19,3 +19,5 @@ secrets.yml
 # OS
 .DS_Store
 Thumbs.db
+# Losse git-worktrees van agent-sessies: geen repo-inhoud.
+.claude/worktrees/

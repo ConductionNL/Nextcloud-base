@@ -516,7 +516,7 @@ validate_frontend_image() {
 # lijsten gelijk als daar een veld bijkomt.
 FRONTEND_KEYS=(
     "enabled" "tag" "registry" "repository" "host" "upstreamHost"
-    "apiBaseUrl" "tls" "extraHosts" "branding" "env" "wellKnown"
+    "apiBaseUrl" "tls" "extraHosts" "branding" "env" "wellKnown" "proxied"
 )
 FRONTEND_BRANDING_KEYS=(
     "organisationName" "themeClassname" "jumbotronImageUrl" "faviconUrl"
