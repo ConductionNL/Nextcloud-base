@@ -9,3 +9,14 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+  # IPv6-canary (2026-08-18): zet het DNS-record achter de Cloudflare-proxy, zodat
+  # deze host AAAA krijgt zonder dat onze loadbalancer IPv6 doet. Veilig omdat het
+  # wildcard-certificaat via DNS-01 vernieuwt, niet via een HTTP-challenge door de
+  # proxy. Vereist een Configuration Rule met SSL Full (strict) — die staat.
+  #
+  # Bewust deze canary en niet de accept-canary: Universal SSL van Cloudflare dekt
+  # `openwoo.app` en `*.openwoo.app`, maar geen tweede niveau zoals
+  # `*.accept.openwoo.app`. Een geproxiede accept-host geeft daardoor een
+  # TLS-handshakefout, tenzij je Advanced Certificate Manager erbij neemt.
+  frontend:
+    proxied: true

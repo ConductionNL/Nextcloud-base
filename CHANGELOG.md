@@ -1,12 +1,25 @@
 # Changelog
 
-## 2026-08-18 (later 2) — IPv6-canary: canary-accept achter de Cloudflare-proxy
+All notable changes to the Nextcloud multi-tenant GitOps platform are recorded here.
 
-`tenant-canary-accept.yaml` krijgt `frontend.proxied: true`. React-base emit
-daarop de external-dns-annotatie `cloudflare-proxied`, waardoor het DNS-record
-achter de proxy komt en de host AAAA krijgt — onze loadbalancer is IPv4-only.
+The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
+Dates are in `YYYY-MM-DD` (Europe/Amsterdam). This file is the audit trail for
+platform-level changes — update it in the same commit as the change.
 
-Eén tenant, wave 0. Bewust niet als platform-default in React-base
+## 2026-08-18 (later 2) — IPv6-canary: de live-canary achter de Cloudflare-proxy
+
+`tenant-canary-prod.yaml` krijgt `frontend.proxied: true`. React-base emit daarop
+de external-dns-annotatie `cloudflare-proxied`, waardoor het DNS-record achter de
+proxy komt en de host AAAA krijgt — onze loadbalancer is IPv4-only.
+
+Eerst op de accept-canary gezet en weer weggehaald na een meting: Universal SSL
+van Cloudflare dekt `openwoo.app` en `*.openwoo.app`, maar geen tweede niveau
+zoals `*.accept.openwoo.app`. `canary.accept.openwoo.app` stond al geproxied in
+Cloudflare en gaf daardoor een TLS-handshakefout. Voor accept-hosts is Advanced
+Certificate Manager nodig (betaalde add-on); daarom loopt de canary via de
+hostnaam met één label.
+
+Eén tenant. Bewust niet als platform-default in React-base
 `values/common.yaml`: alle 92 frontend-apps staan op auto-sync met selfHeal, dus
 dat zou de hele vloot binnen minuten proxyen.
 
@@ -14,14 +27,7 @@ dat zou de hele vloot binnen minuten proxyen.
 `tenant.frontend` — die lijst moet gelijk blijven met wat de ApplicationSet leest.
 
 Voorwaarde aan de Cloudflare-kant: een Configuration Rule met SSL Full (strict)
-voor de geproxiede host.
-
-All notable changes to the Nextcloud multi-tenant GitOps platform are recorded here.
-
-The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
-Dates are in `YYYY-MM-DD` (Europe/Amsterdam). This file is the audit trail for
-platform-level changes — update it in the same commit as the change.
-
+voor de geproxiede host. Die staat en is nagemeten.
 ## [Unreleased]
 
 ### Toegevoegd — 2026-08-18 (ondertekende security.txt voor dinkelland en tubbergen)
