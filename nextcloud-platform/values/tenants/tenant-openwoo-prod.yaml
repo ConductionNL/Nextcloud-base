@@ -19,6 +19,3 @@ tenant:
       themeClassname: "openwoo-theme"
       jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/other/openwoo/jumbotron.svg"
       faviconUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/other/openwoo/favicon.ico"
-
-      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/almere/jumbotron.webp
-      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/almere/favicon.ico
