@@ -13,8 +13,9 @@ tenant:
     registry: docker.io
     repository: conduction2022/woo-website-v2
     tag: latest
-  branding:
+    branding:
       organisationName: "gemeente Baarn"
       themeClassname: "baarn-theme"
       jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/baarn/jumbotron.webp
       faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/baarn/favicon.ico
+      footerHideLogo: true
