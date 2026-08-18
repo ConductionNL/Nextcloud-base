@@ -8,6 +8,32 @@ platform-level changes — update it in the same commit as the change.
 
 ## [Unreleased]
 
+### Toegevoegd — 2026-08-18 (ondertekende security.txt voor dinkelland en tubbergen)
+
+Twee tenant-bestanden krijgen een `frontend.wellKnown`-blok met een
+PGP-ondertekende `security.txt` en de publieke sleutel waar het
+`Encryption`-veld naar wijst: `tenant-dinkelland-prod.yaml` (host
+`open.dinkelland.nl`) en `tenant-tubbergen-prod.yaml` (host
+`open.tubbergen.nl`). Beide zijn ondertekend door `security@noaberkracht.nl`
+(sleutel `8935D1F42231CDDFDE5AA6CD845F93DE817AA1F5`); de accept-tenant van
+tubbergen krijgt niets, want het ondertekende bestand noemt de productiehost
+als `Canonical`.
+
+Aanleiding: audit op open.dinkelland.nl. Wat er stond was de ongetekende
+Conduction-template zonder `Encryption`-veld, en `/.well-known/pgp-key.txt` viel
+in de SPA-catch-all (status 200 met 5 MB HTML in plaats van een sleutel).
+
+Consumerende kant: `wellKnown` wordt gelezen door de React-base ApplicationSet
+en door `charts/woo-website` (ConfigMap + subPath-mount) — zie React-base
+`docs/ADDING-TENANT.md`. De inhoud is byte-gevoelig: één gewijzigd teken maakt
+de signatuur ongeldig zonder dat het aan de buitenkant opvalt. Bewezen na de
+wijziging: `gpg --verify` op de gerenderde ConfigMap-inhoud geeft *Good
+signature*.
+
+`nextcloud-platform/scripts/validate-values.sh` kent `wellKnown` nu als geldige
+sleutel onder `tenant.frontend` — die lijst moet gelijk blijven met wat de
+ApplicationSet leest, anders wordt een veld stil genegeerd.
+
 ### Gewijzigd — 2026-08-11 (epe-prod: `issuer: none`, want CAA sluit Let's Encrypt uit)
 
 `certificate/open-epe-nl-tls` in ns `epe-prod` bleef falen op een `invalid`

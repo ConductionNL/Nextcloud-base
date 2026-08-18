@@ -19,6 +19,44 @@ tenant:
     tls:
       secretName: open-dinkelland-nl-tls
       issuer: letsencrypt-prod
+    # /.well-known/-bestanden, door de chart met subPath over de image-fs
+    # gemount. De security.txt is PGP-ondertekend door security@noaberkracht.nl
+    # (sleutel 8935D1F42231CDDFDE5AA6CD845F93DE817AA1F5) en de pgp-key.txt is de
+    # sleutel waar het Encryption-veld naar wijst. Byte-exact laten staan: één
+    # gewijzigd teken maakt de signatuur ongeldig zonder dat je dat ziet.
+    # Vervangen = de hele blokken vervangen door een nieuw ondertekend bestand.
+    wellKnown:
+      security.txt: |
+        -----BEGIN PGP SIGNED MESSAGE-----
+        Hash: SHA512
+
+        Contact: mailto:security@noaberkracht.nl
+        Expires: 2027-08-17T10:00:00Z
+        Encryption: https://open.dinkelland.nl/.well-known/pgp-key.txt
+        Preferred-Languages: nl, en
+        Canonical: https://open.dinkelland.nl/.well-known/security.txt
+        Hiring: https://werkenbijnoaberkracht.nl/
+        -----BEGIN PGP SIGNATURE-----
+
+        iHUEARYKAB0WIQSJNdH0IjHN395aps2EX5PegXqh9QUCaoMLuQAKCRCEX5PegXqh
+        9cScAQDk/xMWmD7YnsFB+FD4ZeW2YKvrWO7d0MaVAg3Hkx/5AAEAnaVlPO3V5bkk
+        g2Ma89ICpcZZV+L7zPmRp2Zxj6moEQU=
+        =nLCr
+        -----END PGP SIGNATURE-----
+      pgp-key.txt: |
+        -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+        mDMEan7kSRYJKwYBBAHaRw8BAQdArv+/21gH7OnJQexZRYPHXdf01cpf+Vaq4vMv
+        j1Q3H660GHNlY3VyaXR5QG5vYWJlcmtyYWNodC5ubIiWBBMWCgA+FiEEiTXR9CIx
+        zd/eWqbNhF+T3oF6ofUFAmp+5EkCGwMFCQHihQAFCwkIBwIGFQoJCAsCBBYCAwEC
+        HgECF4AACgkQhF+T3oF6ofX+ZwEA8vqBVk03/CzSm5jpCoCnEcPvAL7xElPli/3y
+        mt2U+i4BAM5yoRkmDly/Xvb6mENyQaM86lcNSWfQJS62ihPJUkkNuDgEan7kSRIK
+        KwYBBAGXVQEFAQEHQONvUpqWABUslCxPcUhrFs5yr7JboklgmBk9KGrB7j1WAwEI
+        B4h+BBgWCgAmFiEEiTXR9CIxzd/eWqbNhF+T3oF6ofUFAmp+5EkCGwwFCQHihQAA
+        CgkQhF+T3oF6ofWBtgEAj1uVD7R8qRLk60xMl0NJxdaWLTsO73nkhUl5ebAmRAIB
+        ALANEt6uDKOTKi7efG540Q/2fiHljCtnUg+guiOJczkK
+        =a/4y
+        -----END PGP PUBLIC KEY BLOCK-----
     branding:
       organisationName: "Gemeente Dinkelland"
       themeClassname: "dinkelland-theme"
