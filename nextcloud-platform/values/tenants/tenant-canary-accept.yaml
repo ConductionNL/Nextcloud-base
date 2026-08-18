@@ -11,8 +11,10 @@ tenant:
       - openregister
   # Gateway API-canary. Beide routes lopen NAAST de bestaande Ingress; er
   # verschuift geen verkeer zolang het DNS-record naar ingress-nginx wijst.
-  # sectionName verwijst naar de per-host listener op de gedeelde Gateway —
-  # nodig omdat er geen wildcard-certificaat voor commonground.nu is.
+  # sectionName hoort bij de NEXTCLOUD-route: de per-host listener op de gedeelde
+  # Gateway, nodig omdat er geen wildcard-certificaat voor commonground.nu is.
+  # De frontend gebruikt frontendSectionName en heeft die hier niet nodig — hij
+  # valt onder het openwoo-wildcard en dus onder de default-listener.
   gateway:
     frontend: true
     nextcloud: true

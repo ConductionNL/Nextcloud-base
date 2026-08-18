@@ -16,6 +16,10 @@ gateway:
   # De listener op de gedeelde Gateway. Voor commonground.nu-hosts is dat
   # vandaag een per-host listener, want er is geen wildcard-certificaat voor
   # die zone — zie docs/GATEWAY-API.md, dat is de rem op opschalen.
+  #
+  # Gevoed door tenant.gateway.sectionName. Dat veld is NIET gedeeld met de
+  # frontend-route: die leest tenant.gateway.frontendSectionName. Eén gedeeld
+  # veld hing op 2026-08-18 de frontend aan deze listener.
   sectionName: ""
 
   # De Gateway staat in een andere namespace en mag het TLS-secret van deze
