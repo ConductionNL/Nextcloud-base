@@ -1,0 +1,113 @@
+---
+# Gateway API-route per tenant, als APARTE Application naast `nc-<tenant>`.
+#
+# Waarom niet als vierde source in `nextcloud-tenants`, wat de voor de hand
+# liggende plek lijkt: dat verandert de spec van álle 84 tenant-Applications en
+# laat ze allemaal hersyncen, ook al rendert de chart voor 83 van hen niets. De
+# gerenderde manifests zijn dan identiek, dus het is een no-op — maar het is een
+# vloot-brede Application-wijziging voor een canary, en die verhouding klopt niet.
+#
+# Waarom ook niet met `templatePatch`, het mechanisme dat `react-tenants`
+# gebruikt om een key voorwaardelijk te zetten: dat is een merge-patch, en een
+# merge-patch VERVANGT lijsten. Een source toevoegen zou betekenen dat de hele
+# `sources`-lijst in de patch herhaald wordt, inclusief het inline values-blok
+# van ruim honderd regels. Twee kopieën die uit elkaar gaan lopen is erger dan
+# het probleem.
+#
+# Wat wel werkt is de post-selector, hetzelfde mechanisme waarmee react-tenants
+# `frontend.enabled: false` overslaat: een ontbrekende key matcht `In` niet, dus
+# een tenant zonder `gateway.nextcloud: true` levert geen Application op. Nul
+# effect op de bestaande vloot; per gemigreerde tenant één extra, kleine
+# Application die je los kunt syncen en los kunt weggooien.
+#
+# De route loopt NAAST de bestaande Ingress. Er verschuift geen verkeer: zolang
+# die Ingress bestaat laat external-dns het DNS-record met rust. De cutover is
+# het weghalen van de Ingress. Zie docs/GATEWAY-API.md.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nextcloud-tenant-routes
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=default"]
+
+  # Handmatige opruiming forceert operator-review, net als bij nextcloud-tenants.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+
+  generators:
+    - git:
+        repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
+        revision: release
+        files:
+          - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
+
+      # Opt-in. De post-selector matcht op de geflattende params met dotted keys
+      # (zelfde mechaniek als de `frontend.enabled`-selector in react-tenants).
+      # Een ontbrekende key matcht `In` niet, dus zonder `gateway.nextcloud: true`
+      # wordt er niets gegenereerd.
+      selector:
+        matchExpressions:
+          - key: tenant.gateway.nextcloud
+            operator: In
+            values:
+              - "true"
+
+  template:
+    metadata:
+      name: "nc-{{ .tenant.name }}-httproute"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/part-of: nextcloud-platform
+        nextcloud.platform/tenant: "{{ .tenant.name }}"
+        nextcloud.platform/environment: "{{ .tenant.environment }}"
+      annotations:
+        # Ná de tenant zelf: de route verwijst naar de Service uit die Application.
+        argocd.argoproj.io/sync-wave: "{{ default \"1\" .tenant.wave }}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: nextcloud-platform
+
+      source:
+        repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
+        targetRevision: '{{ if eq (toString .tenant.wave) "0" }}HEAD{{ else if eq .tenant.environment "accept" }}release-accept{{ else }}release{{ end }}'
+        path: charts/tenant-httproute
+        helm:
+          releaseName: "nextcloud-httproute"
+          values: |
+            {{- $name := .tenant.name -}}
+            {{- $suffix := regexFind "(accept|test|prod)$" $name -}}
+            {{- $org := regexReplaceAll "-(accept|test|prod)$" $name "" -}}
+            {{- $omgeving := default .tenant.environment $suffix -}}
+            {{- $computedHost := "" -}}
+            {{- if eq $omgeving "prod" -}}
+            {{- $computedHost = printf "%s.commonground.nu" $org -}}
+            {{- else -}}
+            {{- $computedHost = printf "%s.%s.commonground.nu" $org $omgeving -}}
+            {{- end -}}
+            {{- $host := default $computedHost .tenant.hostname }}
+            tenant:
+              name: "{{ $name }}"
+              host: "{{ $host }}"
+              tlsSecretName: "nextcloud-{{ $name }}-tls"
+            gateway:
+              enabled: true
+              sectionName: "{{ .tenant.gateway.sectionName }}"
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ default .tenant.name .tenant.namespace }}"
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          # De namespace bestaat al; die is van de tenant-Application.
+          - CreateNamespace=false
+          - PrunePropagationPolicy=foreground

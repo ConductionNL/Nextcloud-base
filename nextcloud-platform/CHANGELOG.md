@@ -2,6 +2,57 @@
 
 All notable changes to this repository are documented in this file.
 
+## 2026-08-12 (legacy frontend-image vastgezet op Docker Hub)
+
+### Changed
+- 23 tenantbestanden in `values/tenants/` hebben een expliciete
+  `tenant.frontend.registry: docker.io` +
+  `tenant.frontend.repository: conduction2022/woo-website-v2` gekregen. De
+  bestaande `tag` is ongewijzigd. Elke wijziging is exact +2/-0 regels.
+
+  Nul-diff tegen live: deze tenants pinden alleen een `tag` en erfden het
+  image-pad uit React-base `react-platform/values/common.yaml`, dat op
+  `docker.io/conduction2022/woo-website-v2` stond. De expliciete velden
+  renderen dezelfde string.
+
+  Waarom nu: React-base zet de platform-default om naar
+  `ghcr.io/conductionnl/woo-website-v2:v1.0.0`, zodat elke nieuwe
+  WOO PWA-frontend daar landt. Omdat de chart één string bouwt
+  (`<pwa.image.image>:<pwa.image.tag>`), zouden deze 23 tenants meeverhuizen
+  naar ghcr — met een tag die daar niet bestaat. `V1.0.260422-development` heet
+  op ghcr omgedraaid `development-V1.0.260422` (10 tenants), en `latest`/`dev`
+  bestaan er wél maar met onbevestigde inhoud (13 tenants). Zonder deze commit
+  stallen die 10 in ImagePullBackOff bij de eerstvolgende sync.
+
+  **Deze commit moet vóór de React-base-wijziging landen.**
+
+  Bestanden — tag `V1.0.260422-development` (10): `tenant-almere-accept`,
+  `tenant-buren-accept`, `tenant-dinkelland-prod`, `tenant-epe-accept`,
+  `tenant-epe-prod`, `tenant-helmond-accept`, `tenant-hofvantwente-accept`,
+  `tenant-noaberkracht-accept`, `tenant-roosendaal-prod`, `tenant-tubbergen-prod`.
+  Tag `latest` (8): `tenant-baarn-accept`, `tenant-baarn-prod`,
+  `tenant-buren-prod`, `tenant-helmond-prod`, `tenant-hoekschewaard-accept`,
+  `tenant-lansingerland-prod`, `tenant-stichtsevecht-accept`,
+  `tenant-tubbergen-accept`. Tag `dev` (5): `tenant-moerdijk-accept`,
+  `tenant-moerdijk-prod`, `tenant-oudeijsselstreek-accept`,
+  `tenant-roosendaal-accept`, `tenant-zutphen-accept`.
+
+  Niet aangeraakt: `tenant-openwoo-prod`, `tenant-voorschoten-accept` en
+  `tenant-wassenaar-accept` stonden al op `ghcr.io/conductionnl/woo-website-v2`
+  met tag `v1.0.0`. Hun pin wordt redundant met de nieuwe default, maar
+  weghalen zou de image weer live-bijstelbaar maken (`$pinned` valt weg) —
+  bewust laten staan.
+
+  De eigenaarsregel verandert niet: deze tenants hadden al een `tag`, dus waren
+  al `$pinned` en werden al door Argo gereconcilieerd.
+
+  Geverifieerd op 2026-08-12: `./scripts/verify.sh` groen, en alle 26 gepinde
+  tenants renderen exact de image die live draait (0 afwijkingen).
+
+  Openstaand: de migratie van deze 23 naar ghcr.io. Gefaseerd, canary eerst,
+  24u soak. Aanbeveling: niet de omgedraaide tagnaam overnemen maar de vloot
+  naar `v1.0.0` brengen, anders migreert de inconsistente tagnaamgeving mee.
+
 ## 2026-08-11 (frontend image-reference)
 
 ### Added

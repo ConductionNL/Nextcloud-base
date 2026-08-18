@@ -1,0 +1,58 @@
+{{- if .Values.gateway.enabled }}
+{{- if not .Values.gateway.sectionName }}
+{{- fail "gateway.sectionName is verplicht: de gedeelde Gateway heeft per commonground.nu-host een eigen listener, want er is geen wildcard-certificaat voor die zone." }}
+{{- end }}
+# HTTPRoute naast de bestaande Ingress. Zolang beide bestaan blijft de Ingress
+# het verkeer afhandelen: het DNS-record wijst naar ingress-nginx en external-dns
+# laat dat met rust zolang de Ingress er is. De cutover is dus het WEGHALEN van
+# de Ingress, niet het bijzetten van deze route.
+#
+# Let op bij die cutover: het certificaat van deze host wordt via HTTP-01 over
+# de nginx-Ingress vernieuwd. Verdwijnt de Ingress voordat cert-manager's
+# Gateway-ondersteuning aanstaat (--enable-gateway-api), dan breekt de
+# vernieuwing stil en pas bij de eerstvolgende renewal.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: nextcloud
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: nextcloud
+    app.kubernetes.io/part-of: nextcloud-platform
+    nextcloud.platform/tenant: {{ .Values.tenant.name | quote }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.name }}
+      namespace: {{ .Values.gateway.namespace }}
+      sectionName: {{ .Values.gateway.sectionName }}
+  hostnames:
+    - {{ .Values.tenant.host | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: nextcloud
+          port: 8080
+      timeouts:
+        request: {{ .Values.route.timeout }}
+        backendRequest: {{ .Values.route.timeout }}
+      filters:
+        - type: CORS
+          cors:
+            allowOrigins: {{ toJson .Values.route.cors.allowOrigins }}
+            allowMethods: {{ toJson .Values.route.cors.allowMethods }}
+            allowHeaders: {{ toJson .Values.route.cors.allowHeaders }}
+            allowCredentials: {{ .Values.route.cors.allowCredentials }}
+            # `int` is nodig: Helm leest YAML-getallen als float64 en zou er
+            # anders 1.728e+06 van maken, wat de CRD weigert.
+            maxAge: {{ int .Values.route.cors.maxAge }}
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: {{ .Values.route.hsts | quote }}
+{{- end }}

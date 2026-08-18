@@ -16,6 +16,8 @@ tenant:
   # legacy deploy (tag dev = huidige legacy tag; bewust later bumpen).
   # Favicon is een inline data-URI en gaat live mee (ignore-diff).
   frontend:
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
     tag: dev
     host: open.moerdijk.nl
     # De prod-data staat nog op de LEGACY nextcloud (moerdijk.commonground.nu);

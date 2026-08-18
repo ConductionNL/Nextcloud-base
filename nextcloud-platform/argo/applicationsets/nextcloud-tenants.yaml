@@ -249,6 +249,12 @@ spec:
                 dbType: "{{ default "postgres" .tenant.dbType }}"
               secrets:
                 managed: {{ default false .tenant.secrets.managed }}
+
+        # De Gateway API-route van een tenant staat BEWUST niet hier maar in de
+        # aparte ApplicationSet `nextcloud-tenant-routes`. Een vierde source
+        # toevoegen verandert de spec van álle 84 tenant-Applications en laat ze
+        # allemaal hersyncen, ook al rendert de chart voor 83 van hen niets.
+        # Zie die ApplicationSet voor de afweging.
       
       # Destination: tenant-specific namespace
       destination:

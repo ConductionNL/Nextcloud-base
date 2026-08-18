@@ -15,4 +15,6 @@ tenant:
       organisationName: "Gemeente Hoeksche Waard"
       themeClassname: conduction-theme
       jumbotronImageUrl: https://github.com/ConductionNL/woo-website-hoekschewaard/blob/main/Jumbotron.jpeg
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
     tag: latest

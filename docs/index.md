@@ -45,6 +45,8 @@ hoofdstuk dat je nodig hebt.
 
 ## Hoofdstuk 4 - Operationele runbooks
 
+- `GATEWAY-API.md` - een tenant naast zijn Ingress op de gedeelde Gateway zetten
+  (migratie weg van ingress-nginx), en waarom dat nog niet vloot-breed kan
 - `TENANT-OPERATIONS.md` - tenant reset, volledig verwijderen, opnieuw opzetten
 - `STORAGE-OPERATIONS.md` - PVC resizen, S3-databeheer
 - `DEBUGGING.md` - database-shell/backup, logs, occ-status, one-liners

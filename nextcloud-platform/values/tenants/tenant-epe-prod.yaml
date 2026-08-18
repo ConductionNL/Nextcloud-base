@@ -23,8 +23,9 @@ tenant:
     # het blok in zijn geheel werd weggehaald.
     tls:
       secretName: open-epe-nl-tls
-      # Sectigo OV (Gemeente Epe), verloopt 2026-09-02, met de hand geseed uit
-      # ns epe/epe-prod-reactfront-woo-website-frontend-tls op 2026-08-11.
+      # Sectigo OV (Gemeente Epe), verloopt 2027-02-28, geplaatst met certswap
+      # op 2026-08-14 uit de bundel van de gemeente.
+      # Procedure: openwoo-app-config/docs/custom-domain-cert.md.
       # Let's Encrypt kan hier niet: het CAA-record van epe.nl staat alleen
       # digicert, certSIGN, kpn, entrust, sectigo en ssl.com toe.
       # issuer none = geen annotatie, geen Certificate, dus niets dat het

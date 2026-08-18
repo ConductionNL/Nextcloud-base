@@ -10,6 +10,8 @@ tenant:
       - openconnector
       - openregister
   frontend:
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
     tag: latest
   branding:
       organisationName: "gemeente Baarn"
