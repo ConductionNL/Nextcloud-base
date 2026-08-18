@@ -13,4 +13,7 @@ tenant:
       - openregister
   frontend:
     branding:
-      organisationName: "Gemeente Edetest"
+      organisationName: "Gemeente Ede test"
+      themeClassname: "ede-theme"
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/ede/jumbotron.webp
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/ede/favicon.ico
