@@ -13,8 +13,14 @@ tenant:
       - openregister
   frontend:
     host: open.noaberkracht.nl
+    tag: "v1.0.0"
+    registry: "ghcr.io"
+    repository: "conductionnl/woo-website-v2"
     branding:
-      organisationName: "Noaberkracht"
+      organisationName: Gemeente Noaberkracht
+      themeClassname: noaberkracht-theme
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/partnerships/noaberkracht/jumbotron.webp
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/partnerships/noaberkracht/favicon.ico
     tls:
       secretName: noaberkracht-frontend-tls
       issuer: letsencrypt-prod

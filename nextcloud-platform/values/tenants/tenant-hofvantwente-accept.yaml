@@ -15,9 +15,9 @@ tenant:
   # Jumbotron komt uit de eigen Nextcloud (publicpreview) — host blijft gelijk.
   # Favicon is een inline data-URI en gaat live mee (ignore-diff).
   frontend:
-    registry: docker.io
-    repository: conduction2022/woo-website-v2
-    tag: "V1.0.260422-development"
+    tag: "v1.0.0"
+    registry: "ghcr.io"
+    repository: "conductionnl/woo-website-v2"
     host: acceptatie-open.hofvantwente.nl
     tls:
       secretName: acceptatie-open-hofvantwente-nl-tls
@@ -28,7 +28,8 @@ tenant:
     branding:
       organisationName: Gemeente Hof van Twente
       themeClassname: hof-van-twente-theme
-      jumbotronImageUrl: "https://hofvantwente.commonground.nu/apps/files_sharing/publicpreview/RYsbR2nGycfcM3w?file=/&fileId=1536&x=3440&y=1440&a=true&etag=31a5a3530d87d1853e2027200c33d3ed"
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/hof-van-twente/jumbotron.webp
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/hof-van-twente/favicon.ico
       footerHideLogo: true
     env:
       GATSBY_ANALYTICS_URL: "https://siteimproveanalytics.com/js/siteanalyze_6006029.js"

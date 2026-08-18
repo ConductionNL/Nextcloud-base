@@ -14,3 +14,8 @@ tenant:
     registry: docker.io
     repository: conduction2022/woo-website-v2
     tag: "V1.0.260422-development"
+    branding:
+      organisationName: "Gemeente Buren"
+      themeClassname: "buren-theme"
+      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/buren/jumbotron.webp"
+      faviconUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/buren/favicon.ico"

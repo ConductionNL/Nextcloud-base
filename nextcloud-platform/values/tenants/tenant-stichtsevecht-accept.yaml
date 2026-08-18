@@ -12,15 +12,15 @@ tenant:
   # Migratie legacy frontend (ns stichtsevecht) 2026-07-06 — waardes 1:1 uit de
   # legacy deploy. Favicon is een inline data-URI en gaat live mee (ignore-diff).
   frontend:
-    registry: docker.io
-    repository: conduction2022/woo-website-v2
-    tag: latest
     host: acceptatie-open.stichtsevecht.nl
+    tag: "v1.0.0"
+    registry: "ghcr.io"
+    repository: "conductionnl/woo-website-v2"
     tls:
       secretName: acceptatie-open-stichtsevecht-nl-tls
       issuer: letsencrypt-prod
     branding:
       organisationName: "Gemeente Stichtse Vecht"
       themeClassname: stichtse-vecht-theme
-      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-stichtsevecht/main/jumbotron.jpg"
-
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/stichtsevecht/jumbotron.webp
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/stichtsevecht/favicon.ico
