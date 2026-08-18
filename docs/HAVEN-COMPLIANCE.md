@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-05
+last_reviewed: 2026-08-18
 owner: info@conduction.nl
 ---
 
@@ -93,7 +93,7 @@ Crash-safe, maar permanent down.
 - Platform-level governance templates exist for tenant namespaces: `ResourceQuota`,
   `LimitRange`, `PriorityClass` — `platform/policies/{resource-quotas,limit-ranges,priority-classes}.yaml`.
 
-## 5. Availability: PodDisruptionBudget — open gap
+## 5. Availability: PodDisruptionBudget — deliberately absent
 
 **Corrected 2026-08-17.** This section claimed every tenant gets a
 `PodDisruptionBudget` from a companion chart `platform/tenant-resources`. That chart was
@@ -104,9 +104,13 @@ What actually runs: the only `PodDisruptionBudget` in a tenant namespace comes f
 2026-08-17: **zero** PDBs across the fleet select `app.kubernetes.io/name: nextcloud`.
 
 The practical impact is limited today because `replicaCount` is 1 and HPA is disabled for
-the reason in §6 — a PDB over a single replica cannot protect much. It becomes a real gap
-the moment the stateless/S3-primary HA path lands. Deciding whether to add one is open work,
-deliberately not folded into the change that found this.
+the reason in §6. A PDB over a single replica does not protect availability: `minAvailable: 1`
+stops node drains from ever completing, and `maxUnavailable: 1` permits everything and asserts
+nothing. The current position is therefore that no PDB is correct for this topology, and the
+trigger that reopens it is RS>1 becoming possible (`nextcloud-ha`, `stateless-nextcloud-ha`).
+
+Tracked in `openspec/changes/tenant-isolation-and-pdb`, which records the decision and its
+trigger rather than shipping a manifest.
 
 ## 6. Horizontal scaling — status and honest gap
 
@@ -128,8 +132,9 @@ User-facing files are **not** subject to this constraint — see §8.
 ## 7. Standard labels and observability
 
 - Every tenant namespace is labelled `app.kubernetes.io/part-of: nextcloud-platform`
-  (`argo/applicationsets/nextcloud-tenants.yaml`), which is also how NetworkPolicies scope
-  allowed traffic (§9) without per-tenant manual updates.
+  (`argo/applicationsets/nextcloud-tenants.yaml`). That label is what the platform `redis` and
+  `pgbouncer` NetworkPolicies key on to admit tenants; it is also what a tenant-side policy would
+  use, once there is one (§9).
 - Prometheus scrape annotations are set by default (`podAnnotations` in `values/common.yaml`),
   and each tenant has a `ServiceMonitor` — verified present in every tenant namespace on
   2026-08-17. It comes from the **upstream** `nextcloud` chart, not from a companion chart of
@@ -159,8 +164,10 @@ reachable independent of cluster node state. See README.md → "Waarom S3 Primar
   applied, via `managedNamespaceMetadata` in the tenant ApplicationSet — so the mechanism is in
   place, only the policy that would use it is missing.
 
-  Closing this is open work and a deliberate decision, not a documentation fix: a default-deny
-  over a live fleet of ~50 tenants needs its own change with a staged rollout.
+  Closing this is a deliberate decision, not a documentation fix: a default-deny over a live
+  fleet of ~50 tenants needs its own change with a staged rollout. Tracked in
+  `openspec/changes/tenant-isolation-and-pdb` — ingress before egress, opt-in per tenant, and
+  the allowlist derived from observed traffic rather than from a design-time guess.
 
 ## 10. Auditability and rollback
 
