@@ -13,6 +13,9 @@ tenant:
       - openregister
   frontend:
     host: open.noorderzijlvest.nl
+    tag: "v1.0.0"
+    registry: "ghcr.io"
+    repository: "conductionnl/woo-website-v2"
     tls:
       secretName: open-noorderzijlvest-nl-tls
       # Betaald Sectigo-cert (verloopt 27 nov 2026), teruggezet op 3 jun 2026.
@@ -24,7 +27,8 @@ tenant:
     branding:
       organisationName: "Waterschap Noorderzijlvest"
       themeClassname: noorderzijlvest-theme
-      jumbotronImageUrl: "https://noorderzijlvest.commonground.nu/core/preview?fileId=518&x=3440&y=1440&a=true&etag=7dc48eb50db3bffe8396288398e6018c"
+      jumbotronImageUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/water-authorities/noorderzijlvest/jumbotron.webp
+      faviconUrl: https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/water-authorities/noorderzijlvest/favicon.ico
     env:
       GATSBY_FOOTER_HIDE_LOGO: "true"
       GATSBY_FOOTER_CONTENT_HEADER: "heading-2"
