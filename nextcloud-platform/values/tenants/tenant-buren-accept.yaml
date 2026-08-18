@@ -12,3 +12,8 @@ tenant:
       - openregister
   frontend:
     tag: "V1.0.260422-development"
+    branding:
+      organisationName: "Gemeente Buren"
+      themeClassname: "buren-theme"
+      jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/buren/jumbotron.webp"
+      faviconUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/buren/favicon.ico"
