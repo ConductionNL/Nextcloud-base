@@ -90,6 +90,13 @@ spec:
       kind: "*"
     - group: postgresql.cnpg.io
       kind: "*"
+    # Gateway API: de HTTPRoute en de ReferenceGrant die charts/tenant-httproute
+    # levert voor een tenant die naar de gedeelde Gateway migreert. Zonder deze
+    # regel weigert het project die resources en faalt de HELE Application —
+    # precies wat op 2026-08-18 aan de react-kant gebeurde, waar dezelfde regel
+    # ontbrak en een ongerelateerde Ingress-wijziging erachter bleef steken.
+    - group: gateway.networking.k8s.io
+      kind: "*"
     # Namespaced RBAC. The cluster-scoped whitelist below already permits
     # ClusterRole and ClusterRoleBinding, so refusing the namespaced pair was
     # backwards: a Role is bound to one namespace and is strictly the narrower
