@@ -17,5 +17,17 @@ tenant:
 image:
   registry: ghcr.io
   repository: conductionnl/nextcloud-images
-  tag: "fpm-soap"
-  digest: "sha256:d18f842b1c8f105236b962e4c463d7f909d6cf374ae03e1f6f610389e92e2cf8"
+  # Patch-versietag, niet de zwevende `fpm-soap`. Die laatste werd bij elke
+  # build overschreven; met pullPolicy IfNotPresent hing de draaiende
+  # Nextcloud-versie daardoor af van wanneer een node voor het laatst pullde.
+  # Aantoonbaar: op 2026-08-19 verschoof `fpm-soap` van sha256:31123c8c naar
+  # sha256:80310a36 zonder dat hier iets veranderde.
+  #
+  # Het `digest:`-veld is weggehaald: chart 8.9.0 rendert het niet, de podspec
+  # bevatte alleen `:fpm-soap` en geen `@sha256`. De digest die er stond was
+  # Nextcloud 32.0.5 terwijl de pod 32.0.6 draaide — Git beweerde dus iets
+  # anders dan er liep.
+  #
+  # Tag komt uit ConductionNL/nextcloud-images; de workflow leidt het
+  # versienummer af uit de `FROM` van soap-client/Dockerfile.
+  tag: "32.0.6-fpm-soap"
