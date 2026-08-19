@@ -12,7 +12,7 @@ tenant:
     versions:
       opencatalogi: "0.7.6"
       openconnector: "0.2.6"
-      openregister: "0.2.8"  
+      openregister: "0.2.8"
   # Branding-baseline 2026-07-06 (FASE 2) — GATSBY_-env is ignore-diffed,
   # devs kunnen live bijstellen; geen dijkenwaard-theme in de app-bundle.
   frontend:
