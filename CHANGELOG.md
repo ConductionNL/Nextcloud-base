@@ -6,6 +6,26 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 Dates are in `YYYY-MM-DD` (Europe/Amsterdam). This file is the audit trail for
 platform-level changes — update it in the same commit as the change.
 
+## 2026-08-19 — Docs: `tenant.apps.versions` gedocumenteerd
+
+`docs/ADDING-TENANT.md` beschreef `tenant.apps.enabled` wel en
+`tenant.apps.versions` nergens — niet in de stappen, niet in de checklist. Het
+formaat stond alleen als commentaar in `values/templates/tenant-template.yaml`,
+dus wie een versie wilde pinnen moest de template of de validator lezen.
+
+Toegevoegd in stap 1: een subsectie "Pinning app versions" met het YAML-blok,
+de regex die `validate_app_versions_format()` in `scripts/validate-values.sh`
+afdwingt, geldige en afgekeurde voorbeelden, en het onderscheid met
+`tenant.chartVersion` (strikter: exact `X.Y.Z`).
+
+Expliciet opgeschreven omdat het een stille faalvorm is: alleen `opencatalogi`,
+`openconnector` en `openregister` zijn bedraad in
+`argo/applicationsets/nextcloud-tenants.yaml`. De validator kent geen allowlist
+van appnamen, dus een vierde sleutel komt groen door de validatie en wordt
+daarna genegeerd — een pin die niets doet.
+
+Alleen documentatie; geen gedragswijziging. `last_reviewed` op 2026-08-19.
+
 ## 2026-08-18 (later 2) — IPv6-canary: de live-canary achter de Cloudflare-proxy
 
 `tenant-canary-prod.yaml` krijgt `frontend.proxied: true`. React-base emit daarop

@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-05
+last_reviewed: 2026-08-19
 owner: info@conduction.nl
 ---
 
@@ -51,11 +51,67 @@ Edit the file and set:
   of `external`. Verplicht veld: laat je het weg, dan faalt `validate-values.sh`.
   Kies `mariadb` alleen bewust — zie `docs/DATABASE.md`.
 - `tenant.apps.enabled` → the apps to install
+- `tenant.apps.versions` → optional per-app version pins (see below)
 
 Hostname is derived (`<org>.<env>.commonground.nu` for accept/test, `<org>.commonground.nu`
 for prod). Set `tenant.hostname` only if you need to override it. PostgreSQL database
 naming is handled by the chart/template defaults — there is no `{{DATABASE_NAME}}` to fill
 in modern tenant files.
+
+#### Pinning app versions
+
+`tenant.apps.versions` is optional. Leave a key out and the tenant tracks the
+latest release of that app; set it and the version is pinned in Git.
+
+```yaml
+tenant:
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+    # Optional pins. Quote the value; no leading 'v'.
+    versions:
+      opencatalogi: "0.7.12"
+      openconnector: "0.2.16"
+      openregister: "0.2.11"
+```
+
+**Only three keys are wired.** `opencatalogi`, `openconnector` and `openregister`
+are mapped by `argo/applicationsets/nextcloud-tenants.yaml` to the env vars
+`OPENCATALOGI_VERSION`, `OPENCONNECTOR_VERSION` and `OPENREGISTER_VERSION`. The
+validator has no allowlist of app names, so **any other key passes validation and
+is then silently ignored** — a pin that never takes effect. Adding a fourth
+pinnable app means adding it to the ApplicationSet too.
+
+**Accepted format**, enforced by `validate_app_versions_format()` in
+`scripts/validate-values.sh`:
+
+```
+^[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$
+```
+
+| Rule | Detail |
+|---|---|
+| Core | three numeric parts, `MAJOR.MINOR.PATCH` — `0.7` is rejected |
+| Leading `v` | rejected, with its own error message |
+| Suffix | optional; separated by `-` or `.`, must start alphanumeric, then alphanumerics, dots and hyphens |
+| Empty / absent | no pin — the ApplicationSet passes `""` and the app tracks latest |
+
+Valid: `"0.7.12"`, `"0.2.16"`, `"0.2.8-beta.7"`, `"0.2.10-unstable.4"`,
+`"0.2.12-beta.20260410072957"`.
+Rejected: `"v0.7.12"`, `"0.7"`, `"0.7.x"`, `"latest"`.
+
+> Not to be confused with `tenant.chartVersion`, which pins the **Helm chart**
+> and is stricter: exactly `X.Y.Z`, no suffix (`"8.9.0"` yes, `"8.9.0-rc1"` no).
+> See `docs/UPGRADE.md`.
+
+Validate before pushing:
+
+```bash
+./nextcloud-platform/scripts/validate-values.sh \
+  nextcloud-platform/values/tenants/tenant-<name>.yaml
+```
 
 ### 2. Update NetworkPolicies ⚠️ IMPORTANT
 
@@ -297,6 +353,7 @@ Use this order (most common causes first):
 ### All Tenants
 - [ ] Tenant values file created (`tenant-<name>.yaml`) — thin: name/environment/dbType/apps
 - [ ] `tenant.name`, `tenant.environment`, `tenant.dbType`, `tenant.apps.enabled` set (hostname derived)
+- [ ] Any `tenant.apps.versions` pins use a wired app name and a valid format (`validate-values.sh` green)
 - [ ] Namespace created (bare tenant name, e.g. `myorg-accept`)
 - [ ] Secrets created in namespace (use `create-tenant-secret.sh`)
 - [ ] Changes committed and pushed
