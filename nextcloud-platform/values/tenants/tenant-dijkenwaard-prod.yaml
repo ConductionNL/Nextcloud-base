@@ -3,7 +3,7 @@ tenant:
   name: dijkenwaard-prod
   environment: prod
   wave: "1"
-  dbType: postgres
+  dbType: mariadb
   apps:
     enabled:
       - opencatalogi
