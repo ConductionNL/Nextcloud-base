@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-10
+last_reviewed: 2026-08-21
 owner: info@conduction.nl
 ---
 
@@ -13,6 +13,39 @@ Eén tenantbestand levert **twee** Applications in dezelfde namespace: de
 Nextcloud-app (`nc-<tenant>`, appset `nextcloud-tenants`) en de WOO
 PWA-frontend (`<tenant>-reactfront`, appset `react-tenants` in React-base).
 Elke operatie hieronder raakt beide.
+
+## Een tenant hernoemen bestaat niet
+
+`tenant.name` is geen label. Drie dingen worden er rechtstreeks uit afgeleid,
+en ze verhuizen niet mee:
+
+| Afgeleid uit `tenant.name` | Waar |
+|---|---|
+| de **namespace** | `nextcloud-tenants.yaml` → `destination.namespace` |
+| de **S3-prefix** van de primary storage | `NEXTCLOUD_OBJECTSTORE_PREFIX` = `<naam>/`, hard-coded — er is geen override |
+| de **database**, want die staat op een PVC in die namespace | `data-nextcloud-postgresql-0` |
+
+Een naam wijzigen levert dus een **nieuwe, lege tenant** op: nieuwe namespace,
+nieuwe PVC's, verse Postgres, en een S3-prefix waar niets in staat. De oude
+namespace blijft achter met de PVC's (`preserveResourcesOnDeletion: true`) maar
+zonder workload, en de bestanden blijven onder de oude prefix in de bucket.
+
+Dit is op **2026-08-21** gebeurd: `gooisemeren-migrate-prod` werd verwijderd en
+`gooisemeren-prod` aangemaakt, twee losse PR's via het webformulier. De
+waarschuwing stond alleen als commentaar ín het oude tenantbestand en verdween
+mee met de verwijdering — vandaar deze sectie.
+
+Wil je toch een andere naam, dan is het een **migratie**, geen hernoeming:
+
+1. Besluit vooraf wat er met de data gebeurt. Zonder dat besluit niet beginnen.
+2. S3: de objecten van de oude prefix naar de nieuwe kopiëren, of de appset een
+   prefix-override geven (die bestaat nu niet — dat is een aparte wijziging).
+3. Database: dump uit de oude namespace, restore in de nieuwe.
+4. Pas daarna het oude tenantbestand verwijderen.
+
+Alleen de **hostname** wijzigen is wél een gewone operatie — zie
+`docs/ADDING-TENANT.md` § Cutting Over from a Migration Hostname. Dat raakt de
+namespace, de prefix en de database niet.
 
 ## Tenant Reset (Data wissen)
 

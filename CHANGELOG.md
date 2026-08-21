@@ -37,6 +37,15 @@ geconsumeerd door `react-tenants.yaml` in React-base.
 migrate-namespace naar de nieuwe namespace copiëren (voorkomt een TLS-gat tot
 cert-manager zelf heeft uitgegeven), en de data-kant van de cutover.
 
+**Docs-gap: hernoemen bestond niet in de documentatie.** `grep -i rename docs/`
+gaf nul treffers, in álle pagina's. De enige plek waar stond dat een naam de
+namespace weggooit was een comment ín het tenantbestand — dat verdween mee met
+de verwijdering. `docs/TENANT-OPERATIONS.md` heeft nu een sectie "Een tenant
+hernoemen bestaat niet": welke drie dingen uit `tenant.name` worden afgeleid
+(namespace, S3-prefix, database-PVC), dat de prefix hard-coded is zonder
+override, en dat een naamswijziging dus een migratie is met een expliciet
+databesluit vooraf.
+
 **Eerste-sync-race.** Een verse managed tenant meldde
 `MountVolume.SetUp failed ... secret "nextcloud-secrets" not found`. Niet de
 generator: ESO stond gezond (`nextcloud-shared-store` Ready=True, seed aanwezig,
