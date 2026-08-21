@@ -6,17 +6,41 @@ tenant:
   dbType: postgres
   secrets:
     managed: true
+  # GEEN hostname/hostnameOverride hier. Met tenantnaam `gooisemeren-prod`
+  # derived de ApplicationSet al gooisemeren.commonground.nu (org =
+  # naam minus de -prod-suffix). De override was alleen nodig zolang de tenant
+  # gooisemeren-migrate-prod heette, want dáár leverde de derivatie
+  # gooisemeren-migrate.commonground.nu op. Niet opnieuw toevoegen.
+  features:
+    appapi: false
   apps:
     enabled:
       - opencatalogi
       - openconnector
       - openregister
   frontend:
-    host: open.gooisemeren.nl
+    # Publieke frontend zoals die op de migrate-tenant stond: primair
+    # gooisemeren.openwoo.app, met open.gooisemeren.nl ernaast sinds de
+    # legacy-cutover van 2026-07-06. Beide hosts delen één tls-block.
+    host: gooisemeren.openwoo.app
+    extraHosts:
+      - open.gooisemeren.nl
     tls:
-      secretName: open-gooisemeren-nl-tls
+      # Eén multi-SAN LE-cert voor beide hosts, zoals legacy. Het bestaande
+      # secret uit gooisemeren-migrate-prod wordt onder deze naam gepreseed in
+      # deze namespace zodat er geen TLS-gat valt; cert-manager neemt de
+      # renewal daarna over via letsencrypt-prod.
+      secretName: gooisemeren-frontend-tls
       issuer: letsencrypt-prod
     branding:
-      organisationName: "Gemeente Gooisemeren"
+      organisationName: "gemeente Gooise Meren"
       themeClassname: "gooise-meren-theme"
       jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/gooise-meren/jumbotron.webp"
+      faviconUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/refs/heads/main/municipalities/gooise-meren/favicon.ico"
+
+# Gooise Meren is de enige tenant met substantiële lokale schijfbehoefte
+# (platformdefault is 50Gi in common.yaml). De PVC in deze namespace is
+# aangemaakt op die default; storageclass `default` heeft
+# allowVolumeExpansion=true, dus dit is een online expansie.
+persistence:
+  size: 250Gi

@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-19
+last_reviewed: 2026-08-21
 owner: info@conduction.nl
 ---
 
@@ -253,6 +253,13 @@ kubectl get pods -n <tenant-namespace>
 # Verify Nextcloud is running
 kubectl exec -n <tenant-namespace> deploy/nextcloud -c nextcloud -- php occ status
 ```
+
+**Verwacht op de eerste sync van een managed tenant:** de pod meldt kort
+`MountVolume.SetUp failed ... secret "nextcloud-secrets" not found`. De
+ExternalSecret en de workload zitten in dezelfde Application, en de `Secret`
+bestaat pas ná een ESO-reconcile. Kubelet retryt de mount, dus dit heelt
+zichzelf binnen een minuut. Blijft het staan, zie
+[SECRETS.md § Eerste sync](SECRETS.md#eerste-sync--een-verse-tenant-ziet-even-geen-secret).
 
 ## Cutting Over from a Migration Hostname
 

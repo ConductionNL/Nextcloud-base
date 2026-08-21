@@ -6,6 +6,55 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 Dates are in `YYYY-MM-DD` (Europe/Amsterdam). This file is the audit trail for
 platform-level changes — update it in the same commit as the change.
 
+## 2026-08-21 — Tenant gooisemeren-prod compleet gemaakt + eerste-sync-race
+
+**Tenant.** De hernoeming van `gooisemeren-migrate-prod` naar `gooisemeren-prod`
+(PR #85 + #86) leverde een tenantbestand van 22 regels waar het oude 44 had. De
+naamswijziging zelf is goed — met naam `gooisemeren-prod` derived de
+ApplicationSet `gooisemeren.commonground.nu` correct, dus `hostname` +
+`hostnameOverride` mochten weg. Maar er ging meer mee dat wél nodig was.
+Teruggezet in `values/tenants/tenant-gooisemeren-prod.yaml`, overgenomen van de
+migrate-tenant:
+
+| Veld | Terug op |
+|---|---|
+| `persistence.size` | `250Gi` (was platformdefault 50Gi) |
+| `tenant.features.appapi` | `false` |
+| `frontend.host` | `gooisemeren.openwoo.app` |
+| `frontend.extraHosts` | `[open.gooisemeren.nl]` |
+| `frontend.tls.secretName` | `gooisemeren-frontend-tls` |
+| `branding.organisationName` | `gemeente Gooise Meren` |
+| `branding.faviconUrl` | favicon uit de assets-repo |
+
+Geverifieerd tegen de live stand: `gooisemeren-frontend-tls` in de
+migrate-namespace is een Let's Encrypt multi-SAN cert voor
+`gooisemeren.openwoo.app` + `open.gooisemeren.nl`, geldig t/m 2026-11-16;
+storageclass `default` heeft `allowVolumeExpansion=true`, dus 50Gi→250Gi is een
+online expansie. `frontend.extraHosts` en `frontend.tls.*` worden aantoonbaar
+geconsumeerd door `react-tenants.yaml` in React-base.
+
+**Twee handmatige stappen** die niet in Git kunnen: het TLS-secret uit de
+migrate-namespace naar de nieuwe namespace copiëren (voorkomt een TLS-gat tot
+cert-manager zelf heeft uitgegeven), en de data-kant van de cutover.
+
+**Eerste-sync-race.** Een verse managed tenant meldde
+`MountVolume.SetUp failed ... secret "nextcloud-secrets" not found`. Niet de
+generator: ESO stond gezond (`nextcloud-shared-store` Ready=True, seed aanwezig,
+andere managed tenants `SecretSynced`). De ExternalSecret zit als derde source in
+dezelfde Application als de workload en had geen sync-wave, dus Argo kende geen
+ordening tussen het CRD-kind en de Deployment.
+
+- `charts/tenant-secret/templates/externalsecret.yaml`: annotatie
+  `argocd.argoproj.io/sync-wave: "-1"`.
+- `docs/SECRETS.md`: nieuwe sectie "Eerste sync".
+- `docs/ADDING-TENANT.md`: noot bij stap 6 dat deze melding verwacht is en
+  zichzelf heelt.
+
+Dit is een voorsprong, geen barrier: Argo heeft geen health-check voor
+`ExternalSecret` en ziet hem healthy zodra de resource bestaat. Sluitend maken
+vraagt `resource.customizations.health.external-secrets.io_ExternalSecret` in
+`argocd-cm` — repo cluster-infra, staat er nu niet in. Nog open.
+
 ## 2026-08-19 — Docs: `tenant.apps.versions` gedocumenteerd
 
 `docs/ADDING-TENANT.md` beschreef `tenant.apps.enabled` wel en

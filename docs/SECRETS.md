@@ -1,11 +1,11 @@
 ---
-last_reviewed: 2026-06-23
+last_reviewed: 2026-08-21
 owner: info@conduction.nl
 ---
 
 # Secrets Management
 
-How tenant secrets work on this platform. Last verified 2026-06-23.
+How tenant secrets work on this platform. Last verified 2026-08-21.
 
 > **No secrets in Git, ever.** `.env` and key material are git-ignored; `gitleaks` runs in
 > CI. The data below is created in-cluster / out-of-band, never committed.
@@ -129,6 +129,31 @@ Retrieve the admin password:
 kubectl get secret nextcloud-secrets -n <tenant> \
   -o jsonpath='{.data.nextcloud-password}' | base64 -d
 ```
+
+## Eerste sync — een verse tenant ziet even geen secret
+
+Op de **eerste** sync van een nieuwe managed tenant kan de pod deze melding geven:
+
+```
+MountVolume.SetUp failed for volume "postgresql-password" :
+secret "nextcloud-secrets" not found
+```
+
+Dat is **niet** een kapotte generator. Het is de ordening: de ExternalSecret zit
+als derde source in dezelfde Application als de workload (`nextcloud-tenants.yaml`,
+`charts/tenant-secret`), en de `Secret` bestaat pas ná een ESO-reconcile. Kubelet
+blijft de mount retryen, dus dit heelt zichzelf binnen een minuut.
+
+De ExternalSecret staat sinds 2026-08-21 op `argocd.argoproj.io/sync-wave: "-1"`
+zodat hij vóór de workload wordt aangemaakt. Dat is een voorsprong, geen garantie:
+Argo heeft geen health-check voor `ExternalSecret` en beschouwt hem healthy zodra
+de resource bestaat, niet zodra de Secret er staat. Een echte barrier vraagt om
+`resource.customizations.health.external-secrets.io_ExternalSecret` in `argocd-cm`
+(repo **cluster-infra**); die staat er nu niet.
+
+Blijft de melding langer dan een paar minuten staan, dan is er wél iets stuk —
+ga naar Troubleshooting hieronder en check eerst of `nextcloud-shared-store`
+Ready=True is en of de seed `nextcloud-platform/nextcloud-s3-seed` bestaat.
 
 ## Best practices
 
