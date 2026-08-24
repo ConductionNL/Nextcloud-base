@@ -6,6 +6,24 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 Dates are in `YYYY-MM-DD` (Europe/Amsterdam). This file is the audit trail for
 platform-level changes — update it in the same commit as the change.
 
+## 2026-08-24 — OpenSpec-materiaal naar de plugin
+
+De vier `openspec-*`-skills en de vier `opsx/`-commands stonden woordelijk óók
+in `talos`: ruim 1.200 regels gevendorde third-party tekst (MIT, author
+`openspec`) twee keer in versiebeheer. Drie van de vier commands waren
+byte-identiek; het verschil bij de vierde was ASCII-art-indentatie, en de skills
+verschilden op één regel (`generatedBy` 1.2.0 tegen 1.3.0).
+
+Ze zijn verhuisd naar `engineering-baseline` in de marketplace
+`ConductionNL/claude-plugins`, gepind op één versie. Wie de plugin heeft, heeft
+ze in élke repo; wie hem niet heeft, mist ze hier. Dat is de afweging: dit is
+generiek gereedschap zonder platformkennis, geen guardrail — een ontbrekende
+skill kost gemak, geen bescherming. De tien eigen tenant-commands en de skill
+`tenant-toevoegen` blijven staan, want die zijn wél repo-specifiek.
+
+Geen inkomende verwijzingen: `grep` over docs, scripts en manifests op `opsx` en
+`openspec-` gaf nul treffers buiten `.claude/` zelf.
+
 ## 2026-08-21 — Tenant gooisemeren-prod compleet gemaakt + eerste-sync-race
 
 **Tenant.** De hernoeming van `gooisemeren-migrate-prod` naar `gooisemeren-prod`
