@@ -1,0 +1,16 @@
+---
+tenant:
+  name: harderwijk-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  frontend:
+    branding:
+      organisationName: "Gemeente Harderwijk"
