@@ -3,7 +3,7 @@ tenant:
   name: harderwijk-prod
   environment: prod
   wave: "1"
-  dbType: postgres
+  dbType: mariadb
   secrets:
     managed: true
   apps:
