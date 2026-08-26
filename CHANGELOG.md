@@ -6,6 +6,98 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 Dates are in `YYYY-MM-DD` (Europe/Amsterdam). This file is the audit trail for
 platform-level changes — update it in the same commit as the change.
 
+## 2026-08-26 — Tenant-toevoegroute in ADDING-TENANT.md rechtgetrokken
+
+Naar aanleiding van de review van PR #100 (`add tenant: harderwijk-prod`). Drie
+stukken van `docs/ADDING-TENANT.md` beschreven een werkelijkheid die niet meer
+bestond, en alle drie hebben aan die PR bijgedragen.
+
+**1. De PR-route stond er niet in.** Stap 4 heette "Commit and Push" en zei
+letterlijk `git push origin main`. De echte route is een PR tegen `main` met het
+label `change/tenant-additive`, waarna `promote-tenant-changes.yaml` `release` en
+`release-accept` vooruitzet — de git-generator van de ApplicationSet volgt
+`release`, niet main, dus een tenantbestand op main levert géén Application op.
+Noch het label noch de release-ref kwam in dit document voor. PR #100 faalde
+precies op dat label. Stap 4 heet nu "Open a PR — do not push to main" en
+beschrijft het label (met de tabel classificatie → label), waarom
+`governance-check.yaml` het zelf niet zet, dat het portaal
+`platform.commonground.nu` het wél zet (`webgui/server.py`, `TENANT_PR_LABEL`),
+en de promotie na de merge.
+
+**2. Stap 2 liet je NetworkPolicies met de hand bijwerken.** Die instructie is
+achterhaald: `platform/redis/networkpolicy.yaml` en
+`platform/pgbouncer/networkpolicy.yaml` selecteren tenant-namespaces op het label
+`app.kubernetes.io/part-of: nextcloud-platform`, dat Argo via
+`managedNamespaceMetadata` op elke namespace zet. Het bestand zegt dat zelf in een
+comment. Stap 2 vertelt nu dat er niets te doen is, plus de enige uitzondering
+(een met de hand gemaakte namespace mist het label), en de checklist-items voor
+die twee bestanden zijn weg. De troubleshooting-ingang "Redis server went away"
+wijst nu naar het namespace-label in plaats van naar een allowlist.
+
+**3. MariaDB stond als default aangeprezen.** De sectie "Choose Your Database"
+zette MariaDB bovenaan en stap 1 noemde het "Option A: MariaDB (default,
+simplest)" — twee regels boven de tekst die postgres de default noemt. Dat
+spreekt `DATABASE.md` tegen (besluit 2026-08-04: MariaDB is legacy). PR #100
+zette `dbType` in een tweede commit juist van postgres naar mariadb. PostgreSQL
+staat nu bovenaan als default, MariaDB als legacy met de enige geldige reden (een
+bestaande MariaDB-dataset migreren), plus expliciet dat "hetzelfde als tenant X"
+geen reden is, dat een soap-image niets met `dbType` te maken heeft, en dat
+accept en prod van dezelfde organisatie dezelfde engine horen te hebben.
+
+**4. De handmatige PR-route is nu expliciet de route voor image-overrides.** Het
+portaal rendert een vaste set keys (`RENDERED_TENANT_KEYS` in
+`webgui/tenants.py`); een top-level `image:`-blok zit daar niet bij — het kan de
+frontend-image pinnen, niet de Nextcloud-image. Een tenant die het soap-image
+nodig heeft, wordt dus met de hand als PR geschreven, zoals
+`tenant-harderwijk-prod.yaml` op 2026-08-26. Vastgelegd is ook dat dit zo blijft:
+image-overrides komen **niet** in het portaal, omdat een legacy-uitzondering in de
+provisioning-UI eruitziet als een gelijkwaardige optie. `dbType` heeft de
+handroute níet nodig — dat is een dropdown in het portaal.
+
+Bij die route horen twee dingen, en die staan er nu bij: je zet het label zelf, en
+je controleert zelf of de namespace nog van een eerder leven van de tenant bestaat
+(`preserveResourcesOnDeletion: true` bewaart het PVC).
+
+Gewijzigd: `docs/ADDING-TENANT.md` (`last_reviewed` 2026-08-25 → 2026-08-26),
+`CHANGELOG.md`. Geen code- of configwijziging: dit is een docs-correctie.
+
+### Randvoorwaarde die diezelfde dag is aangezet
+
+`main` heeft sinds 2026-08-26 required status checks: `Classify change and check
+label`, `Validate values and render charts` en `gate` (`strict: false`,
+`enforce_admins: false`, geen approvals). Daarvóór was de governance-gate
+adviserend — PR #100 stond met een rode label-check gewoon mergebaar. Let op:
+`scheduled-merge.yaml:503` pusht bij een stukke canary direct naar main om te
+reverteren, en `GITHUB_TOKEN` is geen admin; dat pad escaleert nu naar een mens in
+plaats van zelf te reverteren.
+
+## 2026-08-25 — Image-override per tenant gedocumenteerd
+
+Een tenant kan al sinds jaar en dag een eigen Nextcloud-image draaien: een
+top-level `image:`-blok in `values/tenants/tenant-<naam>.yaml` wint van
+`common.yaml`, omdat het tenant-bestand als laatste in de `valueFiles` van de
+ApplicationSet staat. `tenant-rijswijk-accept.yaml` doet dit in productie met
+het soap-image uit `ConductionNL/nextcloud-images`.
+
+Alleen stond het nergens beschreven. Gevolg: de vraag "ondersteunen tenants een
+ander image?" kwam op platform.commonground.nu terecht en werd daar met een
+reconstructie beantwoord die op twee punten misging — een downgrade van 32.0.13
+naar 32.0.6 als "gewoon doen", en `beek` als precedent terwijl dat een legacy
+losse Application op chart 6.4.1 is, geen tenant van de ApplicationSet.
+
+`docs/ADDING-TENANT.md` heeft nu een sectie **Overriding the Nextcloud image**
+met het blok zelf, de merge-volgorde, de drie regels (patch-tag, geen `digest:`,
+nooit omlaag) en de reden per regel. De downgrade-waarschuwing staat er expliciet
+bij: `/var/www/html` is een PVC, de upstream-entrypoint stopt met exit 1 op een
+ouder image, en met `selfHeal: true` blijft Argo het proberen — herstel gaat via
+het tenant-bestand, niet via `kubectl`.
+
+Gewijzigd: `docs/ADDING-TENANT.md` (`last_reviewed` 2026-08-21 → 2026-08-25),
+checklist-regel toegevoegd. Geen code- of values-wijziging.
+Geverifieerd: `validate-values.sh` op `tenant-rijswijk-accept.yaml` groen
+(0 errors, 0 warnings) — de validator heeft geen allowlist op top-level keys,
+dus het `image:`-blok passeert; dat staat ook zo in de tekst.
+
 ## 2026-08-24 — OpenSpec-materiaal naar de plugin
 
 De vier `openspec-*`-skills en de vier `opsx/`-commands stonden woordelijk óók

@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-21
+last_reviewed: 2026-08-26
 owner: info@conduction.nl
 ---
 
@@ -7,34 +7,52 @@ owner: info@conduction.nl
 
 This guide describes the steps required to add a new Nextcloud tenant to the platform.
 
+> **Shortcut:** for a standard tenant, do not follow this guide by hand — use
+> `platform.commonground.nu`. It opens the PR with the right defaults and the
+> required label. This guide describes the manual route and what the portal does
+> for you; see [Step 4](#4-open-a-pr--do-not-push-to-main).
+
 ## Prerequisites
 
 - Access to the Git repository
 - kubectl access to the cluster
 - Knowledge of the tenant's hostname and environment (prod/accept)
+- Permission to label PRs in this repository, if you are not going through the portal
 
 ## Choose Your Database
 
-| Template | Database | Redis | Use Case |
-|----------|----------|-------|----------|
-| `tenant-template.yaml` | MariaDB | Platform (shared) | Simple deployments |
-| `tenant-template-postgres.yaml` | PostgreSQL | Per-tenant | Custom PostgreSQL image with extensions |
+**PostgreSQL, unless a documented requirement forces otherwise.** MariaDB is
+legacy and being phased out (decision of 2026-08-04) — see `docs/DATABASE.md`.
+
+| Template | Database | Redis | When |
+|----------|----------|-------|------|
+| `tenant-template-postgres.yaml` | PostgreSQL | Per-tenant | **Default for every new tenant** |
+| `tenant-template.yaml` | MariaDB | Platform (shared) | Legacy only — migrating an existing MariaDB dataset |
+
+> **"The same as tenant X runs" is not a reason.** Copying the engine from a
+> neighbouring tenant propagates a phase-out. Nor is a PHP-extension need such as
+> soap: that is an `image:` concern and independent of `dbType`. The one sound
+> reason to pick MariaDB is an existing MariaDB dataset that has to be imported
+> as-is.
+>
+> Also keep the pair consistent: if `<org>-accept` is PostgreSQL, then
+> `<org>-prod` on MariaDB means accept no longer tests prod.
 
 ## Steps
 
 ### 1. Create Tenant Values File
 
-**Option A: MariaDB (default, simplest)**
-
-```bash
-cp nextcloud-platform/values/templates/tenant-template.yaml \
-   nextcloud-platform/values/tenants/tenant-<name>.yaml
-```
-
-**Option B: PostgreSQL (with custom image + per-tenant Redis)**
+**Default: PostgreSQL (per-tenant Redis)**
 
 ```bash
 cp nextcloud-platform/values/templates/tenant-template-postgres.yaml \
+   nextcloud-platform/values/tenants/tenant-<name>.yaml
+```
+
+**Legacy: MariaDB (shared platform Redis)** — only for the migration case above
+
+```bash
+cp nextcloud-platform/values/templates/tenant-template.yaml \
    nextcloud-platform/values/tenants/tenant-<name>.yaml
 ```
 
@@ -106,6 +124,62 @@ Rejected: `"v0.7.12"`, `"0.7"`, `"0.7.x"`, `"latest"`.
 > and is stricter: exactly `X.Y.Z`, no suffix (`"8.9.0"` yes, `"8.9.0-rc1"` no).
 > See `docs/UPGRADE.md`.
 
+#### Overriding the Nextcloud image
+
+The platform image is set once in `values/common.yaml` (`nextcloud:32.0.13-fpm`).
+A tenant that needs a different build — a PHP extension the official image does
+not ship, for instance — overrides it with a **top-level** `image:` block in its
+own tenant file:
+
+```yaml
+tenant:
+  name: myorg-accept
+  # ...
+
+# Top-level, NOT under `tenant:` — this is a chart value, not a hub field.
+image:
+  registry: ghcr.io
+  repository: conductionnl/nextcloud-images
+  tag: "32.0.6-fpm-soap"
+```
+
+This works because the tenant file is the **last** entry in the ApplicationSet's
+`valueFiles` list (`argo/applicationsets/nextcloud-tenants.yaml`), so it wins over
+`common.yaml`. `registry` is absent from `common.yaml` and is added by the deep
+merge; `repository` and `tag` are replaced.
+
+Live example: `values/tenants/tenant-rijswijk-accept.yaml`, which runs the
+soap-enabled build from `ConductionNL/nextcloud-images`.
+
+**Three rules, each learned the hard way:**
+
+| Rule | Why |
+|---|---|
+| Always a patch-version tag, never a floating one (`fpm-soap`, `latest`) | With `pullPolicy: IfNotPresent` the running version depends on when a node last pulled. On 2026-08-19 `fpm-soap` moved from `sha256:31123c8c` to `sha256:80310a36` with no change in Git. |
+| Never add a `digest:` field | Chart 8.9.0 does not render it. The podspec ends up with the tag only, so Git claims something the cluster is not doing. |
+| **Never point an existing tenant at a lower version** | See below. |
+
+> ### ⚠️ The override must not downgrade a running tenant
+>
+> `/var/www/html` is a PVC, so the installed version survives a pod restart. The
+> upstream Nextcloud entrypoint compares that version against the image and exits 1
+> when the image is older — "downgrading is not supported". The pod goes into
+> CrashLoopBackOff, and with `selfHeal: true` Argo keeps retrying. Recovery is
+> reverting the tenant file, not `kubectl`.
+>
+> So a tenant on `32.0.13-fpm` **cannot** be moved to `32.0.6-fpm-soap`. Build the
+> variant at the version the tenant already runs (or higher) first — in
+> `ConductionNL/nextcloud-images` the workflow derives the version number from the
+> `FROM` line in `soap-client/Dockerfile`.
+>
+> The namespaces already on `32.0.6-fpm-soap` (`beek`, `bct`, `sluis`) are **not**
+> a precedent: they are legacy standalone Applications on chart 6.4.1 straight from
+> `nextcloud.github.io/helm`, not tenants of the `nextcloud-tenants` ApplicationSet.
+> They never upgraded past 32.0.6; they did not downgrade to it.
+
+`validate-values.sh` has no top-level key allowlist, so an `image:` block passes
+validation as-is — the rules above are not machine-checked.
+
 Validate before pushing:
 
 ```bash
@@ -113,37 +187,35 @@ Validate before pushing:
   nextcloud-platform/values/tenants/tenant-<name>.yaml
 ```
 
-### 2. Update NetworkPolicies ⚠️ IMPORTANT
+### 2. NetworkPolicies — no action needed
 
-> **Note:** Only required for tenants using **platform (shared) Redis/PgBouncer**.
-> PostgreSQL tenants with per-tenant Redis do NOT need this step.
+> **Nothing to do here.** This step used to require hand-editing an allowlist.
+> It does not any more; the section is kept so the step numbering below still
+> matches older runbooks and the Troubleshooting entries.
 
-The platform uses NetworkPolicies to restrict access to shared services (Redis, PgBouncer).
-**New tenant namespaces must be explicitly allowed.**
+The platform NetworkPolicies in front of the shared Redis and PgBouncer select
+tenant namespaces **by label**, not by name:
 
-Edit these files and add the new namespace:
-
-#### `platform/redis/networkpolicy.yaml`
 ```yaml
-matchExpressions:
-  - key: kubernetes.io/metadata.name
-    operator: In
-    values:
-      - canary-accept
-      - example-accept
-      - <your-new-tenant>  # ← Add this line (bare tenant name, e.g. myorg-accept)
+- from:
+    - namespaceSelector:
+        matchLabels:
+          app.kubernetes.io/part-of: nextcloud-platform
 ```
 
-#### `platform/pgbouncer/networkpolicy.yaml`
-```yaml
-matchExpressions:
-  - key: kubernetes.io/metadata.name
-    operator: In
-    values:
-      - canary-accept
-      - example-accept
-      - <your-new-tenant>  # ← Add this line (bare tenant name, e.g. myorg-accept)
-```
+Argo CD stamps that label on every tenant namespace it creates, via
+`managedNamespaceMetadata` in `argo/applicationsets/nextcloud-tenants.yaml`. A
+new tenant is therefore allowed the moment its namespace exists — see the
+comment in `platform/redis/networkpolicy.yaml`: *"no manual updates are needed
+when adding new tenants."*
+
+Both `platform/redis/networkpolicy.yaml` and `platform/pgbouncer/networkpolicy.yaml`
+work this way, for MariaDB and PostgreSQL tenants alike.
+
+> If the namespace was created **by hand** (`kubectl create namespace`) rather
+> than by Argo, it carries no label and the tenant cannot reach Redis or
+> PgBouncer. Either let Argo create it, or add the label yourself:
+> `kubectl label namespace <tenant> app.kubernetes.io/part-of=nextcloud-platform`
 
 ### 3. Create Secrets
 
@@ -203,16 +275,93 @@ kubectl create secret generic nextcloud-secrets \
   --from-literal=nextcloud-secret="$(openssl rand -base64 48)"
 ```
 
-### 4. Commit and Push
+### 4. Open a PR — do not push to main
+
+> **The normal route is the portal, not your shell.**
+> `platform.commonground.nu` (the openwoo-provisioner control-plane, repo
+> `ConductionNL/openwoo-app-config`) opens the tenant PR for you: it renders the
+> thin tenant file, defaults `dbType` to `postgres`, records `requested-by: <your
+> SSO e-mail>` in the commit trailer and PR body, **and applies the required
+> label**.
+
+#### When to use the manual route instead
+
+The portal renders a fixed set of keys — `name`, `environment`, `wave`, `dbType`,
+`secrets`, `apps`, `frontend` (`RENDERED_TENANT_KEYS` in `webgui/tenants.py`). A
+top-level `image:` block is **not** among them: the portal can pin the frontend
+(PWA) image, not the Nextcloud image.
+
+So a tenant that needs a non-default Nextcloud build — the soap-enabled image, for
+instance — is written **by hand as a PR**, as `tenant-harderwijk-prod.yaml` was on
+2026-08-26. That is the sanctioned route for this case, and it will stay that way:
+supporting Nextcloud image overrides in the portal is deliberately **not** planned.
+Encoding a legacy exception in the provisioning UI would make it look like a
+first-class option.
+
+`dbType` does **not** need the manual route — it is a dropdown in the portal, so a
+legacy MariaDB tenant can be requested there like any other. Only the image
+override forces the manual PR.
+
+Two things follow for a hand-written PR:
+
+- You set the `change/tenant-additive` label yourself (see below). Since
+  2026-08-26 `main` requires the governance checks, so a forgotten label **blocks
+  the merge** instead of quietly deploying.
+- Nobody else validated the image choice. Re-read the three rules and the
+  downgrade warning under [Overriding the Nextcloud image](#overriding-the-nextcloud-image)
+  first — in particular: check whether the namespace still exists from an earlier
+  life of the tenant, because `preserveResourcesOnDeletion: true` keeps the PVC.
+
+Whichever route you take, the change lands through a **pull request against
+`main`**. Do not push straight to `main`: the governance gate lives on the PR, so
+a direct push skips it.
 
 ```bash
+git switch -c add-tenant/<name>
 git add nextcloud-platform/values/tenants/tenant-<name>.yaml
-git add nextcloud-platform/platform/redis/networkpolicy.yaml
-git add nextcloud-platform/platform/pgbouncer/networkpolicy.yaml
-git commit -m "feat: add tenant <name>"
-# Argo CD reads GitHub (origin). A merge to main deploys immediately.
-git push origin main
+git commit -m "add tenant: <name>"
+git push -u origin add-tenant/<name>
+gh pr create --base main --title "add tenant: <name>"
 ```
+
+#### The `change/tenant-additive` label is required
+
+`.github/workflows/governance-check.yaml` classifies the diff with
+`nextcloud-platform/scripts/classify-change.sh` and then **fails unless the
+matching label is on the PR**:
+
+| Classification | Required label |
+|---|---|
+| tenant-only diff | `change/tenant-additive` |
+| platform or mixed diff | `change/platform` |
+
+That workflow only *reads* `github.event.pull_request.labels`; it never adds one.
+The automation lives in the portal (`webgui/server.py`, `TENANT_PR_LABEL`), so:
+
+- **PR opened via the portal** → the label is set for you, nothing to do.
+- **PR opened by hand** (`gh pr create`, or an edit in the GitHub web UI) → set it
+  yourself or the check stays red:
+  `gh pr edit <number> --add-label change/tenant-additive`
+
+A local `pre-commit` hook cannot cover this. The label is PR metadata on GitHub,
+not a file in the tree, so it has nothing to do with whether you cloned the repo
+— it must be set on the PR either way. See `docs/CHECKS-AND-BALANCES.md`.
+
+#### After the merge: Argo follows `release`, not `main`
+
+Argo CD reads GitHub, but the git generator of the `nextcloud-tenants`
+ApplicationSet follows the **`release`** ref (`release-accept` for accept
+tenants), not `main`. A tenant file sitting on `main` produces no `Application`
+at all.
+
+`.github/workflows/promote-tenant-changes.yaml` closes that gap: on every push to
+`main` it re-runs the same classification, and for a `tenant-additive` change it
+fast-forwards both `release` and `release-accept` to that commit — right away,
+outside the evening window. For a tenant addition the merge is therefore the last
+manual step.
+
+Platform and mixed changes are deliberately **not** promoted by that workflow.
+Those go through the canary gate in `scheduled-merge.yaml`.
 
 ### 5. Sync Argo CD
 
@@ -307,8 +456,16 @@ Or use the skill: `/cutover-tenant {tenant-name}`
 
 ### "Redis server went away" or connection errors
 
-The tenant namespace is not in the NetworkPolicy allowlist. 
-See Step 2 above.
+The tenant namespace is missing the label the platform NetworkPolicies select on.
+Check it and add it if absent:
+
+```bash
+kubectl get namespace <tenant> -o jsonpath='{.metadata.labels}'
+kubectl label namespace <tenant> app.kubernetes.io/part-of=nextcloud-platform
+```
+
+Argo sets this label on namespaces it creates; a hand-made namespace does not
+have it. See Step 2 above.
 
 ### Pods stuck in "CreateContainerConfigError"
 
@@ -361,16 +518,19 @@ Use this order (most common causes first):
 - [ ] Tenant values file created (`tenant-<name>.yaml`) — thin: name/environment/dbType/apps
 - [ ] `tenant.name`, `tenant.environment`, `tenant.dbType`, `tenant.apps.enabled` set (hostname derived)
 - [ ] Any `tenant.apps.versions` pins use a wired app name and a valid format (`validate-values.sh` green)
+- [ ] Any top-level `image:` override uses a patch-version tag, has no `digest:`, and is not lower than the version the tenant already runs
 - [ ] Namespace created (bare tenant name, e.g. `myorg-accept`)
 - [ ] Secrets created in namespace (use `create-tenant-secret.sh`)
-- [ ] Changes committed and pushed
+- [ ] Opened as a PR against `main` — not pushed directly
+- [ ] `change/tenant-additive` label on the PR (automatic via the portal; by hand otherwise)
+- [ ] `governance-check` and `ci` green
+- [ ] After merge: `release` / `release-accept` advanced (`promote-tenant-changes` ran)
 - [ ] Argo CD Application synced
 - [ ] Pods running (3/3 for MariaDB, 4/4+ for PostgreSQL with Redis)
 - [ ] Nextcloud accessible via browser
 
-### MariaDB Tenants Only (using platform Redis)
-- [ ] NetworkPolicy updated for Redis (`platform/redis/networkpolicy.yaml`)
-- [ ] NetworkPolicy updated for PgBouncer (`platform/pgbouncer/networkpolicy.yaml`)
+> NetworkPolicies need no checklist item any more — they select tenant namespaces
+> by label, which Argo sets. See Step 2.
 
 ### PostgreSQL Tenants Only
 - [ ] `tenant.dbType: postgres` set
