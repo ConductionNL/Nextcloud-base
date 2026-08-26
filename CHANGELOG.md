@@ -44,19 +44,33 @@ bestaande MariaDB-dataset migreren), plus expliciet dat "hetzelfde als tenant X"
 geen reden is, dat een soap-image niets met `dbType` te maken heeft, en dat
 accept en prod van dezelfde organisatie dezelfde engine horen te hebben.
 
-**4. De handmatige PR-route is nu expliciet de route voor image-overrides.** Het
-portaal rendert een vaste set keys (`RENDERED_TENANT_KEYS` in
-`webgui/tenants.py`); een top-level `image:`-blok zit daar niet bij — het kan de
-frontend-image pinnen, niet de Nextcloud-image. Een tenant die het soap-image
-nodig heeft, wordt dus met de hand als PR geschreven, zoals
-`tenant-harderwijk-prod.yaml` op 2026-08-26. Vastgelegd is ook dat dit zo blijft:
-image-overrides komen **niet** in het portaal, omdat een legacy-uitzondering in de
-provisioning-UI eruitziet als een gelijkwaardige optie. `dbType` heeft de
-handroute níet nodig — dat is een dropdown in het portaal.
+**4. Image-overrides gaan via het portaal, niet met de hand.** Bij het schrijven
+van deze entry was dat nog omgekeerd bedoeld: het portaal rendert een vaste set
+keys en een top-level `image:`-blok zat daar niet bij, dus `harderwijk-prod` is op
+2026-08-26 met de hand geschreven. Diezelfde dag is besloten het wél in het
+portaal te bouwen (openwoo-app-config, change `tenant-image-override`), juist
+omdát de handroute geen enkele controle heeft: die PR pinde 32.0.6 terwijl het
+bestand dat hij verving 32.0.13 draaide, en dat liep alleen goed af omdat de
+namespace opgeruimd bleek.
 
-Bij die route horen twee dingen, en die staan er nu bij: je zet het label zelf, en
-je controleert zelf of de namespace nog van een eerder leven van de tenant bestaat
-(`preserveResourcesOnDeletion: true` bewaart het PVC).
+Het portaal handhaaft nu wat deze pagina alleen kon opschrijven: een tag zonder
+versienummer wordt geweigerd, er is geen `digest:`-veld, en een lagere versie dan
+de tenant draait wordt geblokkeerd — vergeleken tegen het tenantbestand of
+`common.yaml` én tegen wat Argo ziet draaien. Bovendien waarschuwt het als het
+tenantbestand eerder bestond en verwijderd is, met de `dbType` en het image van
+dat verwijderde bestand erbij, en die waarschuwing gaat mee in de PR-body.
+
+Ook de per-app versie-pins (`tenant.apps.versions`) zitten nu in het portaal, met
+alleen de drie namen die de ApplicationSet daadwerkelijk mapt. De handroute blijft
+over voor velden die het portaal niet modelleert (`tenant.hostname`,
+`tenant.chartVersion`, `tenant.namespace`, een bucket-override); een tenantbestand
+met zo'n veld blijft daar read-only, zodat opslaan het nooit stil weggooit.
+`dbType` heeft de handroute nooit nodig gehad — dat is een dropdown.
+
+Bij een handmatige PR horen twee dingen, en die staan er nu bij: je zet het label
+zelf, en geen van de guards draait, dus je controleert zelf of de namespace nog
+van een eerder leven van de tenant bestaat (`preserveResourcesOnDeletion: true`
+bewaart het PVC).
 
 Gewijzigd: `docs/ADDING-TENANT.md` (`last_reviewed` 2026-08-25 → 2026-08-26),
 `CHANGELOG.md`. Geen code- of configwijziging: dit is een docs-correctie.

@@ -284,33 +284,56 @@ kubectl create secret generic nextcloud-secrets \
 > SSO e-mail>` in the commit trailer and PR body, **and applies the required
 > label**.
 
-#### When to use the manual route instead
+#### Image overrides: use the portal, not the manual route
 
-The portal renders a fixed set of keys — `name`, `environment`, `wave`, `dbType`,
-`secrets`, `apps`, `frontend` (`RENDERED_TENANT_KEYS` in `webgui/tenants.py`). A
-top-level `image:` block is **not** among them: the portal can pin the frontend
-(PWA) image, not the Nextcloud image.
+**The portal supports a top-level `image:` block** — three fields (registry,
+repository, tag) behind a collapsed *Afwijkende Nextcloud-image* section — and it
+is the route to prefer, because the portal enforces the version rules that this
+page can only state:
 
-So a tenant that needs a non-default Nextcloud build — the soap-enabled image, for
-instance — is written **by hand as a PR**, as `tenant-harderwijk-prod.yaml` was on
-2026-08-26. That is the sanctioned route for this case, and it will stay that way:
-supporting Nextcloud image overrides in the portal is deliberately **not** planned.
-Encoding a legacy exception in the provisioning UI would make it look like a
-first-class option.
+| Rule | How the portal enforces it |
+|---|---|
+| Always a patch tag, never a floating one | a tag without a version number is rejected |
+| Never a `digest:` field | there is no field for it |
+| **Never point an existing tenant at a lower version** | refused, comparing against the tenant file / `common.yaml` and against what Argo sees running |
 
-`dbType` does **not** need the manual route — it is a dropdown in the portal, so a
-legacy MariaDB tenant can be requested there like any other. Only the image
-override forces the manual PR.
+It also warns when the tenant file existed before and was removed — the namespace
+and its PVC may still be there (`preserveResourcesOnDeletion: true`) — and names
+the removed file's `dbType` and image so an engine switch is visible. That
+warning goes into the PR body, so the reviewer sees it too.
 
-Two things follow for a hand-written PR:
+`tenant-harderwijk-prod.yaml` was written by hand on 2026-08-26, before this
+existed. Nobody validated the image choice on that PR, and the version rule was
+nearly broken: the file it replaced ran 32.0.13 while the new one pinned 32.0.6.
+It landed safely only because the namespace happened to be cleaned up.
+
+`dbType` never needed the manual route either — it is a dropdown in the portal, so
+a legacy MariaDB tenant can be requested there like any other.
+
+Version pins are in the portal too: one field per app, blank by default. Only
+`opencatalogi`, `openconnector` and `openregister` are offered, because those are
+the three the ApplicationSet wires — a pin on any other name passes
+`validate-values.sh` and then does nothing, so the portal refuses it rather than
+accepting a pin that never takes effect.
+
+#### When the manual route is still the answer
+
+For a field the portal does not model. It renders `name`, `environment`, `wave`,
+`dbType`, `secrets`, `apps` (`enabled` + `versions`), `frontend` and the top-level
+`image:`. Anything else — `tenant.hostname`, `tenant.chartVersion`,
+`tenant.namespace`, a bucket override — is hand-written, and a tenant file
+carrying such a field stays **read-only** in the portal so that saving can never
+silently drop it.
+
+Two things follow for any hand-written PR:
 
 - You set the `change/tenant-additive` label yourself (see below). Since
   2026-08-26 `main` requires the governance checks, so a forgotten label **blocks
   the merge** instead of quietly deploying.
-- Nobody else validated the image choice. Re-read the three rules and the
-  downgrade warning under [Overriding the Nextcloud image](#overriding-the-nextcloud-image)
-  first — in particular: check whether the namespace still exists from an earlier
-  life of the tenant, because `preserveResourcesOnDeletion: true` keeps the PVC.
+- None of the guards above run. Re-read the three rules and the downgrade warning
+  under [Overriding the Nextcloud image](#overriding-the-nextcloud-image) first —
+  in particular: check whether the namespace still exists from an earlier life of
+  the tenant, because `preserveResourcesOnDeletion: true` keeps the PVC.
 
 Whichever route you take, the change lands through a **pull request against
 `main`**. Do not push straight to `main`: the governance gate lives on the PR, so
