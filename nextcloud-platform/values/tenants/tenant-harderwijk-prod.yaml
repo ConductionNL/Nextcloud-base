@@ -1,0 +1,30 @@
+---
+tenant:
+  name: harderwijk-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+    # BCT Woo versions
+    versions:
+      opencatalogi: "0.7.12"
+      openconnector: "0.2.19"
+      openregister: "0.2.11"
+  frontend:
+    branding:
+      organisationName: "Gemeente Harderwijk"
+
+image:
+  registry: ghcr.io
+  repository: conductionnl/nextcloud-images
+  # Soap-enabled image, for Woo BCT. Pinned patch tag, not the floating
+  # `fpm-soap` — see tenant-rijswijk-accept.yaml for why: with pullPolicy
+  # IfNotPresent a floating tag makes the running version depend on when a
+  # node last pulled it.
+  tag: "32.0.6-fpm-soap"
