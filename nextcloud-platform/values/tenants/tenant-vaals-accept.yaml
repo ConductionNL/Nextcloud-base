@@ -3,7 +3,7 @@ tenant:
   name: vaals-accept
   environment: accept
   wave: "1"
-  dbType: postgres
+  dbType: mariadb
   secrets:
     managed: true
   apps:
