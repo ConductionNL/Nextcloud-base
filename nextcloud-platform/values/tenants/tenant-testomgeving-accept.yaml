@@ -1,0 +1,21 @@
+---
+tenant:
+  name: testomgeving-accept
+  environment: accept
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+    versions:
+      opencatalogi: "1.0.9"
+      openconnector: "0.2.20"
+      openregister: "1.1.5"
+  frontend:
+    branding:
+      organisationName: "Gemeente Testomgeving"
+      themeClassname: "almere-theme"
