@@ -32,3 +32,5 @@ tenant:
     env:
       GATSBY_FOOTER_HIDE_LOGO: "true"
       GATSBY_FOOTER_CONTENT_HEADER: "heading-2"
+      GATSBY_JUMBOTRON_TITLE: "Openbare documenten van Waterschap Noorderzijlvest"
+      GATSBY_JUMBOTRON_SUBTITLE: "Op deze website vind je de documenten die Waterschap Noorderzijlvest openbaar heeft gemaakt."
