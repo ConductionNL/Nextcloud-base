@@ -12,5 +12,6 @@ tenant:
       - openconnector
       - openregister
   frontend:
+    enabled: false
     branding:
       organisationName: "Gemeente Barneveld"
