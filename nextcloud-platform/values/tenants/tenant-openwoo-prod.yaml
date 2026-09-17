@@ -4,16 +4,18 @@ tenant:
   environment: prod
   wave: "1"
   dbType: postgres
+  secrets:
+    managed: true
   apps:
     enabled:
       - opencatalogi
       - openconnector
       - openregister
   frontend:
-    host: open.openwoo.app
-    tag: "v1.0.0"
     registry: "ghcr.io"
     repository: "conductionnl/woo-website-v2"
+    tag: "v1.0.0"
+    host: open.openwoo.app
     branding:
       organisationName: "OpenWoo.app"
       themeClassname: "openwoo-theme"
