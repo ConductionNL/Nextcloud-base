@@ -18,7 +18,10 @@ tenant:
     host: open.tubbergen.nl
     tls:
       secretName: open-tubbergen-nl-tls
-      issuer: letsencrypt-prod
+      # Betaald Trust Provider-cert (verloopt 14 apr 2027), handmatig gezaaid.
+      # issuer: none => geen cert-manager-annotatie op de Ingress, dus geen
+      # Certificate-object en geen Let's Encrypt die het klantcert overschrijft.
+      issuer: none
     # /.well-known/-bestanden, door de chart met subPath over de image-fs
     # gemount. De security.txt is PGP-ondertekend door security@noaberkracht.nl
     # (sleutel 8935D1F42231CDDFDE5AA6CD845F93DE817AA1F5) en de pgp-key.txt is de
