@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-10
+last_reviewed: 2026-09-29
 owner: info@conduction.nl
 ---
 
@@ -216,7 +216,11 @@ kubectl delete namespace $TENANT
 - Alle Ingresses — pas hierna stopt de frontend met verkeer serveren
 - Alle andere resources in de namespace
 
-external-dns ruimt het DNS-record op zodra de Ingress weg is.
+external-dns ruimt het DNS-record op zodra de Ingress weg is, maar alleen in de zones die het beheert: `openwoo.app`, `commonground.nu` en `opencatalogi.nl`.
+
+**Klantdomeinen ruimt niemand automatisch op.** Een frontend op een eigen domein (bijvoorbeeld `acceptatie-open.dinkelland.nl`) heeft een DNS-record bij de klant. Na het verwijderen van de tenant wijst dat record nog steeds naar onze loadbalancer, en die antwoordt zonder Ingress met het ingebouwde `Kubernetes Ingress Controller Fake Certificate`. Bezoekers krijgen dan een certificaatfout in plaats van een nette foutpagina. Vraag de klant het record weg te halen, of laat het naar iets anders wijzen. Gemeten op 28 september 2026: `acceptatie-open.dinkelland.nl` wees bijna twee maanden na het verwijderen van `dinkelland-accept` nog naar `81.24.6.82`.
+
+Staat er een handmatig gezaaid klantcert in de namespace (`issuer: none`), dan gaat dat met de namespace mee. Bewaar cert en sleutel dus buiten het cluster als de tenant ooit terug kan komen.
 
 ### 7. S3 Data Opruimen (Optioneel)
 
