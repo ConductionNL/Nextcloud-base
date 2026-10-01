@@ -17,6 +17,17 @@ tenant:
       openconnector: "0.2.19"
       openregister: "0.2.11"
   frontend:
+    # Opencatalogi on this tenant is pinned to 0.7.12 (see apps.versions above)
+    # for openconnector/openregister compatibility, which emits an older
+    # facet response shape ({type, buckets} instead of a flat array). The
+    # default frontend tag (V1.0.260422-development) expects the newer shape
+    # and crashes with "facet.map is not a function" on every page. `latest`
+    # is the only currently-published tag matching the build already running
+    # successfully on beek-prod/beek-accept against this same backend stack
+    # (sha256:3f08de8395...6945d49) — no stable version tag exists for it yet.
+    registry: "docker.io"
+    repository: "conduction2022/woo-website-v2"
+    tag: "latest"
     branding:
       organisationName: "Gemeente Rijswijk"
 
