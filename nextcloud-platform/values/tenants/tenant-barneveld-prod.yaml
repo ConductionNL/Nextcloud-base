@@ -12,6 +12,9 @@ tenant:
       - openconnector
       - openregister
   frontend:
-    enabled: false
+    enabled: true
+    registry: docker.io
+    repository: conduction2022/woo-website-v2
+    tag: latest
     branding:
       organisationName: "Gemeente Barneveld"
