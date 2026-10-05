@@ -12,7 +12,7 @@ tenant:
       - openconnector
       - openregister
   frontend:
-    enabled: true
+    enabled: false
     registry: docker.io
     repository: conduction2022/woo-website-v2
     tag: latest
