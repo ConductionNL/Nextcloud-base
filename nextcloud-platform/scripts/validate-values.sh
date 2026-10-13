@@ -405,6 +405,60 @@ validate_hostname_convention() {
     return 0
 }
 
+# Validate tenant.extraHostnames (optioneel)
+#
+# Extra hostnamen op dezelfde Nextcloud. De ApplicationSet zet ze in
+# trustedDomains en rendert er een tweede Ingress voor, met één TLS-secret
+# "nextcloud-<tenant>-<host met streepjes>-tls" per host. Gecontroleerd:
+# lijstvorm, geldige DNS-naam, geen dubbele, niet gelijk aan de primaire host,
+# en een secretnaam die Kubernetes accepteert (DNS-subdomein, max 253).
+validate_extra_hostnames() {
+    local file="$1"
+    local kind name primary
+    kind=$(yq eval '.tenant.extraHostnames | type' "$file" 2>/dev/null)
+
+    if [ "$kind" = "!!null" ] || [ -z "$kind" ]; then
+        return 0
+    fi
+
+    if [ "$kind" != "!!seq" ]; then
+        log_error "$file: tenant.extraHostnames moet een lijst zijn (got $kind)"
+        return 1
+    fi
+
+    name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
+    primary=$(yq eval '.tenant.hostname // ""' "$file" 2>/dev/null)
+
+    local has_error=0 host seen=" " secret
+    while IFS= read -r host; do
+        if ! [[ "$host" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$ ]]; then
+            log_error "$file: tenant.extraHostnames bevat ongeldige hostnaam '$host'"
+            has_error=1
+            continue
+        fi
+        if [ -n "$primary" ] && [ "$host" = "$primary" ]; then
+            log_error "$file: tenant.extraHostnames bevat de primaire host '$host' (die staat al in tenant.hostname)"
+            has_error=1
+        fi
+        if [[ "$seen" == *" $host "* ]]; then
+            log_error "$file: tenant.extraHostnames bevat '$host' dubbel"
+            has_error=1
+        fi
+        seen="${seen}${host} "
+        secret="nextcloud-${name}-${host//./-}-tls"
+        if [ ${#secret} -gt 253 ]; then
+            log_error "$file: TLS-secretnaam '$secret' voor '$host' is langer dan 253 tekens"
+            has_error=1
+        fi
+    done < <(yq eval '.tenant.extraHostnames[]' "$file" 2>/dev/null)
+
+    if [ $has_error -eq 0 ]; then
+        log_warning "$file: tenant.extraHostnames gezet; DNS en HTTP-01 per host moeten kloppen (zie docs/ADDING-TENANT.md)"
+    fi
+
+    return $has_error
+}
+
 # Validate wave number
 validate_wave() {
     local file="$1"
@@ -640,6 +694,7 @@ validate_tenant_file() {
     validate_chart_version_format "$file" || ((file_errors++))
     validate_hostname "$file" || ((file_errors++))
     validate_hostname_convention "$file" || ((file_errors++))
+    validate_extra_hostnames "$file" || ((file_errors++))
     validate_wave "$file" || ((file_errors++))
     validate_bucket "$file" || ((file_errors++))
     validate_frontend_image "$file" || ((file_errors++))

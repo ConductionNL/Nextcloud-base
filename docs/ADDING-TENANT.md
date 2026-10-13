@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-26
+last_reviewed: 2026-10-13
 owner: info@conduction.nl
 ---
 
@@ -179,6 +179,51 @@ soap-enabled build from `ConductionNL/nextcloud-images`.
 
 `validate-values.sh` has no top-level key allowlist, so an `image:` block passes
 validation as-is — the rules above are not machine-checked.
+
+#### Extra hostnames on one tenant
+
+One Nextcloud can answer on more than one hostname, for example a workplace on
+`cloud.<domain>` and a public site served by an app on `<domain>` and
+`www.<domain>`. Set the primary host as usual and list the others:
+
+```yaml
+tenant:
+  hostname: cloud.example.nl
+  hostnameOverride: true
+  extraHostnames:
+    - example.nl
+    - www.example.nl
+```
+
+What the ApplicationSet does with it (`argo/applicationsets/nextcloud-tenants.yaml`):
+
+| Effect | Detail |
+|---|---|
+| `trusted_domains` | every extra host is added to `nextcloud.trustedDomains`, after the primary host |
+| routing | a second Ingress `nextcloud-extra-hosts`, because chart 8.9.0 puts only `nextcloud.host` in its own Ingress rules |
+| certificates | one TLS entry per host, secret `nextcloud-<tenant>-<host with dashes>-tls`, so one cert-manager Certificate per host via HTTP-01 (`letsencrypt-prod`). A host whose DNS is not ready does not block the others |
+| annotations | taken from `ingress.annotations`, `ingress.className` and `service.port` through the chart's `tpl`, so they always match the main Ingress |
+
+A tenant without `extraHostnames` renders byte-identical to before; the block is
+only emitted when the list is set.
+
+Four things to know:
+
+- **DNS is yours when the zone is not ours.** external-dns only manages
+  `commonground.nu`, `openwoo.app` and `opencatalogi.nl`
+  (`cluster-infra/external-dns/values.yaml`). For any other zone the zone owner
+  creates the records by hand, pointing at the ingress-nginx load balancer, and
+  keeps them **DNS only** (not proxied): Cloudflare caps request bodies at 100 MB
+  against our 16G, and HTTP-01 has to reach the Ingress.
+- **A CAA record on the zone must allow `letsencrypt.org`**, or issuance fails.
+- **`trusted_domains` is written at first install only.** The Nextcloud image
+  reads `NEXTCLOUD_TRUSTED_DOMAINS` when it installs; adding a host to a running
+  tenant later also needs `occ config:system:set trusted_domains <n> --value=<host>`
+  in the pod (same pattern as `cutover-tenant.sh`). Put the full list in the file
+  before the tenant is first created.
+- **Gateway API routes do not use this list.** `charts/tenant-httproute` takes one
+  host; a tenant with `gateway.nextcloud: true` gets a route for the primary host
+  only.
 
 Validate before pushing:
 

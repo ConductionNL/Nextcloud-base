@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-10
+last_reviewed: 2026-10-13
 owner: info@conduction.nl
 ---
 
@@ -34,6 +34,12 @@ Before merge, CI runs `scripts/verify.sh`, which wraps:
 - `nextcloud-platform/scripts/validate-values.sh` — required/forbidden fields
   and patterns across all tenant files
 - `nextcloud-platform/scripts/smoke-checks.sh` — Helm chart renders
+
+`validate-values.sh` also checks the optional `tenant.extraHostnames` list (a
+list, valid DNS names, no duplicates, not the primary host, a derived TLS secret
+name Kubernetes accepts). A valid list still gives a warning, because DNS and
+HTTP-01 for those hosts are outside what CI can see. Fixtures for every branch
+are in `nextcloud-platform/tests/cases/tenant-extra-hostnames-*`.
 
 This catches invalid values and Helm/rendering failures early. Both are dry-run:
 CI needs no cluster access and no secrets. The same gate runs locally via

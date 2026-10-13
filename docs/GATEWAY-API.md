@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-17
+last_reviewed: 2026-10-13
 owner: info@conduction.nl
 ---
 
@@ -46,6 +46,11 @@ een tenant kan zijn WOO-frontend eerder migreren dan zijn Nextcloud.
 
 Zonder `gateway:`-blok rendert er niets extra's, ook geen `enabled: false`. Een
 blok dat altijd meegaat zou alle 84 Applications tegelijk laten hersyncen.
+
+`tenant.extraHostnames` (zie `docs/ADDING-TENANT.md`) gaat hier niet mee: de
+route krijgt alleen de primaire host. Een tenant met extra hostnamen blijft voor
+die hosts op de nginx-Ingress tot deze chart een lijst hostnames aanneemt, met
+per host een listener op de Gateway.
 
 ## Waarom dit nog niet schaalt
 

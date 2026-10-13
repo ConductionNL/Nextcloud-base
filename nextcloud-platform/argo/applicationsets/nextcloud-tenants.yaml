@@ -97,6 +97,7 @@ spec:
               {{- $appsStr := join " " $apps -}}
               {{- $appapiEnabled := default false .tenant.features.appapi -}}
               {{- $phpMemoryLimit := default "2048M" .tenant.phpMemoryLimit -}}
+              {{- $extraHosts := default (list) .tenant.extraHostnames -}}
               fullnameOverride: "nextcloud"
               commonLabels:
                 nextcloud.platform/tenant: "{{ .tenant.name }}"
@@ -106,6 +107,9 @@ spec:
                 host: "{{ $host }}"
                 trustedDomains:
                   - "{{ $host }}"
+                  {{- range $extraHosts }}
+                  - "{{ . }}"
+                  {{- end }}
                 extraEnv:
                   - name: PHP_MEMORY_LIMIT
                     value: "{{ $phpMemoryLimit }}"
@@ -184,7 +188,51 @@ spec:
                 s3:
                   bucket: "nextcloud"
                   prefix: "{{ $name }}/"
-        
+              {{- if $extraHosts }}
+              # tenant.extraHostnames: extra hostnamen op DEZELFDE Nextcloud.
+              # De chart (8.9.0) zet in zijn eigen Ingress alleen nextcloud.host
+              # als rule, dus extra hosts krijgen hier een tweede Ingress. Eén
+              # TLS-blok per host, dus één Certificate per host: een host waarvan
+              # DNS nog niet klopt houdt de andere niet tegen. Annotaties,
+              # ingressClassName en poort komen via de tpl van de chart uit
+              # dezelfde values als de hoofd-Ingress, dus geen tweede kopie van
+              # de nginx-instellingen. Alleen geëmit als de lijst gezet is:
+              # bestaande tenants renderen byte-identiek.
+              extraManifests:
+                - |
+                  apiVersion: networking.k8s.io/v1
+                  kind: Ingress
+                  metadata:
+                    name: nextcloud-extra-hosts
+                    labels:
+                      app.kubernetes.io/name: nextcloud
+                      app.kubernetes.io/part-of: nextcloud-platform
+                      nextcloud.platform/tenant: "{{ $name }}"
+                    annotations:
+                      {{`{{- toYaml .Values.ingress.annotations | nindent 4 }}`}}
+                  spec:
+                    ingressClassName: {{`{{ .Values.ingress.className }}`}}
+                    tls:
+                      {{- range $extraHosts }}
+                      - secretName: "nextcloud-{{ $name }}-{{ replace "." "-" . }}-tls"
+                        hosts:
+                          - "{{ . }}"
+                      {{- end }}
+                    rules:
+                      {{- range $extraHosts }}
+                      - host: "{{ . }}"
+                        http:
+                          paths:
+                            - path: /
+                              pathType: Prefix
+                              backend:
+                                service:
+                                  name: nextcloud
+                                  port:
+                                    number: {{`{{ .Values.service.port }}`}}
+                      {{- end }}
+              {{- end }}
+
         # Our GitOps repo for values files
         #
         # Drie refs, drie stappen:
