@@ -329,27 +329,57 @@ nextcloud:
   # Nextcloud Helm chart mounts these scripts into:
   #   /docker-entrypoint-hooks.d/<hook-name>/helm.sh
   #
-  # This hook is idempotent and will run at most once per instance (marker file).
-  # Optional pinning via env:
-  #   OPENCATALOGI_VERSION, OPENCONNECTOR_VERSION, OPENREGISTER_VERSION
+  # before-starting and post-installation run the SAME script (YAML anchor
+  # below), so the two can no longer drift apart. The script finds out which
+  # hook it is from its own path, for the log only.
   #
+  # Idempotent via a state file: it only does work when the app list or a pin
+  # changed since the last successful run.
+  #
+  # Env (set by argo/applicationsets/nextcloud-tenants.yaml):
+  #   CONDUCTION_APPS           app ids to install, space separated
+  #   CONDUCTION_APP_VERSIONS   pins for any app, "id=version id=version"
+  #                             (from tenant.apps.versions; only set when a
+  #                             tenant pins something)
+  #   OPENCATALOGI_VERSION, OPENCONNECTOR_VERSION, OPENREGISTER_VERSION
+  #                             legacy pins, still honoured and still win
+  #
+  # A pinned app comes from
+  #   https://github.com/ConductionNL/<id>/releases/download/v<ver>/<id>-<ver>.tar.gz
+  # and is verified before it replaces anything: the published .sha256 when the
+  # release has one, a single top folder named <id>, no absolute or '..'
+  # paths, and <id> in appinfo/info.xml. Old repo names redirect on GitHub, so
+  # the app id doubles as the repo name. A failed pin is logged as ERROR (also
+  # on stderr, so it shows in the container log), leaves the app as it was,
+  # and keeps the state file unwritten so the next start retries.
+  #
+  # Tested with fixtures: nextcloud-platform/tests/run-hook-tests.sh
   # Log: /var/www/html/data/conduction-apps.log
   hooks:
-    # Runs on every container start; exits fast after marker is set.
+    # Runs on every container start; exits fast once the state matches.
     # This is the most reliable way to ensure apps are present for existing tenants too.
-    before-starting: |
+    before-starting: &conduction-apps-hook |
       #!/bin/bash
       set -o pipefail
 
-      LOG="/var/www/html/data/conduction-apps.log"
-      STATE_FILE="/var/www/html/data/.conduction-apps-state"
+      # CONDUCTION_NC_ROOT exists for the fixture tests; in the pod it is unset.
+      NC_ROOT="${CONDUCTION_NC_ROOT:-/var/www/html}"
+      LOG="$NC_ROOT/data/conduction-apps.log"
+      STATE_FILE="$NC_ROOT/data/.conduction-apps-state"
+      PHASE="$(basename "$(dirname "$0")")"
+      LEGACY_APPS="opencatalogi openconnector openregister"
+      ID_RE='^[a-z][a-z0-9_]*$'
+      VER_RE='^[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$'
+      FAILED=0
 
       log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG" 2>&1; }
+      # Errors go to the log AND stderr, and block writing the state file.
+      fail() { log "ERROR: $1"; echo "conduction-apps ERROR: $1" >&2; FAILED=1; }
 
       if [ "${CONDUCTION_APPS_ENABLED:-true}" != "true" ]; then log "Conduction apps disabled (skipping)"; exit 0; fi
-      if [ ! -f /var/www/html/config/config.php ]; then exit 0; fi
+      if [ ! -f "$NC_ROOT/config/config.php" ]; then log "Nextcloud not configured yet (skipping, $PHASE)"; exit 0; fi
 
-      log "=== Conduction Apps Bootstrap Started (before-starting) ==="
+      log "=== Conduction Apps Bootstrap Started ($PHASE) ==="
 
       APPS="${CONDUCTION_APPS:-opencatalogi openconnector openregister}"
       if [ -z "$APPS" ]; then
@@ -357,163 +387,195 @@ nextcloud:
         exit 0
       fi
 
-      DESIRED_STATE="APPS=${APPS};OPENCATALOGI_VERSION=${OPENCATALOGI_VERSION-};OPENCONNECTOR_VERSION=${OPENCONNECTOR_VERSION-};OPENREGISTER_VERSION=${OPENREGISTER_VERSION-}"
-      CURRENT_STATE="$(cat "$STATE_FILE" 2>/dev/null || true)"
-      if [ "$CURRENT_STATE" = "$DESIRED_STATE" ]; then
-        log "Conduction apps already in desired state (skip)"
-        exit 0
-      fi
-
-      install_app() {
-        APP_NAME=$1
-        VERSION_VAR=$2
-        VERSION="${!VERSION_VAR-}"
-
-        if [ -n "$VERSION" ]; then
-          log "Installing $APP_NAME v$VERSION (pinned)..."
-
-          if [ -d "/var/www/html/apps/$APP_NAME" ]; then
-            log "Removing bundled $APP_NAME from /apps/ to use pinned version"
-            rm -rf "/var/www/html/apps/$APP_NAME"
-          fi
-
-          URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
-          mkdir -p /var/www/html/custom_apps
-
-          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
-            rm -rf "/var/www/html/custom_apps/$APP_NAME" 2>/dev/null
-            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
-            rm /tmp/$APP_NAME.tar.gz
-            chown -R www-data:www-data "/var/www/html/custom_apps/$APP_NAME"
-            log "$APP_NAME v$VERSION installed to custom_apps"
-          else
-            log "ERROR: GitHub download failed for $URL"
-            return 0
-          fi
-        else
-          if php occ app:list 2>/dev/null | grep -q -- "- $APP_NAME:"; then
-            return 0
-          fi
-          log "Installing $APP_NAME (latest from app store)..."
-          php occ app:install "$APP_NAME" 2>>"$LOG" || true
+      # Collect pins: generic list first, legacy env vars win for their app.
+      declare -A PIN=()
+      # Apps whose pin is unreadable: left alone, never silently swapped for
+      # the app store version.
+      declare -A BAD_PIN=()
+      read -r -a PIN_TOKENS <<< "${CONDUCTION_APP_VERSIONS-}"
+      for tok in "${PIN_TOKENS[@]}"; do
+        pin_id="${tok%%=*}"
+        pin_ver="${tok#*=}"
+        if [ "$pin_id" = "$tok" ] || ! [[ "$pin_id" =~ $ID_RE ]] || ! [[ "$pin_ver" =~ $VER_RE ]]; then
+          fail "invalid pin '$tok' in CONDUCTION_APP_VERSIONS (expected <app-id>=<version>, no leading v)"
+          if [ -n "$pin_id" ]; then BAD_PIN[$pin_id]=1; fi
+          continue
         fi
-
-        php occ app:enable "$APP_NAME" 2>>"$LOG" || true
-
-        if [ -n "$VERSION" ] && [ -d "/var/www/html/apps/$APP_NAME" ]; then
-          rm -rf "/var/www/html/apps/$APP_NAME"
-          php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+        PIN[$pin_id]="$pin_ver"
+      done
+      for pair in opencatalogi:OPENCATALOGI_VERSION openconnector:OPENCONNECTOR_VERSION openregister:OPENREGISTER_VERSION; do
+        pin_id="${pair%%:*}"
+        legacy_var="${pair#*:}"
+        legacy_ver="${!legacy_var-}"
+        [ -z "$legacy_ver" ] && continue
+        if [ -n "${PIN[$pin_id]-}" ] && [ "${PIN[$pin_id]}" != "$legacy_ver" ]; then
+          log "WARNING: $pin_id pinned twice (${PIN[$pin_id]} and $legacy_ver); the legacy env var wins"
         fi
-
-        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep -- "- $APP_NAME:" | sed 's/.*: //')
-        log "$APP_NAME enabled (version: $INSTALLED_VER)"
-      }
-
-      for app in $APPS; do
-        case "$app" in
-          opencatalogi)  install_app "opencatalogi"  "OPENCATALOGI_VERSION" ;;
-          openconnector) install_app "openconnector" "OPENCONNECTOR_VERSION" ;;
-          openregister)  install_app "openregister"  "OPENREGISTER_VERSION" ;;
-          *)
-            log "Installing $app (app store, no pin support)..."
-            php occ app:install "$app" 2>>"$LOG" || true
-            php occ app:enable "$app" 2>>"$LOG" || true
-            ;;
-        esac
+        PIN[$pin_id]="$legacy_ver"
       done
 
-      php occ db:add-missing-indices 2>>"$LOG" || true
-      php occ maintenance:repair --include-expensive 2>>"$LOG" || true
+      # State key. For the three legacy apps it is byte for byte the old key,
+      # so a tenant that only uses those pins does not reinstall after this
+      # hook changes. Any other pin is appended, sorted, so changing it
+      # reruns the bootstrap.
+      DESIRED_STATE="APPS=${APPS};OPENCATALOGI_VERSION=${PIN[opencatalogi]-};OPENCONNECTOR_VERSION=${PIN[openconnector]-};OPENREGISTER_VERSION=${PIN[openregister]-}"
+      EXTRA_PINS=""
+      for pin_id in $(printf '%s\n' "${!PIN[@]}" | sort); do
+        case " $LEGACY_APPS " in *" $pin_id "*) continue ;; esac
+        EXTRA_PINS="${EXTRA_PINS:+$EXTRA_PINS,}$pin_id=${PIN[$pin_id]}"
+        case " $APPS " in
+          *" $pin_id "*) ;;
+          *) log "WARNING: $pin_id is pinned but not in CONDUCTION_APPS; pin ignored" ;;
+        esac
+      done
+      if [ -n "$EXTRA_PINS" ]; then DESIRED_STATE="${DESIRED_STATE};PINS=${EXTRA_PINS}"; fi
 
-      echo "$DESIRED_STATE" > "$STATE_FILE"
-      log "=== Conduction Apps Bootstrap Complete ==="
-
-    post-installation: |
-      #!/bin/bash
-      set -o pipefail
-
-      LOG="/var/www/html/data/conduction-apps.log"
-      STATE_FILE="/var/www/html/data/.conduction-apps-state"
-
-      log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG" 2>&1; }
-
-      if [ "${CONDUCTION_APPS_ENABLED:-true}" != "true" ]; then log "Conduction apps disabled (skipping)"; exit 0; fi
-      if [ ! -f /var/www/html/config/config.php ]; then log "Nextcloud not configured yet (skipping)"; exit 0; fi
-
-      log "=== Conduction Apps Bootstrap Started ==="
-
-      APPS="${CONDUCTION_APPS:-opencatalogi openconnector openregister}"
-      if [ -z "$APPS" ]; then
-        log "CONDUCTION_APPS is empty; skipping"
-        exit 0
-      fi
-
-      DESIRED_STATE="APPS=${APPS};OPENCATALOGI_VERSION=${OPENCATALOGI_VERSION-};OPENCONNECTOR_VERSION=${OPENCONNECTOR_VERSION-};OPENREGISTER_VERSION=${OPENREGISTER_VERSION-}"
       CURRENT_STATE="$(cat "$STATE_FILE" 2>/dev/null || true)"
-      if [ "$CURRENT_STATE" = "$DESIRED_STATE" ]; then
+      if [ "$FAILED" -eq 0 ] && [ "$CURRENT_STATE" = "$DESIRED_STATE" ]; then
         log "Conduction apps already in desired state (skip)"
         exit 0
       fi
 
+      # Download, verify and move one pinned app into custom_apps.
+      # Returns non-zero (after fail) without touching the installed app.
+      fetch_pinned() {
+        local APP_NAME=$1 VERSION=$2
+        local ASSET="$APP_NAME-$VERSION.tar.gz"
+        local URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$ASSET"
+        local WORK STAGE CODE EXPECTED ACTUAL LISTING TOPS XML_ID XML_VER
+
+        if ! [[ "$APP_NAME" =~ $ID_RE ]] || ! [[ "$VERSION" =~ $VER_RE ]]; then
+          fail "$APP_NAME: invalid pin '$VERSION' (expected e.g. 0.7.12 or 0.2.10-unstable.4, no leading v)"
+          return 1
+        fi
+
+        log "Installing $APP_NAME v$VERSION (pinned)..."
+        log "Download URL: $URL"
+        WORK="$(mktemp -d "${TMPDIR:-/tmp}/conduction-$APP_NAME.XXXXXX")" || { fail "$APP_NAME: mktemp failed"; return 1; }
+
+        if ! curl -fsSL --retry 3 --retry-delay 5 "$URL" -o "$WORK/$ASSET" 2>>"$LOG"; then
+          fail "$APP_NAME v$VERSION: GitHub download failed for $URL (app left as it was)"
+          rm -rf "$WORK"; return 1
+        fi
+
+        CODE="$(curl -sSL --retry 3 --retry-delay 5 -o "$WORK/$ASSET.sha256" -w '%{http_code}' "$URL.sha256" 2>>"$LOG")"
+        if [ "$CODE" = "200" ]; then
+          EXPECTED="$(awk '{print $1; exit}' "$WORK/$ASSET.sha256")"
+          ACTUAL="$(sha256sum "$WORK/$ASSET" | awk '{print $1}')"
+          if ! [[ "$EXPECTED" =~ ^[0-9a-f]{64}$ ]] || [ "$EXPECTED" != "$ACTUAL" ]; then
+            fail "$APP_NAME v$VERSION: sha256 mismatch (published '$EXPECTED', got '$ACTUAL')"
+            rm -rf "$WORK"; return 1
+          fi
+          log "$APP_NAME v$VERSION: sha256 verified"
+        elif [ "$CODE" = "404" ]; then
+          log "WARNING: $APP_NAME v$VERSION: release publishes no .sha256; checking structure only"
+        else
+          fail "$APP_NAME v$VERSION: could not fetch $URL.sha256 (HTTP '$CODE')"
+          rm -rf "$WORK"; return 1
+        fi
+
+        if ! LISTING="$(tar -tzf "$WORK/$ASSET" 2>>"$LOG")"; then
+          fail "$APP_NAME v$VERSION: $ASSET is not a readable tar.gz"
+          rm -rf "$WORK"; return 1
+        fi
+        if printf '%s\n' "$LISTING" | grep -qE '(^/|(^|/)[.][.](/|$))'; then
+          fail "$APP_NAME v$VERSION: $ASSET contains absolute or '..' paths"
+          rm -rf "$WORK"; return 1
+        fi
+        TOPS="$(printf '%s\n' "$LISTING" | sed -e 's#^\./##' -e '/^$/d' | cut -d/ -f1 | sort -u | tr '\n' ' ')"
+        if [ "$TOPS" != "$APP_NAME " ]; then
+          fail "$APP_NAME v$VERSION: top folder of $ASSET is '${TOPS% }', expected '$APP_NAME'"
+          rm -rf "$WORK"; return 1
+        fi
+
+        # Stage on the same filesystem as custom_apps, so the final step is a rename.
+        # A run killed mid-install (startupProbe) leaves its staging dir; clear those first.
+        mkdir -p "$NC_ROOT/custom_apps"
+        rm -rf "$NC_ROOT/custom_apps/.conduction-staging-$APP_NAME."*
+        STAGE="$NC_ROOT/custom_apps/.conduction-staging-$APP_NAME.$$"
+        mkdir -p "$STAGE"
+        if ! tar -xzf "$WORK/$ASSET" -C "$STAGE" 2>>"$LOG"; then
+          fail "$APP_NAME v$VERSION: extracting $ASSET failed"
+          rm -rf "$WORK" "$STAGE"; return 1
+        fi
+        rm -rf "$WORK"
+
+        XML_ID="$(grep -o '<id>[^<]*</id>' "$STAGE/$APP_NAME/appinfo/info.xml" 2>/dev/null | head -1 | sed -e 's#<id>##' -e 's#</id>##')"
+        if [ "$XML_ID" != "$APP_NAME" ]; then
+          fail "$APP_NAME v$VERSION: appinfo/info.xml has id '$XML_ID', expected '$APP_NAME'"
+          rm -rf "$STAGE"; return 1
+        fi
+        XML_VER="$(grep -o '<version>[^<]*</version>' "$STAGE/$APP_NAME/appinfo/info.xml" | head -1 | sed -e 's#<version>##' -e 's#</version>##')"
+        if [ "$XML_VER" != "$VERSION" ]; then
+          log "WARNING: $APP_NAME: info.xml says version '$XML_VER', pin is '$VERSION'"
+        fi
+
+        if [ -d "$NC_ROOT/apps/$APP_NAME" ]; then
+          log "Removing bundled $APP_NAME from /apps/ to use pinned version"
+          rm -rf "$NC_ROOT/apps/$APP_NAME"
+        fi
+        rm -rf "$NC_ROOT/custom_apps/$APP_NAME"
+        if ! mv "$STAGE/$APP_NAME" "$NC_ROOT/custom_apps/$APP_NAME"; then
+          fail "$APP_NAME v$VERSION: moving into custom_apps failed"
+          rm -rf "$STAGE"; return 1
+        fi
+        rm -rf "$STAGE"
+        chown -R www-data:www-data "$NC_ROOT/custom_apps/$APP_NAME" 2>>"$LOG" || true
+        log "$APP_NAME v$VERSION installed to custom_apps"
+        return 0
+      }
+
+      installed_version() {
+        php occ app:list 2>/dev/null | grep -- "- $1:" | sed 's/.*: //'
+      }
+
       install_app() {
-        APP_NAME=$1
-        VERSION_VAR=$2
-        VERSION="${!VERSION_VAR-}"
+        local APP_NAME=$1 VERSION="${PIN[$1]-}" INSTALLED_VER
+
+        if [ -z "$VERSION" ] && [ -n "${BAD_PIN[$APP_NAME]-}" ]; then
+          log "Skipping $APP_NAME: its pin is invalid (see ERROR above)"
+          return 0
+        fi
 
         if [ -n "$VERSION" ]; then
-          log "Installing $APP_NAME v$VERSION (pinned)..."
-
-          if [ -d "/var/www/html/apps/$APP_NAME" ]; then
-            log "Removing bundled $APP_NAME from /apps/ to use pinned version"
-            rm -rf "/var/www/html/apps/$APP_NAME"
-          fi
-
-          URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-$VERSION.tar.gz"
-          log "Download URL: $URL"
-          mkdir -p /var/www/html/custom_apps
-
-          if curl -fsSL "$URL" -o /tmp/$APP_NAME.tar.gz 2>>"$LOG"; then
-            rm -rf "/var/www/html/custom_apps/$APP_NAME" 2>/dev/null
-            tar -xzf /tmp/$APP_NAME.tar.gz -C /var/www/html/custom_apps/ 2>>"$LOG"
-            rm /tmp/$APP_NAME.tar.gz
-            chown -R www-data:www-data "/var/www/html/custom_apps/$APP_NAME"
-            log "$APP_NAME v$VERSION installed to custom_apps"
-          else
-            log "ERROR: GitHub download failed for $URL"
-            return 0
-          fi
-        else
-          if php occ app:list 2>/dev/null | grep -q -- "- $APP_NAME:"; then
-            log "$APP_NAME already installed"
-            return 0
-          fi
-          log "Installing $APP_NAME (latest from app store)..."
-          php occ app:install "$APP_NAME" 2>>"$LOG" || true
-        fi
-
-        php occ app:enable "$APP_NAME" 2>>"$LOG" || true
-
-        if [ -n "$VERSION" ] && [ -d "/var/www/html/apps/$APP_NAME" ]; then
-          log "Removing /apps/$APP_NAME (prefer custom_apps pinned version)"
-          rm -rf "/var/www/html/apps/$APP_NAME"
+          fetch_pinned "$APP_NAME" "$VERSION" || return 0
           php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+          if [ -d "$NC_ROOT/apps/$APP_NAME" ]; then
+            log "Removing /apps/$APP_NAME (prefer custom_apps pinned version)"
+            rm -rf "$NC_ROOT/apps/$APP_NAME"
+            php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+          fi
+          INSTALLED_VER="$(installed_version "$APP_NAME")"
+          if [ "$INSTALLED_VER" != "$VERSION" ]; then
+            fail "$APP_NAME: pinned $VERSION but Nextcloud reports '$INSTALLED_VER' after enable"
+            return 0
+          fi
+          log "$APP_NAME enabled (version: $INSTALLED_VER)"
+          return 0
         fi
 
-        INSTALLED_VER=$(php occ app:list 2>/dev/null | grep -- "- $APP_NAME:" | sed 's/.*: //')
-        log "$APP_NAME enabled (version: $INSTALLED_VER)"
+        case " $LEGACY_APPS " in
+          *" $APP_NAME "*)
+            if php occ app:list 2>/dev/null | grep -q -- "- $APP_NAME:"; then
+              log "$APP_NAME already installed"
+              return 0
+            fi
+            log "Installing $APP_NAME (latest from app store)..."
+            php occ app:install "$APP_NAME" 2>>"$LOG" || true
+            php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+            INSTALLED_VER="$(installed_version "$APP_NAME")"
+            log "$APP_NAME enabled (version: $INSTALLED_VER)"
+            ;;
+          *)
+            log "Installing $APP_NAME (app store, not pinned)..."
+            php occ app:install "$APP_NAME" 2>>"$LOG" || true
+            php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+            ;;
+        esac
       }
 
       for app in $APPS; do
-        case "$app" in
-          opencatalogi)  install_app "opencatalogi"  "OPENCATALOGI_VERSION" ;;
-          openconnector) install_app "openconnector" "OPENCONNECTOR_VERSION" ;;
-          openregister)  install_app "openregister"  "OPENREGISTER_VERSION" ;;
-          *)
-            log "Installing $app (app store, no pin support)..."
-            php occ app:install "$app" 2>>"$LOG" || true
-            php occ app:enable "$app" 2>>"$LOG" || true
-            ;;
-        esac
+        install_app "$app"
       done
 
       log "Running database maintenance..."
@@ -521,9 +583,17 @@ nextcloud:
       php occ maintenance:repair --include-expensive 2>>"$LOG" || true
       log "Database maintenance complete"
 
+      if [ "$FAILED" -ne 0 ]; then
+        log "=== Conduction Apps Bootstrap INCOMPLETE: state not written, next start retries ==="
+        echo "conduction-apps: bootstrap incomplete, see $LOG" >&2
+        exit 0
+      fi
+
       echo "$DESIRED_STATE" > "$STATE_FILE"
       log "=== Conduction Apps Bootstrap Complete ==="
 
+    # Same script as before-starting (anchor), run once after a fresh install.
+    post-installation: *conduction-apps-hook
     # Also run on upgrades; marker prevents re-running.
     post-upgrade: |
       #!/bin/bash
