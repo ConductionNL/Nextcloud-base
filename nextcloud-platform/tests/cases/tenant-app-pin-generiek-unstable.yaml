@@ -1,0 +1,15 @@
+---
+tenant:
+  name: canary-accept
+  environment: accept
+  wave: "0"
+  dbType: postgres
+  apps:
+    enabled:
+      - openregister
+      - portaliq
+      - dossiq
+    versions:
+      openregister: "2.1.41-unstable.20261012091248"
+      portaliq: "0.2.10-unstable.20261012182937"
+      dossiq: "0.4.53-unstable.20261013114333"
