@@ -701,7 +701,11 @@ nextcloud:
               # all users.
               if [ "$(installed_version "$APP_NAME")" != "$VERSION" ]; then
                 log "$APP_NAME was already enabled: disabling and enabling it to run its migrations"
-                php occ app:disable "$APP_NAME" >>"$LOG" 2>&1 || true
+                if ! php occ app:disable "$APP_NAME" >>"$LOG" 2>&1; then
+                  fail "$APP_NAME v$VERSION: occ app:disable $APP_NAME failed"
+                  restore_and_reenable "$APP_NAME"
+                  return 0
+                fi
                 if ! ENABLE_OUT="$(php occ app:enable "$APP_NAME" 2>>"$LOG")"; then
                   fail "$APP_NAME v$VERSION: occ app:enable $APP_NAME failed: $ENABLE_OUT"
                   restore_and_reenable "$APP_NAME"

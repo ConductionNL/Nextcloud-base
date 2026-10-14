@@ -77,7 +77,7 @@ mkdir -p "$STUBS"
 #                heeft dan de opgeslagen versie; maintenance: true|false.
 # Faalinjectie: STUB_ENABLE_FAIL=<id> laat app:enable van die app falen (bv.
 # max-version); STUB_ENABLE_FAIL_VERSIONS="<v> ..." doet dat voor code met een
-# van die versies. Elke aanroep komt in $STUB_DIR/calls.
+# van die versies; STUB_DISABLE_FAIL=<id> laat app:disable falen. Elke aanroep komt in $STUB_DIR/calls.
 cat > "${STUBS}/php" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$STUB_DIR/calls"
@@ -118,6 +118,7 @@ case "${1:-}" in
     exit 1
     ;;
   app:disable)
+    if [ "${STUB_DISABLE_FAIL:-}" = "$2" ]; then echo "Error disabling $2" >&2; exit 1; fi
     if [ -e "$STUB_DIR/enabled/$2" ]; then mv "$STUB_DIR/enabled/$2" "$STUB_DIR/disabled/$2"; echo "$2 disabled"; exit 0; fi
     echo "No such app enabled: $2"; exit 0
     ;;
@@ -744,6 +745,22 @@ interrupted_after_move "$t"
 run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
 expect_file_has "$t/root/data/conduction-apps.log" "GitHub download failed"
 expect_app "$t" custom_apps portaliq 0.2.1
+expect_state "$t" "(geen)"
+expect_no_leftovers "$t"
+end "$t"
+
+begin "nieuw: app:disable faalt, vorige versie staat terug en blijft aan"
+t="$(new_tenant disablefail)"
+make_app_dir "$t/root/custom_apps/portaliq" portaliq 0.2.1
+echo "0.2.1" > "$t/stub/enabled/portaliq"
+make_release "$t" portaliq "$PQ1" good
+run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1" "STUB_DISABLE_FAIL=portaliq"
+expect_file_has "$t/root/data/conduction-apps.log" "occ app:disable portaliq failed"
+expect_file_has "$t/root/data/conduction-apps.log" "portaliq: previous version restored and enabled again"
+expect_file_has "$t/stderr" "conduction-apps ERROR"
+expect_app "$t" custom_apps portaliq 0.2.1
+expect_eq "$(cat "$t/stub/enabled/portaliq" 2>/dev/null || echo uit)" "0.2.1" "portaliq aan op 0.2.1"
+expect_eq "$(occ_status "$t")" "$STATUS_OK" "occ status"
 expect_state "$t" "(geen)"
 expect_no_leftovers "$t"
 end "$t"
