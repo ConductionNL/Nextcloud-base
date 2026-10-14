@@ -405,6 +405,35 @@ validate_hostname_convention() {
     return 0
 }
 
+# Primaire host zoals de ApplicationSet (argo/applicationsets/nextcloud-tenants.yaml)
+# hem bepaalt: tenant.hostname, en anders afgeleid uit tenant.name. Houd dit
+# gelijk met dat template. Let op: het template kent 'demo' niet als suffix,
+# zo'n tenant valt terug op tenant.environment (bv. x-demo.accept.commonground.nu).
+#
+# Usage: primary_host <name> <environment> <hostname>
+primary_host() {
+    local name="$1" env="$2" hostname="$3" suffix="" org="$1" omgeving
+
+    if [ -n "$hostname" ] && [ "$hostname" != "null" ]; then
+        echo "$hostname"
+        return 0
+    fi
+
+    if [[ "$name" =~ (accept|test|prod)$ ]]; then
+        suffix="${BASH_REMATCH[1]}"
+    fi
+    if [[ "$name" =~ ^(.*)-(accept|test|prod)$ ]]; then
+        org="${BASH_REMATCH[1]}"
+    fi
+    omgeving="${suffix:-$env}"
+
+    if [ "$omgeving" = "prod" ]; then
+        echo "${org}.commonground.nu"
+    else
+        echo "${org}.${omgeving}.commonground.nu"
+    fi
+}
+
 # Validate tenant.extraHostnames (optioneel)
 #
 # Extra hostnamen op dezelfde Nextcloud. De ApplicationSet zet ze in
@@ -414,7 +443,7 @@ validate_hostname_convention() {
 # en een secretnaam die Kubernetes accepteert (DNS-subdomein, max 253).
 validate_extra_hostnames() {
     local file="$1"
-    local kind name primary
+    local kind name hostname primary primary_bron
     kind=$(yq eval '.tenant.extraHostnames | type' "$file" 2>/dev/null)
 
     if [ "$kind" = "!!null" ] || [ -z "$kind" ]; then
@@ -427,7 +456,13 @@ validate_extra_hostnames() {
     fi
 
     name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
-    primary=$(yq eval '.tenant.hostname // ""' "$file" 2>/dev/null)
+    hostname=$(yq eval '.tenant.hostname // ""' "$file" 2>/dev/null)
+    primary=$(primary_host "$name" "$(yq eval '.tenant.environment' "$file" 2>/dev/null)" "$hostname")
+    if [ -n "$hostname" ]; then
+        primary_bron="die staat al in tenant.hostname"
+    else
+        primary_bron="afgeleid uit tenant.name, zoals de ApplicationSet doet"
+    fi
 
     local has_error=0 host seen=" " secret
     while IFS= read -r host; do
@@ -436,8 +471,8 @@ validate_extra_hostnames() {
             has_error=1
             continue
         fi
-        if [ -n "$primary" ] && [ "$host" = "$primary" ]; then
-            log_error "$file: tenant.extraHostnames bevat de primaire host '$host' (die staat al in tenant.hostname)"
+        if [ "$host" = "$primary" ]; then
+            log_error "$file: tenant.extraHostnames bevat de primaire host '$host' ($primary_bron)"
             has_error=1
         fi
         if [[ "$seen" == *" $host "* ]]; then
