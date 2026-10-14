@@ -56,25 +56,30 @@ STUBS="${WORK}/stubs"
 mkdir -p "$STUBS"
 
 # php occ <cmd>: gedraagt zich als Nextcloud 32.0.13 voor wat de hook gebruikt.
-# Per tenant-root houdt hij in $STUB_DIR/enabled/<id> de OPGESLAGEN versie
-# (appconfig installed_version) bij, los van de code in custom_apps of apps:
+# Per tenant-root houdt hij de OPGESLAGEN versie (appconfig installed_version)
+# bij, los van de code in custom_apps of apps: $STUB_DIR/enabled/<id> voor een
+# ingeschakelde app, $STUB_DIR/disabled/<id> voor een uitgeschakelde.
 #   app:enable   een app die al aan staat: '<id> already enabled', verder niets
-#                (core/Command/App/Enable.php). Anders slaat hij de versie uit
-#                info.xml op, zoals installApp doet.
+#                (core/Command/App/Enable.php). Anders Installer::installApp:
+#                migraties tot 'latest' (komen in $STUB_DIR/migrations) en de
+#                versie uit info.xml opslaan (installAppLastSteps).
+#   app:disable  zet de app uit; de opgeslagen versie blijft.
 #   app:list     toont voor een ingeschakelde app de opgeslagen versie, niet die
 #                uit info.xml (core/Command/App/ListApps.php).
-#   upgrade      werkt de opgeslagen versie bij van elke ingeschakelde app
-#                waarvan info.xml nieuwer is; anders 'No upgrade required.'
-#                (core/Command/Upgrade.php).
-#   status       needsDbUpgrade: true zolang zo'n app bestaat.
+#   upgrade      de Updater: zet maintenance aan ($STUB_DIR/maintenance) en
+#                alleen weer uit als alles slaagt (lib/private/Updater.php).
+#                De hook hoort hem nooit aan te roepen.
+#   status       needsDbUpgrade: true zolang een ingeschakelde app nieuwere code
+#                heeft dan de opgeslagen versie; maintenance: true|false.
 # Faalinjectie: STUB_ENABLE_FAIL=<id> laat app:enable van die app falen (bv.
-# max-version), STUB_UPGRADE_NOOP=1 laat upgrade niets bijwerken (een app-
-# upgrade die mislukt). Elke aanroep komt in $STUB_DIR/calls.
+# max-version); STUB_ENABLE_FAIL_VERSIONS="<v> ..." doet dat voor code met een
+# van die versies. Elke aanroep komt in $STUB_DIR/calls.
 cat > "${STUBS}/php" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$STUB_DIR/calls"
 [ "${1:-}" = "occ" ] || exit 1
 shift
+mkdir -p "$STUB_DIR/disabled"
 info_version() { grep -o '<version>[^<]*</version>' "$1" | head -1 | sed -e 's#<version>##' -e 's#</version>##'; }
 code_version() { # de versie in info.xml van de code die Nextcloud laadt
   local d
@@ -102,21 +107,27 @@ case "${1:-}" in
     if [ -f "$STUB_DIR/appstore/$2" ]; then cp "$STUB_DIR/appstore/$2" "$STUB_DIR/enabled/$2"; exit 0; fi
     echo "Could not download app $2" >&2; exit 1
     ;;
+  app:disable)
+    if [ -e "$STUB_DIR/enabled/$2" ]; then mv "$STUB_DIR/enabled/$2" "$STUB_DIR/disabled/$2"; echo "$2 disabled"; exit 0; fi
+    echo "No such app enabled: $2"; exit 0
+    ;;
   app:enable)
     if [ -e "$STUB_DIR/enabled/$2" ]; then echo "$2 already enabled"; exit 0; fi
-    if [ "${STUB_ENABLE_FAIL:-}" = "$2" ]; then echo "App \"$2\" cannot be installed because it is not compatible with this version of the server."; exit 1; fi
-    if v="$(code_version "$2")"; then echo "$v" > "$STUB_DIR/enabled/$2"; echo "$2 $v enabled"; exit 0; fi
-    echo "$2 not found"; exit 1
+    if ! v="$(code_version "$2")"; then echo "$2 not found"; exit 1; fi
+    if [ "${STUB_ENABLE_FAIL:-}" = "$2" ] || [[ " ${STUB_ENABLE_FAIL_VERSIONS:-} " == *" $v "* ]]; then
+      echo "App \"$2\" cannot be installed because it is not compatible with this version of the server."; exit 1
+    fi
+    echo "$2 $v" >> "$STUB_DIR/migrations"
+    echo "$v" > "$STUB_DIR/enabled/$2"; rm -f "$STUB_DIR/disabled/$2"
+    echo "$2 $v enabled"
     ;;
   upgrade)
-    if [ -n "${STUB_UPGRADE_NOOP:-}" ]; then echo "Exception: app upgrade failed"; exit 5; fi
-    done_any=0
+    touch "$STUB_DIR/maintenance"
     for f in "$STUB_DIR"/enabled/*; do
       [ -e "$f" ] || continue
-      id="$(basename "$f")"
-      if needs_upgrade "$id"; then code_version "$id" > "$f"; echo "Updated $id"; done_any=1; fi
+      if needs_upgrade "$(basename "$f")"; then code_version "$(basename "$f")" > "$f"; fi
     done
-    [ "$done_any" = 1 ] || echo "No upgrade required."
+    rm -f "$STUB_DIR/maintenance"
     ;;
   status)
     nu=false
@@ -125,6 +136,7 @@ case "${1:-}" in
       if needs_upgrade "$(basename "$f")"; then nu=true; fi
     done
     echo "  - needsDbUpgrade: $nu"
+    if [ -e "$STUB_DIR/maintenance" ]; then echo "  - maintenance: true"; else echo "  - maintenance: false"; fi
     ;;
   *) exit 0 ;;
 esac
@@ -295,7 +307,11 @@ expect_no_leftovers() {
     expect_eq "$left" "0" "opzijgezette vorige versies achtergebleven"
     left="$(find "$1/root/tmp" -mindepth 1 -maxdepth 1 -name 'conduction-*' | wc -l)"
     expect_eq "$left" "0" "tijdelijke downloadmappen achtergebleven"
+    # De hook draait nooit de Updater, dus kan hij maintenance niet aan laten.
+    expect_file_lacks "$1/stub/calls" "occ upgrade"
+    [ ! -e "$1/stub/maintenance" ] || nok "maintenance staat nog aan"
 }
+STATUS_OK="$(printf '  - needsDbUpgrade: false\n  - maintenance: false')"
 
 # Pariteit: <naam> <setup-functie> [VAR=waarde ...]
 parity() {
@@ -382,7 +398,8 @@ end "$t"
 # Bewust verschil: een pin-bump op een app die al aan staat. De oude hook
 # verving de code en riep alleen app:enable aan; op Nextcloud 32 doet dat niets
 # voor een ingeschakelde app, dus bleef de instantie op "upgrade vereist" staan.
-# De nieuwe hook draait daarna `occ upgrade`. Daarom geen pariteit voor dit
+# De nieuwe hook zet zo'n app uit en weer aan (app:disable + app:enable), wat
+# de migraties draait en de nieuwe versie opslaat. Daarom geen pariteit voor dit
 # geval, wel voor geen pin, ongewijzigde pin en state van de oude hook (boven).
 begin "verschil: pin-bump op een ingeschakelde app (oude hook liet 'upgrade vereist' achter)"
 a="$(new_tenant bump-old)"; b="$(new_tenant bump-new)"
@@ -393,8 +410,9 @@ for x in "$a" "$b"; do
 done
 run_hook "$a" legacy "CONDUCTION_APPS=openregister" "OPENREGISTER_VERSION=1.1.5"
 run_hook "$b" "$NEW_HOOK" "CONDUCTION_APPS=openregister" "OPENREGISTER_VERSION=1.1.5"
-expect_eq "$(occ_status "$a")" "  - needsDbUpgrade: true" "occ status na de oude hook"
-expect_eq "$(occ_status "$b")" "  - needsDbUpgrade: false" "occ status na de nieuwe hook"
+expect_eq "$(occ_status "$a" | head -1)" "  - needsDbUpgrade: true" "occ status na de oude hook"
+expect_eq "$(occ_status "$b")" "$STATUS_OK" "occ status na de nieuwe hook"
+expect_no_leftovers "$b"
 expect_eq "$(cat "$b/stub/enabled/openregister")" "1.1.5" "opgeslagen versie na de nieuwe hook"
 expect_state "$b" "APPS=openregister;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=1.1.5"
 end "$b"
@@ -437,17 +455,21 @@ end "$t"
 
 begin "nieuw: een gewijzigde pin herinstalleert die app"
 make_release "$t" portaliq "$PQ2" good
-: > "$t/stub/curl-calls"
+: > "$t/stub/curl-calls"; : > "$t/stub/calls"
 run_hook "$t" "$NEW_HOOK" "$DEMO_APPS" "OPENREGISTER_VERSION=$OR1" \
     "CONDUCTION_APP_VERSIONS=openregister=$OR1 portaliq=$PQ2"
 expect_app "$t" custom_apps portaliq "$PQ2"
 expect_file_has "$t/stub/curl-calls" "portaliq-$PQ2.tar.gz"
 expect_state "$t" "APPS=openregister portaliq dossiq;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=$OR1;PINS=portaliq=$PQ2"
-# portaliq stond al aan: app:enable doet dan niets, alleen `occ upgrade` zet de
-# opgeslagen versie op de nieuwe code.
-expect_file_has "$t/stub/calls" "occ upgrade"
+# portaliq stond al aan: app:enable alleen doet dan niets ('already enabled'). Uit en weer aan
+# draait de migraties van de nieuwe code en slaat de nieuwe versie op, zonder
+# de Updater (geen maintenance mode, geen appstore-updates).
+expect_eq "$(grep -E 'app:(disable|enable) portaliq' "$t/stub/calls" | tr '\n' ',')" \
+    "occ app:enable portaliq,occ app:disable portaliq,occ app:enable portaliq," "occ-aanroepen voor portaliq"
+expect_file_has "$t/stub/migrations" "portaliq $PQ2"
 expect_eq "$(cat "$t/stub/enabled/portaliq")" "$PQ2" "opgeslagen versie portaliq"
-expect_eq "$(occ_status "$t")" "  - needsDbUpgrade: false" "occ status na de bump"
+expect_eq "$(occ_status "$t")" "$STATUS_OK" "occ status na de bump"
+expect_no_leftovers "$t"
 expect_eq "$(wc -c < "$t/stderr" | tr -d ' ')" "0" "stderr"
 end "$t"
 
@@ -566,8 +588,8 @@ expect_state "$t" "(geen)"
 expect_no_leftovers "$t"
 end "$t"
 
-begin "nieuw: versiecheck na occ upgrade faalt, vorige versie en gebundelde app staan terug"
-t="$(new_tenant upgradefail)"
+begin "nieuw: enable van de nieuwe versie faalt na disable, vorige versie staat terug en weer aan"
+t="$(new_tenant reenablefail)"
 make_app_dir "$t/root/custom_apps/portaliq" portaliq 0.2.1
 echo "0.2.1" > "$t/stub/enabled/portaliq"
 make_app_dir "$t/root/apps/openconnector" openconnector 0.2.24
@@ -575,15 +597,18 @@ echo "0.2.24" > "$t/stub/enabled/openconnector"
 make_release "$t" portaliq "$PQ1" good
 make_release "$t" openconnector 0.2.25 good
 run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq openconnector" "OPENCONNECTOR_VERSION=0.2.25" \
-    "CONDUCTION_APP_VERSIONS=portaliq=$PQ1" "STUB_UPGRADE_NOOP=1"
+    "CONDUCTION_APP_VERSIONS=portaliq=$PQ1" "STUB_ENABLE_FAIL_VERSIONS=$PQ1 0.2.25"
 expect_eq "$(cat "$t/rc")" "0" "exitcode"
-expect_file_has "$t/root/data/conduction-apps.log" "occ upgrade failed"
-expect_file_has "$t/root/data/conduction-apps.log" "Nextcloud reports '0.2.1' after occ upgrade"
-expect_file_has "$t/root/data/conduction-apps.log" "Nextcloud reports '0.2.24' after occ upgrade"
+expect_file_has "$t/root/data/conduction-apps.log" "occ app:enable portaliq failed"
+expect_file_has "$t/root/data/conduction-apps.log" "occ app:enable openconnector failed"
+expect_file_has "$t/root/data/conduction-apps.log" "portaliq: previous version restored and enabled again"
+expect_file_has "$t/stderr" "conduction-apps ERROR"
 expect_app "$t" custom_apps portaliq 0.2.1
 expect_app "$t" apps openconnector 0.2.24
 expect_app "$t" custom_apps openconnector absent
-expect_eq "$(occ_status "$t")" "  - needsDbUpgrade: false" "occ status na het terugzetten"
+expect_eq "$(cat "$t/stub/enabled/portaliq" 2>/dev/null || echo uit)" "0.2.1" "portaliq weer aan op 0.2.1"
+expect_eq "$(cat "$t/stub/enabled/openconnector" 2>/dev/null || echo uit)" "0.2.24" "openconnector weer aan op 0.2.24"
+expect_eq "$(occ_status "$t")" "$STATUS_OK" "occ status na het terugzetten"
 expect_state "$t" "(geen)"
 expect_no_leftovers "$t"
 end "$t"

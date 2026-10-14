@@ -119,8 +119,12 @@ release can publish a matching one), a single top folder named `<id>`, no
 absolute or `..` paths, no symlinks or hardlinks, and `<id>` and the pinned
 version in `appinfo/info.xml`. After `occ app:enable` Nextcloud must report the
 pinned version. For an app that was already enabled, `occ app:enable` does
-nothing on Nextcloud 32, so the hook runs `occ upgrade` once, after all pins are
-in place, and checks the version after that. A failure is logged as `ERROR` in
+nothing on Nextcloud 32, so when the stored version is not the pin the hook runs
+`occ app:disable` and `occ app:enable` for that app: this runs its migrations
+and stores the new version, without maintenance mode and without touching other
+apps (the hook never runs `occ upgrade`). The cost: the app's install repair
+steps run again on a pin bump, and an enabled-for-groups limit on that app is
+reset to all users. A failure is logged as `ERROR` in
 `/var/www/html/data/conduction-apps.log` and on the container's stderr, leaves
 the installed app as it was, and does not write the state file, so the next pod
 start retries. A retry that installs or replaces nothing (the pin still fails)
@@ -130,9 +134,10 @@ a lasting failure does not rerun the expensive repair on every start; the
 https-only (also on redirects) and time-limited, so a hanging GitHub costs one
 pin at most about two minutes of the startup budget. During the swap the
 previous code (`custom_apps/<id>`, and a bundled `apps/<id>`) is moved aside,
-not deleted, and put back when the move, `occ app:enable`, `occ upgrade` or the
-version check fails. On a first install there is no previous code; then the new
-code stays in `custom_apps` and the next start tries again.
+not deleted, and put back (and enabled again if it was enabled) when the move,
+`occ app:enable` or the version check fails. On a first install there is no
+previous code; then the new code stays in `custom_apps` and the next start tries
+again.
 
 **Changing a pin reinstalls.** The state file key holds the app list and every
 pin, so a changed pin reruns the bootstrap on the next pod start.

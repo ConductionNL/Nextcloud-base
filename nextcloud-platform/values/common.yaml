@@ -351,16 +351,20 @@ nextcloud:
   # so it does not prove origin), a single top folder named <id>, no absolute
   # or '..' paths, no symlinks or hardlinks, and <id> in appinfo/info.xml.
   # Afterwards Nextcloud must report the pinned version: after `occ
-  # app:enable`, or after one `occ upgrade` when the app was already enabled
-  # (Nextcloud 32 does not upgrade an enabled app on app:enable). Old repo
-  # names redirect on GitHub, so the app id doubles as the repo name. The
-  # version in info.xml must equal the pin, or nothing is replaced. The
-  # previous code (custom_apps/<id> and a bundled apps/<id>) is moved aside,
-  # not deleted, and put back when the move, enable, upgrade or version check
-  # fails. A failed pin is logged as ERROR (also on stderr, so it shows in the
-  # container log), leaves the app as it was, and keeps the state file
-  # unwritten so the next start retries. A run that installed or replaced
-  # nothing skips the database maintenance.
+  # app:enable`; an app that was already enabled on another version is
+  # disabled and enabled again, because Nextcloud 32 does nothing on
+  # app:enable for an enabled app. That reruns its migrations and install
+  # repair steps and resets an enabled-for-groups limit to all users. The hook
+  # never runs `occ upgrade` (it would hold maintenance mode and update
+  # unpinned app-store apps). Old repo names redirect on GitHub, so the app id
+  # doubles as the repo name. The version in info.xml must equal the pin, or
+  # nothing is replaced. The previous code (custom_apps/<id> and a bundled
+  # apps/<id>) is moved aside, not deleted, and put back (and enabled again if
+  # it was enabled) when the move, enable or version check fails. A failed pin
+  # is logged as ERROR (also on stderr, so it shows in the container log),
+  # leaves the app as it was, and keeps the state file unwritten so the next
+  # start retries. A run that installed or replaced nothing skips the database
+  # maintenance.
   #
   # Tested with fixtures: nextcloud-platform/tests/run-hook-tests.sh
   # Log: /var/www/html/data/conduction-apps.log
@@ -380,9 +384,6 @@ nextcloud:
       ID_RE='^[a-z][a-z0-9_]*$'
       VER_RE='^[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$'
       FAILED=0
-      # Pinned apps whose code was replaced while they were already enabled;
-      # they need `occ upgrade` before Nextcloud reports the new version.
-      NEEDS_UPGRADE=()
       # Set when this run installed, enabled or replaced an app with another
       # version. Without it the database maintenance is skipped, so a pin that
       # keeps failing does not rerun the expensive repair on every start.
@@ -471,7 +472,7 @@ nextcloud:
         for d in custom_apps apps; do
           if [ -d "$(prev_dir "$d" "$1")" ]; then had=1; fi
         done
-        if [ "$had" = 0 ]; then log "$1: no previous version to restore"; return 0; fi
+        if [ "$had" = 0 ]; then log "$1: no previous version to restore"; return 2; fi
         rm -rf "$NC_ROOT/custom_apps/$1"
         for d in custom_apps apps; do
           if [ -d "$(prev_dir "$d" "$1")" ]; then
@@ -481,6 +482,19 @@ nextcloud:
         log "$1: previous version restored"
       }
       drop_previous() { rm -rf "$(prev_dir custom_apps "$1")" "$(prev_dir apps "$1")"; }
+      # For an app that was enabled before the swap: put the previous code back
+      # and enable it again. Its stored installed_version still belongs to that
+      # code, so enabling it runs no new migrations.
+      restore_and_reenable() {
+        local out
+        restore_previous "$1" || return 0
+        php occ app:disable "$1" >>"$LOG" 2>&1 || true
+        if out="$(php occ app:enable "$1" 2>>"$LOG")"; then
+          log "$1: previous version restored and enabled again"
+        else
+          fail "$1: previous version restored but enabling it failed ($out); the app is disabled"
+        fi
+      }
       # A run killed mid-swap (startupProbe) leaves a previous copy behind: put
       # it back when its place is empty, otherwise it is stale.
       recover_interrupted_swap() {
@@ -649,13 +663,33 @@ nextcloud:
             return 0
           fi
           if [ -n "$ENABLE_OUT" ]; then log "occ app:enable $APP_NAME: $ENABLE_OUT"; fi
-          # Nextcloud 32 does nothing for an app that is already enabled
-          # ("<id> already enabled"), and app:list keeps showing the version
-          # stored at install time. Such an app is checked after the one
-          # `occ upgrade` below; a freshly enabled app is checked now, because
-          # enabling stored the info.xml version.
           case "$ENABLE_OUT" in
-            *"$APP_NAME already enabled"*) NEEDS_UPGRADE+=("$APP_NAME"); return 0 ;;
+            *"$APP_NAME already enabled"*)
+              # Nextcloud 32 does nothing for an enabled app, and app:list keeps
+              # showing the stored installed_version. When that is not the pin,
+              # disable and enable the app: app:enable then runs
+              # Installer::installApp (migrations, repair steps, stores the
+              # new version). Unlike `occ upgrade` this needs no maintenance
+              # mode and touches no other app. Costs: the app's install repair
+              # steps run again, and an enabled-for-groups limit is reset to
+              # all users.
+              if [ "$(installed_version "$APP_NAME")" != "$VERSION" ]; then
+                log "$APP_NAME was already enabled: disabling and enabling it to run its migrations"
+                php occ app:disable "$APP_NAME" >>"$LOG" 2>&1 || true
+                if ! ENABLE_OUT="$(php occ app:enable "$APP_NAME" 2>>"$LOG")"; then
+                  fail "$APP_NAME v$VERSION: occ app:enable $APP_NAME failed: $ENABLE_OUT"
+                  restore_and_reenable "$APP_NAME"
+                  return 0
+                fi
+                log "occ app:enable $APP_NAME: $ENABLE_OUT"
+              fi
+              if check_pinned_version "$APP_NAME" "$VERSION" "after enable"; then
+                drop_previous "$APP_NAME"
+              else
+                restore_and_reenable "$APP_NAME"
+              fi
+              return 0
+              ;;
           esac
           CHANGED=1
           if check_pinned_version "$APP_NAME" "$VERSION" "after enable"; then
@@ -696,25 +730,6 @@ nextcloud:
       for app in $APPS; do
         install_app "$app"
       done
-
-      # One `occ upgrade` per run, after every pin is in place: it upgrades all
-      # enabled apps whose code is newer than the stored version in one go (and
-      # holds maintenance mode while it does), so running it per app would only
-      # repeat that. Only after it does app:list show the new version, so the
-      # version check for these apps comes last.
-      if [ "${#NEEDS_UPGRADE[@]}" -gt 0 ]; then
-        log "Running occ upgrade for replaced apps that were already enabled: ${NEEDS_UPGRADE[*]}"
-        if ! php occ upgrade >>"$LOG" 2>&1; then
-          fail "occ upgrade failed after replacing ${NEEDS_UPGRADE[*]} (see $LOG)"
-        fi
-        for app in "${NEEDS_UPGRADE[@]}"; do
-          if check_pinned_version "$app" "${PIN[$app]}" "after occ upgrade"; then
-            drop_previous "$app"
-          else
-            restore_previous "$app"
-          fi
-        done
-      fi
 
       if [ "$CHANGED" -eq 1 ]; then
         log "Running database maintenance..."

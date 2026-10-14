@@ -15,16 +15,21 @@ Besloten door Ruben op 2026-10-13.
   aan het id, geen absolute of `..`-paden, geen symlinks of hardlinks, het id en
   de gepinde versie in `appinfo/info.xml`, en na `occ app:enable` de gepinde
   versie. Stond de app al aan, dan doet `occ app:enable` op Nextcloud 32 niets;
-  de hook draait dan één keer `occ upgrade`, na alle pins, en controleert de
-  versie daarna. Beide downloads gaan alleen over https, ook bij een redirect,
-  en hebben tijdsgrenzen. Falen is luid (log en stderr), laat de app staan en
-  schrijft geen state, dus de volgende start probeert opnieuw. Een start die
-  niets installeert of vervangt slaat `db:add-missing-indices` en
-  `maintenance:repair --include-expensive` over; de ERROR staat er dan nog
-  steeds. De vorige code (ook een gebundelde `apps/<id>`) gaat tijdens de wissel
-  opzij en komt terug als verplaatsen, enable, upgrade of de versiecheck faalt.
-  Voorheen werd een mislukte download stil geslikt, de gebundelde app al
-  verwijderd en de state toch geschreven.
+  staat de opgeslagen versie niet op de pin, dan zet de hook de app uit en weer
+  aan (`occ app:disable` + `occ app:enable`). Dat draait de migraties en slaat
+  de nieuwe versie op, zonder maintenance mode en zonder andere apps te raken;
+  `occ upgrade` draait de hook nooit. Prijs: de install-repairstappen van de app
+  draaien opnieuw bij een pin-bump, en een beperking tot groepen op die app
+  vervalt (weer voor alle gebruikers). Beide downloads gaan alleen over https,
+  ook bij een redirect, en hebben tijdsgrenzen. Falen is luid (log en stderr),
+  laat de app staan en schrijft geen state, dus de volgende start probeert
+  opnieuw. Een start die niets installeert of vervangt slaat
+  `db:add-missing-indices` en `maintenance:repair --include-expensive` over; de
+  ERROR staat er dan nog steeds. De vorige code (ook een gebundelde `apps/<id>`)
+  gaat tijdens de wissel opzij en komt terug, en weer aan als hij aan stond, als
+  verplaatsen, enable of de versiecheck faalt. Voorheen werd een mislukte
+  download stil geslikt, de gebundelde app al verwijderd en de state toch
+  geschreven.
 - De state-sleutel bevat nu elke pin. Voor de drie oude apps is hij byte voor
   byte gelijk aan de oude sleutel, zodat bestaande tenants niet herinstalleren.
 - `before-starting` en `post-installation` zijn één script via een YAML-anker.
