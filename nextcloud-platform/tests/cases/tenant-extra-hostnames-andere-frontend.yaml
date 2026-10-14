@@ -1,4 +1,5 @@
 ---
+# Leunt op values/tenants/tenant-dinkelland-prod.yaml: breekt als de hosts van dinkelland veranderen.
 tenant:
   name: voorbeeld-prod
   environment: prod
