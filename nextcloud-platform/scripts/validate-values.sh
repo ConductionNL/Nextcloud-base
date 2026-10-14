@@ -331,6 +331,23 @@ validate_chart_version_format() {
     return 0
 }
 
+# Hostnaam zoals Kubernetes hem in een Ingress-rule accepteert (RFC 1123):
+# labels van kleine letters, cijfers en koppeltekens, minstens één punt, elk
+# label max 63 tekens en het geheel max 253. Zonder punt of met een te lang
+# label weigert de API-server de Ingress en faalt de sync van de Application.
+#
+# Usage: is_valid_hostname <host>
+is_valid_hostname() {
+    local host="$1" label
+    [[ "$host" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)+$ ]] || return 1
+    [ ${#host} -le 253 ] || return 1
+    local IFS=.
+    for label in $host; do
+        [ ${#label} -le 63 ] || return 1
+    done
+    return 0
+}
+
 # Validate hostname format
 validate_hostname() {
     local file="$1"
@@ -343,8 +360,8 @@ validate_hostname() {
     fi
     
     # Basic hostname validation (RFC 1123)
-    if ! [[ "$hostname" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$ ]]; then
-        log_error "$file: Invalid hostname '$hostname'. Must be a valid DNS name."
+    if ! is_valid_hostname "$hostname"; then
+        log_error "$file: Invalid hostname '$hostname'. Must be a valid DNS name (at least one dot, labels max 63, total max 253)."
         return 1
     fi
     
@@ -468,8 +485,8 @@ validate_extra_hostnames() {
 
     local has_error=0 host seen=" " secret seen_secrets=" "
     while IFS= read -r host; do
-        if ! [[ "$host" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$ ]]; then
-            log_error "$file: tenant.extraHostnames bevat ongeldige hostnaam '$host'"
+        if ! is_valid_hostname "$host"; then
+            log_error "$file: tenant.extraHostnames bevat ongeldige hostnaam '$host' (kleine letters, minstens één punt, labels max 63, totaal max 253)"
             has_error=1
             continue
         fi
