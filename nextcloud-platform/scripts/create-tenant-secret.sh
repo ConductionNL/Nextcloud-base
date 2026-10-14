@@ -66,6 +66,11 @@ usage() {
     echo "  DB_PASSWORD          Nextcloud user password"
     echo "  REDIS_PASSWORD       Redis password"
     echo ""
+    echo "Optional, for outgoing mail (tenant.mail in the tenant file; all three or none):"
+    echo "  SMTP_HOST            SMTP server, e.g. smtp.mx.cloudflare.net"
+    echo "  SMTP_USERNAME        SMTP login"
+    echo "  SMTP_PASSWORD        SMTP password or API token"
+    echo ""
     echo "Examples:"
     echo "  cp env.example .env && nano .env"
     echo "  $0 zuiddrecht-prod --mariadb --namespace zuiddrecht-prod"
@@ -251,6 +256,18 @@ else
     NEXTCLOUD_SECRET="${NEXTCLOUD_SECRET:-$(generate_password 64)}"
 fi
 
+# Optional: SMTP for tenant.mail (all three or none). The tenant file switches
+# mail on (tenant.mail.enabled); these keys carry host and login, never Git.
+smtp_set=0
+for v in SMTP_HOST SMTP_USERNAME SMTP_PASSWORD; do
+    [ -n "${!v:-}" ] && smtp_set=$((smtp_set + 1))
+done
+if [ "$smtp_set" -ne 0 ] && [ "$smtp_set" -ne 3 ]; then
+    for v in SMTP_HOST SMTP_USERNAME SMTP_PASSWORD; do
+        [ -z "${!v:-}" ] && missing_vars+=("$v (SMTP: set all three or none)")
+    done
+fi
+
 # Check for missing variables
 if [ ${#missing_vars[@]} -gt 0 ]; then
     echo -e "${RED}Error: Missing required variables:${NC}"
@@ -274,6 +291,11 @@ echo "  DB Type:       $DB_TYPE"
 echo "  Admin User:    $ADMIN_USERNAME"
 echo "  DB Username:   $DB_USERNAME"
 echo "  S3 Access Key: ${S3_ACCESS_KEY:0:8}..."
+if [ "$smtp_set" -eq 3 ]; then
+    echo "  SMTP:          ${SMTP_USERNAME} @ ${SMTP_HOST} (smtp-* keys added)"
+else
+    echo "  SMTP:          none (no smtp-* keys; tenant.mail sends nothing)"
+fi
 echo ""
 
 # Create namespace if it doesn't exist
@@ -343,6 +365,15 @@ stringData:
   redis-password: "${REDIS_PASSWORD}"
 EOF
 )
+fi
+
+# SMTP keys go last, under stringData (the final block in both variants above).
+if [ "$smtp_set" -eq 3 ]; then
+    SECRET_YAML="${SECRET_YAML}
+  # SMTP (read when the tenant file sets tenant.mail.enabled: true)
+  smtp-host: \"${SMTP_HOST}\"
+  smtp-username: \"${SMTP_USERNAME}\"
+  smtp-password: \"${SMTP_PASSWORD}\""
 fi
 
 if [ "$DRY_RUN" = true ]; then

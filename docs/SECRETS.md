@@ -102,8 +102,28 @@ helm template nextcloud-secret charts/tenant-secret -n <tenant> \
 | `postgres-password` | Postgres admin | ✅ | — |
 | `redis-password` | per-tenant Redis | ✅ | — |
 | `mariadb-password` / `mariadb-root-password` | MariaDB user/root | — | ✅ |
+| `smtp-host` / `smtp-username` / `smtp-password` | uitgaande mail, alleen gelezen bij `tenant.mail.enabled: true` (optioneel, alle drie of geen) | ✅ | ✅ |
 
 > The admin-password key is **`nextcloud-password`** (not `admin-password`).
+
+### SMTP-sleutels toevoegen aan een bestaande tenant
+
+`create-tenant-secret.sh` schrijft de `smtp-*` sleutels mee als `SMTP_HOST`,
+`SMTP_USERNAME` en `SMTP_PASSWORD` gezet zijn. Draai dat script NIET opnieuw op
+een tenant die al draait: het schrijft de hele Secret opnieuw, met nieuwe
+wachtwoorden. Voeg de sleutels bij een bestaande tenant los toe:
+
+```bash
+kubectl -n <namespace> patch secret nextcloud-secrets --type merge -p "$(cat <<EOF
+{"stringData":{"smtp-host":"<host>","smtp-username":"<gebruiker>","smtp-password":"<wachtwoord of token>"}}
+EOF
+)"
+kubectl -n <namespace> rollout restart deployment/nextcloud
+```
+
+Env vars uit een Secret worden alleen bij de start gelezen, vandaar de restart.
+Voor een tenant met `tenant.secrets.managed: true` (ESO) is dit nog niet
+geregeld: de ExternalSecret is eigenaar van de Secret en kent geen `smtp-*` bron.
 
 ## Verify
 
