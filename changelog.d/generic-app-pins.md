@@ -31,10 +31,11 @@ Besloten door Ruben op 2026-10-13.
   `maintenance:repair --include-expensive` over; de ERROR staat er dan nog
   steeds. De vorige code (ook een gebundelde `apps/<id>`) gaat tijdens de wissel
   opzij en komt terug, en weer aan als hij aan stond, als verplaatsen, enable of
-  de versiecheck faalt. Wordt een start midden in de wissel gestopt, dan zet de
-  volgende start eerst de originele code terug en gooit de ongecontroleerde
-  nieuwe code weg. Voorheen werd een mislukte download stil geslikt, de
-  gebundelde app al verwijderd en de state toch geschreven.
+  de versiecheck faalt. Wordt een start midden in de wissel gestopt, dan houdt
+  de volgende start de nieuwe code als Nextcloud zijn versie al opgeslagen heeft
+  (aangezet en gemigreerd), en zet anders de originele code terug. Voorheen werd
+  een mislukte download stil geslikt, de gebundelde app al verwijderd en de
+  state toch geschreven.
 - De state-sleutel bevat nu elke pin. Voor de drie oude apps is hij byte voor
   byte gelijk aan de oude sleutel, zodat bestaande tenants niet herinstalleren.
 - `before-starting` en `post-installation` zijn één script via een YAML-anker.

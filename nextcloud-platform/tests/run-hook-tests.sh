@@ -67,6 +67,7 @@ mkdir -p "$STUBS"
 #                migraties tot 'latest' (komen in $STUB_DIR/migrations) en de
 #                versie uit info.xml opslaan (installAppLastSteps).
 #   app:disable  zet de app uit; de opgeslagen versie blijft.
+#   config:app:get <id> installed_version  de opgeslagen versie (aan of uit).
 #   app:list     toont voor een ingeschakelde app de opgeslagen versie, niet die
 #                uit info.xml (core/Command/App/ListApps.php).
 #   upgrade      de Updater: zet maintenance aan ($STUB_DIR/maintenance) en
@@ -109,6 +110,12 @@ case "${1:-}" in
     if [ -e "$STUB_DIR/enabled/$2" ]; then echo "$2 already installed" >&2; exit 1; fi
     if [ -f "$STUB_DIR/appstore/$2" ]; then cp "$STUB_DIR/appstore/$2" "$STUB_DIR/enabled/$2"; exit 0; fi
     echo "Could not download app $2" >&2; exit 1
+    ;;
+  config:app:get)
+    for f in "$STUB_DIR/enabled/$2" "$STUB_DIR/disabled/$2"; do
+      if [ "${3:-}" = installed_version ] && [ -e "$f" ]; then cat "$f"; exit 0; fi
+    done
+    exit 1
     ;;
   app:disable)
     if [ -e "$STUB_DIR/enabled/$2" ]; then mv "$STUB_DIR/enabled/$2" "$STUB_DIR/disabled/$2"; echo "$2 disabled"; exit 0; fi
@@ -715,6 +722,19 @@ expect_app "$t" custom_apps portaliq "$PQ1"
 expect_eq "$(cat "$t/stub/enabled/portaliq")" "$PQ1" "opgeslagen versie portaliq"
 expect_file_has "$t/stub/calls" "occ maintenance:repair --include-expensive"
 expect_state "$t" "APPS=portaliq;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=;PINS=portaliq=$PQ1"
+expect_no_leftovers "$t"
+end "$t"
+
+begin "nieuw: gestopt na enable van de nieuwe code, download faalt daarna: nieuwe code blijft"
+t="$(new_tenant interrupted-enabled-404)"
+interrupted_after_move "$t"
+echo "$PQ1" > "$t/stub/enabled/portaliq"   # enable + migraties waren al gedaan
+run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+expect_file_has "$t/root/data/conduction-apps.log" "already enabled and migrated"
+expect_file_has "$t/root/data/conduction-apps.log" "GitHub download failed"
+expect_app "$t" custom_apps portaliq "$PQ1"
+expect_eq "$(cat "$t/stub/enabled/portaliq")" "$PQ1" "opgeslagen versie portaliq"
+expect_eq "$(occ_status "$t")" "$STATUS_OK" "occ status"
 expect_no_leftovers "$t"
 end "$t"
 

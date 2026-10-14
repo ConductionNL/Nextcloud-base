@@ -138,9 +138,10 @@ limit per attempt. A fully stalled GitHub costs one pin about 65 s of the
 startup budget. During the swap the previous code (`custom_apps/<id>`, and a
 bundled `apps/<id>`) is moved aside, not deleted, and put back (and enabled
 again if it was enabled) when the move, `occ app:enable` or the version check
-fails. When a start is killed mid-swap, the next start first puts the original
-code back and drops the unchecked new code, then handles the pin as usual. On a
-first install there is no previous code; then the new code stays in
+fails. When a start is killed mid-swap, the next start keeps the new code if
+Nextcloud already stored its version (it was enabled and migrated) and otherwise
+puts the original code back and drops the new code; then it handles the pin as
+usual. On a first install there is no previous code; then the new code stays in
 `custom_apps` and the next start tries again.
 
 **Changing a pin reinstalls.** The state file key holds the app list and every
