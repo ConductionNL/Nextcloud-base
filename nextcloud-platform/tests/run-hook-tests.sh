@@ -67,7 +67,9 @@ mkdir -p "$STUBS"
 #                waarvan info.xml nieuwer is; anders 'No upgrade required.'
 #                (core/Command/Upgrade.php).
 #   status       needsDbUpgrade: true zolang zo'n app bestaat.
-# Elke aanroep komt in $STUB_DIR/calls.
+# Faalinjectie: STUB_ENABLE_FAIL=<id> laat app:enable van die app falen (bv.
+# max-version), STUB_UPGRADE_NOOP=1 laat upgrade niets bijwerken (een app-
+# upgrade die mislukt). Elke aanroep komt in $STUB_DIR/calls.
 cat > "${STUBS}/php" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$STUB_DIR/calls"
@@ -102,10 +104,12 @@ case "${1:-}" in
     ;;
   app:enable)
     if [ -e "$STUB_DIR/enabled/$2" ]; then echo "$2 already enabled"; exit 0; fi
+    if [ "${STUB_ENABLE_FAIL:-}" = "$2" ]; then echo "App \"$2\" cannot be installed because it is not compatible with this version of the server."; exit 1; fi
     if v="$(code_version "$2")"; then echo "$v" > "$STUB_DIR/enabled/$2"; echo "$2 $v enabled"; exit 0; fi
     echo "$2 not found"; exit 1
     ;;
   upgrade)
+    if [ -n "${STUB_UPGRADE_NOOP:-}" ]; then echo "Exception: app upgrade failed"; exit 5; fi
     done_any=0
     for f in "$STUB_DIR"/enabled/*; do
       [ -e "$f" ] || continue
@@ -155,7 +159,17 @@ exit 0
 EOF
 
 printf '#!/usr/bin/env bash\nexit 0\n' > "${STUBS}/chown"
-chmod +x "${STUBS}/php" "${STUBS}/curl" "${STUBS}/chown"
+
+# mv: echt, behalve met STUB_MV_FAIL=1: dan faalt de stap die de nieuwe code
+# uit de staging-map naar custom_apps zet (bv. een vol of read-only volume).
+cat > "${STUBS}/mv" <<'EOF'
+#!/usr/bin/env bash
+if [ -n "${STUB_MV_FAIL:-}" ] && [[ "${1:-}" == *"/.conduction-staging-"* ]]; then
+  echo "mv: cannot move '$1': No space left on device" >&2; exit 1
+fi
+exec /bin/mv "$@"
+EOF
+chmod +x "${STUBS}/php" "${STUBS}/curl" "${STUBS}/chown" "${STUBS}/mv"
 
 # ---------------------------------------------------------------------------
 # Hooks
@@ -275,6 +289,8 @@ expect_no_leftovers() {
     local left
     left="$(find "$1/root/custom_apps" -maxdepth 1 -name '.conduction-staging-*' | wc -l)"
     expect_eq "$left" "0" "staging-mappen achtergebleven"
+    left="$(find "$1/root/custom_apps" "$1/root/apps" -maxdepth 1 -name '.conduction-previous-*' | wc -l)"
+    expect_eq "$left" "0" "opzijgezette vorige versies achtergebleven"
     left="$(find "$1/root/tmp" -mindepth 1 -maxdepth 1 -name 'conduction-*' | wc -l)"
     expect_eq "$left" "0" "tijdelijke downloadmappen achtergebleven"
 }
@@ -494,13 +510,48 @@ expect_file_has "$t/stderr" "conduction-apps ERROR"
 expect_state "$t" "(geen)"
 end "$t"
 
-begin "nieuw: Nextcloud meldt na enable een andere versie dan de pin"
-t="$(new_tenant wrongver)"
-f_wrongver "$t"
-run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
-expect_file_has "$t/root/data/conduction-apps.log" "Nextcloud reports '9.9.9'"
+# Een andere versie in info.xml dan de pin faalt vóór er iets vervangen wordt.
+fail_case "info.xml noemt een andere versie dan de pin" f_wrongver "info.xml says version '9.9.9'" \
+    "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+# De nieuwe code naar custom_apps zetten faalt: de vorige versie staat terug.
+f_good() { make_release "$1" portaliq "$PQ1" good; }
+fail_case "verplaatsen naar custom_apps faalt, vorige versie blijft" f_good "moving into custom_apps failed" \
+    "CONDUCTION_APP_VERSIONS=portaliq=$PQ1" "STUB_MV_FAIL=1"
+
+begin "nieuw: enable faalt, de vorige (uitgeschakelde) versie staat terug"
+t="$(new_tenant enablefail)"
+make_app_dir "$t/root/custom_apps/portaliq" portaliq 0.2.1
+make_release "$t" portaliq "$PQ1" good
+run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1" "STUB_ENABLE_FAIL=portaliq"
+expect_eq "$(cat "$t/rc")" "0" "exitcode"
+expect_file_has "$t/root/data/conduction-apps.log" "occ app:enable portaliq failed"
+expect_file_has "$t/root/data/conduction-apps.log" "previous version restored"
 expect_file_has "$t/stderr" "conduction-apps ERROR"
+expect_app "$t" custom_apps portaliq 0.2.1
 expect_state "$t" "(geen)"
+expect_no_leftovers "$t"
+end "$t"
+
+begin "nieuw: versiecheck na occ upgrade faalt, vorige versie en gebundelde app staan terug"
+t="$(new_tenant upgradefail)"
+make_app_dir "$t/root/custom_apps/portaliq" portaliq 0.2.1
+echo "0.2.1" > "$t/stub/enabled/portaliq"
+make_app_dir "$t/root/apps/openconnector" openconnector 0.2.24
+echo "0.2.24" > "$t/stub/enabled/openconnector"
+make_release "$t" portaliq "$PQ1" good
+make_release "$t" openconnector 0.2.25 good
+run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq openconnector" "OPENCONNECTOR_VERSION=0.2.25" \
+    "CONDUCTION_APP_VERSIONS=portaliq=$PQ1" "STUB_UPGRADE_NOOP=1"
+expect_eq "$(cat "$t/rc")" "0" "exitcode"
+expect_file_has "$t/root/data/conduction-apps.log" "occ upgrade failed"
+expect_file_has "$t/root/data/conduction-apps.log" "Nextcloud reports '0.2.1' after occ upgrade"
+expect_file_has "$t/root/data/conduction-apps.log" "Nextcloud reports '0.2.24' after occ upgrade"
+expect_app "$t" custom_apps portaliq 0.2.1
+expect_app "$t" apps openconnector 0.2.24
+expect_app "$t" custom_apps openconnector absent
+expect_eq "$(occ_status "$t")" "  - needsDbUpgrade: false" "occ status na het terugzetten"
+expect_state "$t" "(geen)"
+expect_no_leftovers "$t"
 end "$t"
 
 begin "nieuw: openconnector gepind op een integriq-build faalt luid en laat de gebundelde app staan"
@@ -532,6 +583,17 @@ make_release "$t" portaliq "$PQ1" good
 run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
 expect_app "$t" custom_apps portaliq "$PQ1"
 expect_state "$t" "APPS=portaliq;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=;PINS=portaliq=$PQ1"
+expect_no_leftovers "$t"
+end "$t"
+
+begin "nieuw: een afgebroken swap wordt hersteld, ook als de download daarna faalt"
+t="$(new_tenant interrupted)"
+# Een eerdere run (andere PID) zette portaliq opzij en werd toen gestopt.
+make_app_dir "$t/root/custom_apps/.conduction-previous-portaliq.1" portaliq 0.2.1
+echo "0.2.1" > "$t/stub/enabled/portaliq"
+run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+expect_file_has "$t/root/data/conduction-apps.log" "left aside by an interrupted run"
+expect_app "$t" custom_apps portaliq 0.2.1
 expect_no_leftovers "$t"
 end "$t"
 

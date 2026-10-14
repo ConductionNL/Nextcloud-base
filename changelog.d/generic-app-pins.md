@@ -11,11 +11,13 @@ Besloten door Ruben op 2026-10-13.
   `github.com/ConductionNL/<id>/releases/download/v<versie>/<id>-<versie>.tar.gz`
   en controleert hem vóór hij iets vervangt: `.sha256` als de release die
   publiceert, één topmap gelijk aan het id, geen absolute of `..`-paden, het id
-  in `appinfo/info.xml`, en na `occ app:enable` de gepinde versie. Stond de
-  app al aan, dan doet `occ app:enable` op Nextcloud 32 niets; de hook draait
-  dan één keer `occ upgrade`, na alle pins, en controleert de versie daarna. Falen is luid
-  (log en stderr), laat de app staan en schrijft geen state, dus de volgende
-  start probeert opnieuw. Voorheen werd een mislukte download stil geslikt, de
+  en de gepinde versie in `appinfo/info.xml`, en na `occ app:enable` de
+  gepinde versie. Stond de app al aan, dan doet `occ app:enable` op
+  Nextcloud 32 niets; de hook draait dan één keer `occ upgrade`, na alle pins,
+  en controleert de versie daarna. Falen is luid (log en stderr), laat de app
+  staan en schrijft geen state, dus de volgende start probeert opnieuw. De
+  vorige code (ook een gebundelde `apps/<id>`) gaat tijdens de wissel opzij en
+  komt terug als verplaatsen, enable, upgrade of de versiecheck faalt. Voorheen werd een mislukte download stil geslikt, de
   gebundelde app al verwijderd en de state toch geschreven.
 - De state-sleutel bevat nu elke pin. Voor de drie oude apps is hij byte voor
   byte gelijk aan de oude sleutel, zodat bestaande tenants niet herinstalleren.
