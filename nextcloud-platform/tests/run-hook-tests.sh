@@ -67,7 +67,8 @@ mkdir -p "$STUBS"
 #                migraties tot 'latest' (komen in $STUB_DIR/migrations) en de
 #                versie uit info.xml opslaan (installAppLastSteps).
 #   app:disable  zet de app uit; de opgeslagen versie blijft.
-#   config:app:get <id> installed_version  de opgeslagen versie (aan of uit).
+#   config:app:get <id> installed_version  de opgeslagen versie (aan of uit);
+#   config:app:get <id> enabled            yes of no.
 #   app:list     toont voor een ingeschakelde app de opgeslagen versie, niet die
 #                uit info.xml (core/Command/App/ListApps.php).
 #   upgrade      de Updater: zet maintenance aan ($STUB_DIR/maintenance) en
@@ -112,6 +113,11 @@ case "${1:-}" in
     echo "Could not download app $2" >&2; exit 1
     ;;
   config:app:get)
+    if [ "${3:-}" = enabled ]; then
+      if [ -e "$STUB_DIR/enabled/$2" ]; then echo yes; exit 0; fi
+      if [ -e "$STUB_DIR/disabled/$2" ]; then echo no; exit 0; fi
+      exit 1
+    fi
     for f in "$STUB_DIR/enabled/$2" "$STUB_DIR/disabled/$2"; do
       if [ "${3:-}" = installed_version ] && [ -e "$f" ]; then cat "$f"; exit 0; fi
     done
@@ -736,6 +742,20 @@ expect_file_has "$t/root/data/conduction-apps.log" "GitHub download failed"
 expect_app "$t" custom_apps portaliq "$PQ1"
 expect_eq "$(cat "$t/stub/enabled/portaliq")" "$PQ1" "opgeslagen versie portaliq"
 expect_eq "$(occ_status "$t")" "$STATUS_OK" "occ status"
+expect_no_leftovers "$t"
+end "$t"
+
+begin "nieuw: gestopt tussen app:disable en app:enable, download faalt daarna: oude code terug en weer aan"
+t="$(new_tenant interrupted-disabled-404)"
+interrupted_after_move "$t"
+mkdir -p "$t/stub/disabled"; mv "$t/stub/enabled/portaliq" "$t/stub/disabled/portaliq"   # uit, opgeslagen 0.2.1
+run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+expect_file_has "$t/root/data/conduction-apps.log" "enabled again after an interrupted run"
+expect_file_has "$t/stderr" "conduction-apps ERROR"
+expect_app "$t" custom_apps portaliq 0.2.1
+expect_eq "$(cat "$t/stub/enabled/portaliq" 2>/dev/null || echo uit)" "0.2.1" "portaliq weer aan op 0.2.1"
+expect_eq "$(occ_status "$t")" "$STATUS_OK" "occ status"
+expect_state "$t" "(geen)"
 expect_no_leftovers "$t"
 end "$t"
 

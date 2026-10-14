@@ -528,6 +528,16 @@ nextcloud:
             fi
           done
         done
+        # Killed between app:disable and the end of app:enable: the app is
+        # installed but off. Turn the restored code back on; its stored
+        # installed_version belongs to it.
+        if [ -n "$stored_ver" ] && [ "$(php occ config:app:get "$1" enabled 2>>"$LOG")" = "no" ]; then
+          if php occ app:enable "$1" >>"$LOG" 2>&1; then
+            log "$1: previous version enabled again after an interrupted run"
+          else
+            fail "$1: previous version restored after an interrupted run, but enabling it failed; the app is disabled"
+          fi
+        fi
       }
 
       # Download, verify and swap one pinned app into custom_apps. Returns
@@ -563,7 +573,7 @@ nextcloud:
         if ! curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 \
             --speed-limit 10240 --speed-time 20 \
             --retry 3 --retry-delay 5 --retry-max-time 50 "$URL" -o "$WORK/$ASSET" 2>>"$LOG"; then
-          fail "$APP_NAME v$VERSION: GitHub download failed for $URL (app left as it was)"
+          fail "$APP_NAME v$VERSION: GitHub download failed for $URL (installed version kept)"
           rm -rf "$WORK"; return 1
         fi
 
@@ -627,7 +637,7 @@ nextcloud:
         fi
         XML_VER="$(grep -o '<version>[^<]*</version>' "$STAGE/$APP_NAME/appinfo/info.xml" | head -1 | sed -e 's#<version>##' -e 's#</version>##')"
         if [ "$XML_VER" != "$VERSION" ]; then
-          fail "$APP_NAME v$VERSION: info.xml says version '$XML_VER', pin is '$VERSION' (app left as it was)"
+          fail "$APP_NAME v$VERSION: info.xml says version '$XML_VER', pin is '$VERSION' (installed version kept)"
           rm -rf "$STAGE"; return 1
         fi
 
