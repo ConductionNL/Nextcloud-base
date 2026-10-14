@@ -440,7 +440,9 @@ primary_host() {
 # trustedDomains en rendert er een tweede Ingress voor, met één TLS-secret
 # "nextcloud-<tenant>-<host met streepjes>-tls" per host. Gecontroleerd:
 # lijstvorm, geldige DNS-naam, geen dubbele, niet gelijk aan de primaire host,
-# en een secretnaam die Kubernetes accepteert (DNS-subdomein, max 253).
+# onder commonground.nu alleen hosts van de eigen tenant, en een secretnaam die
+# Kubernetes accepteert (DNS-subdomein, max 253). Botsingen met hosts van andere
+# tenants vangt validate_host_claims.
 validate_extra_hostnames() {
     local file="$1"
     local kind name hostname primary primary_bron
@@ -475,6 +477,13 @@ validate_extra_hostnames() {
             log_error "$file: tenant.extraHostnames bevat de primaire host '$host' ($primary_bron)"
             has_error=1
         fi
+        # commonground.nu is van het platform: een extra host daaronder moet
+        # volgens de naamconventie bij deze tenant horen.
+        if [ "$host" != "$primary" ] && [[ "$host" == commonground.nu || "$host" == *.commonground.nu ]] \
+            && ! convention_hosts "$name" | grep -qxF -- "$host"; then
+            log_error "$file: tenant.extraHostnames bevat '$host' onder commonground.nu, maar die hoort niet bij tenant '$name' (toegestaan: $(convention_hosts "$name" | paste -sd ' '))"
+            has_error=1
+        fi
         if [[ "$seen" == *" $host "* ]]; then
             log_error "$file: tenant.extraHostnames bevat '$host' dubbel"
             has_error=1
@@ -490,6 +499,105 @@ validate_extra_hostnames() {
     if [ $has_error -eq 0 ]; then
         log_warning "$file: tenant.extraHostnames gezet; DNS en HTTP-01 per host moeten kloppen (zie docs/ADDING-TENANT.md)"
     fi
+
+    return $has_error
+}
+
+# Hosts onder commonground.nu die volgens de conventie bij deze tenant horen.
+# Zelfde regel als validate_hostname_convention: prod krijgt <org>.commonground.nu
+# en de migratiehost <org>.migrate.commonground.nu, de rest
+# <org>.<suffix>.commonground.nu.
+#
+# Usage: convention_hosts <name>
+convention_hosts() {
+    local name="$1" org suffix
+    [[ "$name" =~ ^(.+)-(accept|test|demo|prod)$ ]] || return 0
+    org="${BASH_REMATCH[1]}"
+    suffix="${BASH_REMATCH[2]}"
+    if [ "$suffix" = "prod" ]; then
+        echo "${org}.commonground.nu"
+        echo "${org}.migrate.commonground.nu"
+    else
+        echo "${org}.${suffix}.commonground.nu"
+    fi
+}
+
+# Alle hosts die één tenantbestand claimt, als regels "<host><TAB><bron>":
+# de primaire host (zoals de ApplicationSet hem bepaalt), tenant.extraHostnames
+# en de WOO-frontend (tenant.frontend.host en tenant.frontend.extraHosts, alleen
+# als ze expliciet gezet zijn; de afgeleide frontend-host staat in React-base).
+#
+# Usage: tenant_host_claims <file>
+tenant_host_claims() {
+    local file="$1" name env hostname
+    name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || return 0
+    [ -z "$name" ] && return 0
+    env=$(yq eval '.tenant.environment // ""' "$file" 2>/dev/null)
+    hostname=$(yq eval '.tenant.hostname // ""' "$file" 2>/dev/null)
+    printf '%s\tprimaire host\n' "$(primary_host "$name" "$env" "$hostname")"
+    local bron host
+    while read -r bron host; do
+        [ -n "$host" ] && printf '%s\t%s\n' "$host" "$bron"
+    done < <(yq eval '.tenant as $t | (
+        [$t.extraHostnames // [] | select(tag == "!!seq") | .[] | to_string | "tenant.extraHostnames " + .] +
+        [$t.frontend.host // null | select(. != null) | to_string | "tenant.frontend.host " + .] +
+        [$t.frontend.extraHosts // [] | select(tag == "!!seq") | .[] | to_string | "tenant.frontend.extraHosts " + .]
+    ) | .[]' "$file" 2>/dev/null || true)
+}
+
+# Host-register over ALLE tenants, als regels "<host><TAB><tenant><TAB><bron>".
+# Bron: elk bestand in values/tenants/, plus de bestanden op de commandoregel.
+# Een bestand op de commandoregel vervangt het tenantbestand met dezelfde
+# tenant.name, zodat een gewijzigde kopie niet met zichzelf botst. Zo vergelijkt
+# ook `validate-values.sh <één bestand>` met de rest van de vloot.
+HOST_CLAIMS=""
+build_host_claims() {
+    local -A by_name=()
+    local file name
+    while IFS= read -r -d '' file; do
+        name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || continue
+        [ -n "$name" ] && by_name["$name"]="$file"
+    done < <(find "$TENANT_DIR" -name "tenant-*.yaml" -print0 2>/dev/null)
+    for file in "$@"; do
+        name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || continue
+        [ -n "$name" ] && by_name["$name"]="$file"
+    done
+
+    local host bron
+    for name in "${!by_name[@]}"; do
+        while IFS=$'\t' read -r host bron; do
+            [ -z "$host" ] && continue
+            HOST_CLAIMS+="${host}"$'\t'"${name}"$'\t'"${bron}"$'\n'
+        done < <(tenant_host_claims "${by_name[$name]}")
+    done
+}
+
+# Geen host mag door twee tenants geclaimd worden. Een tweede Ingress voor
+# dezelfde host (in een andere namespace) wordt door de admission-webhook van
+# ingress-nginx geweigerd, of zonder webhook samengevoegd met die van de ander:
+# dan gaat verkeer naar de verkeerde Nextcloud. Binnen één tenant mag een extra
+# host ook niet de host van de eigen WOO-frontend zijn (een andere Ingress).
+validate_host_claims() {
+    local file="$1" name
+    name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || return 0
+    [ -z "$name" ] && return 0
+
+    local own has_error=0 host bron other
+    own=$(tenant_host_claims "$file")
+    while IFS=$'\t' read -r host bron; do
+        [ -z "$host" ] && continue
+        while IFS=$'\t' read -r other; do
+            [ -z "$other" ] && continue
+            log_error "$file: host '$host' ($bron) wordt al geclaimd door tenant ${other}"
+            has_error=1
+        done < <(printf '%s' "$HOST_CLAIMS" | awk -F'\t' -v h="$host" -v n="$name" \
+            '$1 == h && $2 != n { print "\x27" $2 "\x27 (" $3 ")" }')
+        if [ "$bron" = "tenant.extraHostnames" ] \
+            && printf '%s\n' "$own" | grep -qxF -e "${host}"$'\t'"tenant.frontend.host" -e "${host}"$'\t'"tenant.frontend.extraHosts"; then
+            log_error "$file: tenant.extraHostnames bevat '$host', de host van de eigen WOO-frontend"
+            has_error=1
+        fi
+    done <<<"$own"
 
     return $has_error
 }
@@ -730,6 +838,7 @@ validate_tenant_file() {
     validate_hostname "$file" || ((file_errors++))
     validate_hostname_convention "$file" || ((file_errors++))
     validate_extra_hostnames "$file" || ((file_errors++))
+    validate_host_claims "$file" || ((file_errors++))
     validate_wave "$file" || ((file_errors++))
     validate_bucket "$file" || ((file_errors++))
     validate_frontend_image "$file" || ((file_errors++))
@@ -764,6 +873,9 @@ main() {
         exit 0
     fi
     
+    # Hosts van alle tenants, voor validate_host_claims
+    build_host_claims "$@"
+
     echo "=========================================="
     echo "Validating ${#files[@]} tenant file(s)"
     echo "=========================================="

@@ -21,6 +21,10 @@
 # Een fixture die per ongeluk op een ANDERE check faalt dan bedoeld wordt zo
 # ook gevangen: de verwachte deelstring komt dan niet voor.
 #
+# De validator vergelijkt hosts met alle tenantbestanden in values/tenants/,
+# ook bij één bestand. Fixtures die een botsing met een andere tenant toetsen
+# (tenant-extra-hostnames-andere-*) leunen daarom op tenant-dinkelland-prod.
+#
 # Writes: read-only (schrijft alleen in een eigen mktemp-map)
 # Idempotent: ja
 # Requires: bash, yq (via validate-values.sh)
