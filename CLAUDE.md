@@ -186,7 +186,7 @@ This is set globally in `values/common.yaml` and should not be overridden with r
 
 The apps in `tenant.apps.enabled` (default: opencatalogi, openconnector, openregister) are auto-installed in Nextcloud via one hook script in `values/common.yaml` (`before-starting`, with `post-installation` as a YAML anchor to the same text). It runs idempotently using a state file at `/var/www/html/data/.conduction-apps-state`. Installation logs are at `/var/www/html/data/conduction-apps.log`.
 
-Pin any app to a GitHub release, unstable included, via `tenant.apps.versions` (`portaliq: "0.2.10-unstable.20261012182937"`); the key must also be in `apps.enabled`. Details, verification and the openconnector/integriq rename: `docs/ADDING-TENANT.md`. A change to the hook text changes the `hooks-hash` annotation and restarts every tenant pod: treat it as a fleet-wide platform change. Test it with `nextcloud-platform/tests/run-hook-tests.sh`.
+Pin any app to a GitHub release, unstable included, via `tenant.apps.versions` (`portaliq: "0.2.10-unstable.20261012182937"`); the key must also be in `apps.enabled`. Details, the download checks (the `.sha256` is an integrity check, not proof of origin) and the openconnector/integriq rename: `docs/ADDING-TENANT.md`. A change to the hook text changes the `hooks-hash` annotation and restarts every tenant pod: treat it as a fleet-wide platform change. Test it with `nextcloud-platform/tests/run-hook-tests.sh`.
 
 ## Secret Management
 

@@ -130,15 +130,17 @@ case "${1:-}" in
 esac
 EOF
 
-# curl: serveert https://github.com/<pad> uit $STUB_DIR/release/<pad>.
+# curl: serveert https://github.com/<pad> uit $STUB_DIR/release/<pad>. De
+# volledige aanroep komt in $STUB_DIR/curl-args (voor de grenzen-check).
 cat > "${STUBS}/curl" <<'EOF'
 #!/usr/bin/env bash
+echo "$*" >> "$STUB_DIR/curl-args"
 out="" fmt="" failflag=0 url=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift ;;
     -w) fmt="$2"; shift ;;
-    --retry|--retry-delay) shift ;;
+    --retry|--retry-delay|--retry-max-time|--connect-timeout|--max-time|--proto|--proto-redir) shift ;;
     --*) ;;
     -*) [[ "$1" == *f* ]] && failflag=1 ;;
     http*) url="$1" ;;
@@ -427,6 +429,10 @@ expect_eq "$(cat "$t/stub/enabled/portaliq")" "$PQ1" "enabled versie portaliq"
 expect_state "$t" "APPS=openregister portaliq dossiq;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=$OR1;PINS=portaliq=$PQ1"
 expect_eq "$(wc -c < "$t/stderr" | tr -d ' ')" "0" "stderr"
 expect_no_leftovers "$t"
+# Elke download (tarball en .sha256) alleen over https en met tijdsgrenzen.
+expect_eq "$(wc -l < "$t/stub/curl-args" | tr -d ' ')" "4" "curl-aanroepen"
+expect_eq "$(grep -c -- '--proto =https --proto-redir =https --connect-timeout [0-9]* --max-time [0-9]* ' "$t/stub/curl-args")" "4" \
+    "curl-aanroepen met --proto/--proto-redir =https, --connect-timeout en --max-time"
 end "$t"
 
 begin "nieuw: een gewijzigde pin herinstalleert die app"

@@ -346,18 +346,20 @@ nextcloud:
   #
   # A pinned app comes from
   #   https://github.com/ConductionNL/<id>/releases/download/v<ver>/<id>-<ver>.tar.gz
-  # and is verified before it replaces anything: the published .sha256 when the
-  # release has one, a single top folder named <id>, no absolute or '..'
-  # paths, no symlinks or hardlinks, and <id> in appinfo/info.xml. Afterwards Nextcloud must report the
-  # pinned version: after `occ app:enable`, or after one `occ upgrade` when
-  # the app was already enabled (Nextcloud 32 does not upgrade an enabled app
-  # on app:enable). Old repo names redirect on GitHub, so
-  # the app id doubles as the repo name. The version in info.xml must equal
-  # the pin, or nothing is replaced. The previous code (custom_apps/<id> and a
-  # bundled apps/<id>) is moved aside, not deleted, and put back when the
-  # move, enable, upgrade or version check fails. A failed pin is logged as
-  # ERROR (also on stderr, so it shows in the container log), leaves the app
-  # as it was, and keeps the state file unwritten so the next start retries.
+  # and is checked before it replaces anything: the published .sha256 when the
+  # release has one (an integrity check only: it comes from the same release,
+  # so it does not prove origin), a single top folder named <id>, no absolute
+  # or '..' paths, no symlinks or hardlinks, and <id> in appinfo/info.xml.
+  # Afterwards Nextcloud must report the pinned version: after `occ
+  # app:enable`, or after one `occ upgrade` when the app was already enabled
+  # (Nextcloud 32 does not upgrade an enabled app on app:enable). Old repo
+  # names redirect on GitHub, so the app id doubles as the repo name. The
+  # version in info.xml must equal the pin, or nothing is replaced. The
+  # previous code (custom_apps/<id> and a bundled apps/<id>) is moved aside,
+  # not deleted, and put back when the move, enable, upgrade or version check
+  # fails. A failed pin is logged as ERROR (also on stderr, so it shows in the
+  # container log), leaves the app as it was, and keeps the state file
+  # unwritten so the next start retries.
   #
   # Tested with fixtures: nextcloud-platform/tests/run-hook-tests.sh
   # Log: /var/www/html/data/conduction-apps.log
@@ -508,12 +510,24 @@ nextcloud:
         log "Download URL: $URL"
         WORK="$(mktemp -d "${TMPDIR:-/tmp}/conduction-$APP_NAME.XXXXXX")" || { fail "$APP_NAME: mktemp failed"; return 1; }
 
-        if ! curl -fsSL --retry 3 --retry-delay 5 "$URL" -o "$WORK/$ASSET" 2>>"$LOG"; then
+        # Time limits, so a hanging GitHub cannot eat the startupProbe budget
+        # (accept: ~165 s before the container is killed). Tarball: no new
+        # attempt after 50 s, one attempt at most 40 s, so ~90 s worst case.
+        # .sha256: no new attempt after 20 s, one attempt at most 10 s, ~30 s.
+        # One hanging pin therefore stays near 120 s; several hanging pins in
+        # one start can still exceed the budget. https only, also on redirects.
+        if ! curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 40 \
+            --retry 3 --retry-delay 5 --retry-max-time 50 "$URL" -o "$WORK/$ASSET" 2>>"$LOG"; then
           fail "$APP_NAME v$VERSION: GitHub download failed for $URL (app left as it was)"
           rm -rf "$WORK"; return 1
         fi
 
-        CODE="$(curl -sSL --retry 3 --retry-delay 5 -o "$WORK/$ASSET.sha256" -w '%{http_code}' "$URL.sha256" 2>>"$LOG")"
+        # The .sha256 comes from the same release as the tarball: an integrity
+        # check against a corrupt or truncated download, not proof of origin.
+        # Whoever can publish the release can publish a matching checksum.
+        CODE="$(curl -sSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 10 \
+            --retry 3 --retry-delay 5 --retry-max-time 20 \
+            -o "$WORK/$ASSET.sha256" -w '%{http_code}' "$URL.sha256" 2>>"$LOG")"
         if [ "$CODE" = "200" ]; then
           EXPECTED="$(awk '{print $1; exit}' "$WORK/$ASSET.sha256")"
           ACTUAL="$(sha256sum "$WORK/$ASSET" | awk '{print $1}')"
