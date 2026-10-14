@@ -34,3 +34,17 @@ geschreven, en een verwijderde host blijft erin staan tot een
 `occ config:system:delete trusted_domains <n>`; `charts/tenant-httproute` neemt
 nog één host. Zie
 `docs/ADDING-TENANT.md`.
+
+**Apex-hosts (review f3).** Een extra host met twee labels (`gemeente.nl`)
+wordt geweigerd zonder `tenant.extraHostnamesAllowApex: true`: HSTS met
+includeSubDomains op een apex dwingt HTTPS af op elk subdomein van de klant.
+Apex-hosts krijgen een eigen Ingress `nextcloud-extra-hosts-apex` met
+`hsts-include-subdomains: "false"`; de hoofd-Ingress en de andere extra hosts
+houden hun waarde. ingress-nginx leest die annotatie niet (HSTS komt uit de
+controller-ConfigMap), dus live blijft includeSubDomains staan tot die
+ConfigMap of de route verandert; zie `docs/ADDING-TENANT.md`. Nieuwe
+render-check `nextcloud-platform/tests/render-extra-hosts.sh` in `verify.sh`.
+
+**Certificaten (review f4).** Extra hosts krijgen alleen Let's Encrypt: hun
+Ingresses erven `cert-manager.io/cluster-issuer`. Een eigen of betaald cert per
+extra host kan nog niet; `tenant.frontend.tls` is het bestaande patroon.

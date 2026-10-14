@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-10
+last_reviewed: 2026-10-14
 owner: info@conduction.nl
 ---
 
@@ -81,6 +81,14 @@ Verwijderen doe je niet met een script uit deze repo, maar met
 `validate-values.sh` aan een goed- én een foutgeval (`tests/cases/`, per case
 een `.yaml` met precies één afwijking en een `.expect` met `PASS` of de
 vereiste deelstrings). `scripts/verify.sh` draait de suite mee.
+
+`nextcloud-platform/tests/render-extra-hosts.sh` rendert twee
+`extraHostnames`-fixtures zoals Argo het doet (values-blok van de
+ApplicationSet, daarna `helm template` met chart 8.9.0) en controleert de
+Ingresses: een apex-host krijgt een eigen Ingress met
+`hsts-include-subdomains: "false"`. Ook die draait mee in `scripts/verify.sh`;
+hij haalt de chart op, of gebruikt `NEXTCLOUD_CHART` als die naar een
+uitgepakte chart wijst.
 
 Dat de validator over de echte vloot groen is, zegt alleen dat de huidige
 bestanden schoon zijn — niet dat een check nog aanslaat op een fout die niemand
