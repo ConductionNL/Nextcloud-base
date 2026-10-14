@@ -18,12 +18,12 @@
 #             identieke fixtures. occ-aanroepen, downloads, de bestandsboom en
 #             het state-bestand moeten gelijk zijn. Dat is het bewijs dat een
 #             bestaande tenant hetzelfde gedrag houdt.
-#   nieuw     generieke pins, checksum, mapnaam, info.xml-id, falen dat luid
+#   nieuw     generieke pins, checksum, mapnaam, links, info.xml-id, falen dat luid
 #             is en niets half achterlaat, state-sleutel per pin.
 #
 # Writes: alleen in een eigen mktemp-map
 # Idempotent: ja
-# Requires: bash, yq, tar, gzip, sha256sum, awk
+# Requires: bash, yq, tar, gzip, sha256sum, awk, python3
 #
 # Usage:
 #   ./run-hook-tests.sh            # alle cases
@@ -490,12 +490,40 @@ f_garbage() {
     echo "not a tarball" > "$1/stub/release/ConductionNL/portaliq/releases/download/v$PQ1/portaliq-$PQ1.tar.gz"
 }
 f_wrongver() { make_release "$1" portaliq "$PQ1" good portaliq portaliq 9.9.9; }
+# Een verder geldige release met één link-entry erbij (python3 tarfile, zodat
+# het doel letterlijk in de tarball staat). <soort>: abs | dotdot | hard
+add_link_entry() {
+    local asset="$1/stub/release/ConductionNL/portaliq/releases/download/v$PQ1/portaliq-$PQ1.tar.gz"
+    python3 -I - "$asset" "$2" <<'PY_EOF'
+import io, sys, tarfile
+asset, kind = sys.argv[1], sys.argv[2]
+with tarfile.open(asset) as src:
+    members = [(m, src.extractfile(m).read() if m.isfile() else None) for m in src.getmembers()]
+link = tarfile.TarInfo("portaliq/cfg.css")
+if kind == "abs":
+    link.type, link.linkname = tarfile.SYMTYPE, "/var/www/html/config/config.php"
+elif kind == "dotdot":
+    link.type, link.linkname = tarfile.SYMTYPE, "../../outside_rel"
+else:
+    link.type, link.linkname = tarfile.LNKTYPE, "portaliq/appinfo/info.xml"
+with tarfile.open(asset, "w:gz") as dst:
+    for m, data in members:
+        dst.addfile(m, None if data is None else io.BytesIO(data))
+    dst.addfile(link)
+PY_EOF
+}
+f_symlink_abs() { make_release "$1" portaliq "$PQ1" none; add_link_entry "$1" abs; }
+f_symlink_dotdot() { make_release "$1" portaliq "$PQ1" none; add_link_entry "$1" dotdot; }
+f_hardlink() { make_release "$1" portaliq "$PQ1" none; add_link_entry "$1" hard; }
 
 fail_case "release bestaat niet (404)" f_missing "GitHub download failed" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
 fail_case "checksum klopt niet" f_badsha "sha256 mismatch" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
 fail_case "tarball heeft een andere topmap" f_wrongfolder "top folder of portaliq-$PQ1.tar.gz is 'integriq'" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
 fail_case "info.xml noemt een ander app-id" f_wrongid "has id 'notportaliq'" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
 fail_case "tarball met absoluut pad" f_abs "absolute or '..' paths" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+fail_case "tarball met symlink naar een absoluut pad" f_symlink_abs "contains link entries" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+fail_case "tarball met symlink naar '..'" f_symlink_dotdot "contains link entries" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+fail_case "tarball met hardlink" f_hardlink "contains link entries" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
 fail_case "download is geen tar.gz" f_garbage "is not a readable tar.gz" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
 fail_case "ongeldige pin-tekst, app blijft staan (geen appstore-fallback)" f_missing "invalid pin 'portaliq=v0.2.10'" \
     "CONDUCTION_APP_VERSIONS=portaliq=v0.2.10"

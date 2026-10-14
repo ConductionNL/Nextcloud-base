@@ -348,7 +348,7 @@ nextcloud:
   #   https://github.com/ConductionNL/<id>/releases/download/v<ver>/<id>-<ver>.tar.gz
   # and is verified before it replaces anything: the published .sha256 when the
   # release has one, a single top folder named <id>, no absolute or '..'
-  # paths, and <id> in appinfo/info.xml. Afterwards Nextcloud must report the
+  # paths, no symlinks or hardlinks, and <id> in appinfo/info.xml. Afterwards Nextcloud must report the
   # pinned version: after `occ app:enable`, or after one `occ upgrade` when
   # the app was already enabled (Nextcloud 32 does not upgrade an enabled app
   # on app:enable). Old repo names redirect on GitHub, so
@@ -535,6 +535,12 @@ nextcloud:
         fi
         if printf '%s\n' "$LISTING" | grep -qE '(^/|(^|/)[.][.](/|$))'; then
           fail "$APP_NAME v$VERSION: $ASSET contains absolute or '..' paths"
+          rm -rf "$WORK"; return 1
+        fi
+        # The name check above does not see where a link points. An app needs
+        # no links, so refuse every symlink (type 'l') and hardlink ('h').
+        if tar -tvzf "$WORK/$ASSET" 2>>"$LOG" | grep -qE '^[lh]'; then
+          fail "$APP_NAME v$VERSION: $ASSET contains link entries (symlink or hardlink)"
           rm -rf "$WORK"; return 1
         fi
         TOPS="$(printf '%s\n' "$LISTING" | sed -e 's#^\./##' -e '/^$/d' | cut -d/ -f1 | sort -u | tr '\n' ' ')"

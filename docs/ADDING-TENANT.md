@@ -113,18 +113,19 @@ so existing tenant files behave exactly as before.
 
 **Before anything is replaced** the hook checks the download: the published
 `.sha256` when the release has one (older releases do not, then it logs a
-warning), a single top folder named `<id>`, no absolute or `..` paths, and
-`<id>` and the pinned version in `appinfo/info.xml`. After `occ app:enable` Nextcloud must report the
-pinned version. For an app that was already enabled, `occ app:enable` does
-nothing on Nextcloud 32, so the hook runs `occ upgrade` once, after all pins are
-in place, and checks the version after that. A failure is logged as `ERROR` in
+warning), a single top folder named `<id>`, no absolute or `..` paths, no
+symlinks or hardlinks, and `<id>` and the pinned version in `appinfo/info.xml`.
+After `occ app:enable` Nextcloud must report the pinned version. For an app that
+was already enabled, `occ app:enable` does nothing on Nextcloud 32, so the hook
+runs `occ upgrade` once, after all pins are in place, and checks the version
+after that. A failure is logged as `ERROR` in
 `/var/www/html/data/conduction-apps.log` and on the container's stderr, leaves
-the installed app as it was, and does not write the state file, so the next
-pod start retries. The pod still starts. During the swap the previous code
-(`custom_apps/<id>`, and a bundled `apps/<id>`) is moved aside, not deleted,
-and put back when the move, `occ app:enable`, `occ upgrade` or the version
-check fails. On a first install there is no previous code; then the new code
-stays in `custom_apps` and the next start tries again.
+the installed app as it was, and does not write the state file, so the next pod
+start retries. The pod still starts. During the swap the previous code
+(`custom_apps/<id>`, and a bundled `apps/<id>`) is moved aside, not deleted, and
+put back when the move, `occ app:enable`, `occ upgrade` or the version check
+fails. On a first install there is no previous code; then the new code stays in
+`custom_apps` and the next start tries again.
 
 **Changing a pin reinstalls.** The state file key holds the app list and every
 pin, so a changed pin reruns the bootstrap on the next pod start.
