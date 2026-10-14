@@ -37,8 +37,8 @@ Before merge, CI runs `scripts/verify.sh`, which wraps:
 
 `validate-values.sh` also checks the optional `tenant.extraHostnames` list (a
 list, valid DNS names, no duplicates, not the primary host, under
-`commonground.nu` only this tenant's own names, a derived TLS secret name
-Kubernetes accepts). It also checks across all tenant files that no host
+`commonground.nu` only this tenant's own names, a unique derived TLS secret
+name Kubernetes accepts). It also checks across all tenant files that no host
 (primary, `extraHostnames`, `frontend.host`, `frontend.extraHosts`) is claimed
 by two tenants, also when it is run on a single file. A valid list still gives a warning, because DNS and
 HTTP-01 for those hosts are outside what CI can see. Fixtures for every branch

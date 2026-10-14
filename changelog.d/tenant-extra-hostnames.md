@@ -22,7 +22,7 @@ manifests per tenant byte voor byte gelijk.
 
 `validate-values.sh` controleert het nieuwe veld (lijst, geldige DNS-namen,
 geen dubbele, niet de primaire host, onder `commonground.nu` alleen de eigen
-namen, secretnaam ≤ 253) en weigert over alle tenantbestanden heen een host die
+namen, unieke secretnaam ≤ 253) en weigert over alle tenantbestanden heen een host die
 twee tenants claimen (primaire host, `extraHostnames`, `frontend.host`,
 `frontend.extraHosts`), met fixtures in
 `nextcloud-platform/tests/cases/tenant-extra-hostnames-*`.

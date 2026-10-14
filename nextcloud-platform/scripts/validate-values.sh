@@ -440,8 +440,8 @@ primary_host() {
 # trustedDomains en rendert er een tweede Ingress voor, met één TLS-secret
 # "nextcloud-<tenant>-<host met streepjes>-tls" per host. Gecontroleerd:
 # lijstvorm, geldige DNS-naam, geen dubbele, niet gelijk aan de primaire host,
-# onder commonground.nu alleen hosts van de eigen tenant, en een secretnaam die
-# Kubernetes accepteert (DNS-subdomein, max 253). Botsingen met hosts van andere
+# onder commonground.nu alleen hosts van de eigen tenant, en een unieke
+# secretnaam die Kubernetes accepteert (DNS-subdomein, max 253). Botsingen met hosts van andere
 # tenants vangt validate_host_claims.
 validate_extra_hostnames() {
     local file="$1"
@@ -466,7 +466,7 @@ validate_extra_hostnames() {
         primary_bron="afgeleid uit tenant.name, zoals de ApplicationSet doet"
     fi
 
-    local has_error=0 host seen=" " secret
+    local has_error=0 host seen=" " secret seen_secrets=" "
     while IFS= read -r host; do
         if ! [[ "$host" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$ ]]; then
             log_error "$file: tenant.extraHostnames bevat ongeldige hostnaam '$host'"
@@ -487,6 +487,8 @@ validate_extra_hostnames() {
         if [[ "$seen" == *" $host "* ]]; then
             log_error "$file: tenant.extraHostnames bevat '$host' dubbel"
             has_error=1
+            # De eerste keer zijn de overige checks voor deze host al gedaan
+            continue
         fi
         seen="${seen}${host} "
         secret="nextcloud-${name}-${host//./-}-tls"
@@ -494,6 +496,13 @@ validate_extra_hostnames() {
             log_error "$file: TLS-secretnaam '$secret' voor '$host' is langer dan 253 tekens"
             has_error=1
         fi
+        # Punten worden streepjes, dus a-b.nl en a.b.nl krijgen hetzelfde
+        # secret: één Certificate dat maar één van beide hosts dekt.
+        if [[ "$seen_secrets" == *" $secret "* ]]; then
+            log_error "$file: TLS-secretnaam '$secret' voor '$host' is gelijk aan die van een andere extra host"
+            has_error=1
+        fi
+        seen_secrets="${seen_secrets}${secret} "
     done < <(yq eval '.tenant.extraHostnames[]' "$file" 2>/dev/null)
 
     if [ $has_error -eq 0 ]; then
