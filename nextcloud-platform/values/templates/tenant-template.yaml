@@ -45,7 +45,9 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
-    # Optional: pin versions (format WITHOUT leading 'v')
+    # Optional: pin versions (format WITHOUT leading 'v'). Any app in
+    # `enabled` can be pinned to a GitHub release, unstable included,
+    # e.g. portaliq: "0.2.10-unstable.20261012182937". See docs/ADDING-TENANT.md.
     # versions:
     #   opencatalogi: "0.7.7"
     #   openconnector: "0.2.8-beta.7"

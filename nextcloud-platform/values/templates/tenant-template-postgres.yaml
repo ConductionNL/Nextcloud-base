@@ -47,6 +47,7 @@ tenant:
       - openregister
       - opencatalogi
       - openconnector
+    # Optional pins, any app in `enabled`, no leading 'v'. See docs/ADDING-TENANT.md.
     # versions:
     #   opencatalogi: "0.7.7"
     #   openconnector: "0.2.8-beta.7"
