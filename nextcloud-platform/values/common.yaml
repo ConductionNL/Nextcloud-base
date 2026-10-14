@@ -538,13 +538,20 @@ nextcloud:
         log "Download URL: $URL"
         WORK="$(mktemp -d "${TMPDIR:-/tmp}/conduction-$APP_NAME.XXXXXX")" || { fail "$APP_NAME: mktemp failed"; return 1; }
 
-        # Time limits, so a hanging GitHub cannot eat the startupProbe budget
-        # (accept: ~165 s before the container is killed). Tarball: no new
-        # attempt after 50 s, one attempt at most 40 s, so ~90 s worst case.
-        # .sha256: no new attempt after 20 s, one attempt at most 10 s, ~30 s.
-        # One hanging pin therefore stays near 120 s; several hanging pins in
-        # one start can still exceed the budget. https only, also on redirects.
-        if ! curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 40 \
+        # Limits against a hanging GitHub, inside the startupProbe budget
+        # (accept: ~165 s before the container is killed). The tarball gets a
+        # stall guard, not a total cap: a release is up to ~100 MB
+        # (opencatalogi-1.0.9: 101,800,688 B), and a hard --max-time would
+        # break slow but working links. curl aborts an attempt only when it
+        # moves less than 10 KiB/s for 20 s; with --connect-timeout 10 a
+        # stalled attempt ends within ~30 s, and no new attempt starts after
+        # 50 s, so a fully stalled download gives up after ~65 s. A slow
+        # download that keeps moving is not cut off; if it needs more than
+        # the budget, the startupProbe ends it, as before. The .sha256 is a
+        # few bytes: at most 10 s per attempt, no new attempt after 20 s.
+        # https only, also on redirects.
+        if ! curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 \
+            --speed-limit 10240 --speed-time 20 \
             --retry 3 --retry-delay 5 --retry-max-time 50 "$URL" -o "$WORK/$ASSET" 2>>"$LOG"; then
           fail "$APP_NAME v$VERSION: GitHub download failed for $URL (app left as it was)"
           rm -rf "$WORK"; return 1

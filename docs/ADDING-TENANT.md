@@ -131,14 +131,17 @@ start retries. A retry that installs or replaces nothing (the pin still fails)
 skips `db:add-missing-indices` and `maintenance:repair --include-expensive`, so
 a lasting failure does not rerun the expensive repair on every start; the
 `ERROR` still shows on every start. The pod still starts. Both downloads are
-https-only (also on redirects) and time-limited, so a hanging GitHub costs one
-pin at most about two minutes of the startup budget. During the swap the
-previous code (`custom_apps/<id>`, and a bundled `apps/<id>`) is moved aside,
-not deleted, and put back (and enabled again if it was enabled) when the move,
-`occ app:enable` or the version check fails. When a start is killed mid-swap,
-the next start first puts the original code back and drops the unchecked new
-code, then handles the pin as usual. On a first install there is no previous
-code; then the new code stays in `custom_apps` and the next start tries again.
+https-only (also on redirects). The tarball download is aborted only when it
+stalls (under 10 KiB/s for 20 s), so a slow but moving download of a large
+release is not cut off; the `.sha256` has a 10 s limit per attempt. A fully
+stalled GitHub costs one pin about 65 s of the startup budget. During the swap
+the previous code (`custom_apps/<id>`, and a bundled `apps/<id>`) is moved
+aside, not deleted, and put back (and enabled again if it was enabled) when the
+move, `occ app:enable` or the version check fails. When a start is killed
+mid-swap, the next start first puts the original code back and drops the
+unchecked new code, then handles the pin as usual. On a first install there is
+no previous code; then the new code stays in `custom_apps` and the next start
+tries again.
 
 **Changing a pin reinstalls.** The state file key holds the app list and every
 pin, so a changed pin reruns the bootstrap on the next pod start.

@@ -21,9 +21,11 @@ Besloten door Ruben op 2026-10-13.
   `occ upgrade` draait de hook nooit. Prijs: de install-repairstappen van de app
   draaien opnieuw bij een pin-bump, en een beperking tot groepen op die app
   vervalt (weer voor alle gebruikers). Beide downloads gaan alleen over https,
-  ook bij een redirect, en hebben tijdsgrenzen. Falen is luid (log en stderr),
-  laat de app staan en schrijft geen state, dus de volgende start probeert
-  opnieuw. Een start die niets installeert of vervangt slaat
+  ook bij een redirect. De tarball breekt alleen af als hij stilvalt (minder dan
+  10 KiB/s gedurende 20 s), zodat een trage maar lopende download niet afgekapt
+  wordt; de `.sha256` heeft een grens van 10 s per poging. Falen is luid (log en
+  stderr), laat de app staan en schrijft geen state, dus de volgende start
+  probeert opnieuw. Een start die niets installeert of vervangt slaat
   `db:add-missing-indices` en `maintenance:repair --include-expensive` over; de
   ERROR staat er dan nog steeds. De vorige code (ook een gebundelde `apps/<id>`)
   gaat tijdens de wissel opzij en komt terug, en weer aan als hij aan stond, als

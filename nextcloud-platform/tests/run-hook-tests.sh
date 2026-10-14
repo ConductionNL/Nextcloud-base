@@ -152,7 +152,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift ;;
     -w) fmt="$2"; shift ;;
-    --retry|--retry-delay|--retry-max-time|--connect-timeout|--max-time|--proto|--proto-redir) shift ;;
+    --retry|--retry-delay|--retry-max-time|--connect-timeout|--max-time|--speed-limit|--speed-time|--proto|--proto-redir) shift ;;
     --*) ;;
     -*) [[ "$1" == *f* ]] && failflag=1 ;;
     http*) url="$1" ;;
@@ -447,10 +447,15 @@ expect_eq "$(cat "$t/stub/enabled/portaliq")" "$PQ1" "enabled versie portaliq"
 expect_state "$t" "APPS=openregister portaliq dossiq;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=$OR1;PINS=portaliq=$PQ1"
 expect_eq "$(wc -c < "$t/stderr" | tr -d ' ')" "0" "stderr"
 expect_no_leftovers "$t"
-# Elke download (tarball en .sha256) alleen over https en met tijdsgrenzen.
+# Elke download alleen over https en met --connect-timeout. De tarball krijgt
+# een stall-guard (--speed-limit/--speed-time) en GEEN totale --max-time, zodat
+# een trage maar lopende download niet afbreekt; de kleine .sha256 wel.
 expect_eq "$(wc -l < "$t/stub/curl-args" | tr -d ' ')" "4" "curl-aanroepen"
-expect_eq "$(grep -c -- '--proto =https --proto-redir =https --connect-timeout [0-9]* --max-time [0-9]* ' "$t/stub/curl-args")" "4" \
-    "curl-aanroepen met --proto/--proto-redir =https, --connect-timeout en --max-time"
+expect_eq "$(grep -c -- '--proto =https --proto-redir =https --connect-timeout [0-9]* ' "$t/stub/curl-args")" "4" \
+    "curl-aanroepen met --proto/--proto-redir =https en --connect-timeout"
+expect_eq "$(grep -v '\.sha256$' "$t/stub/curl-args" | grep -- '--speed-limit [0-9]* --speed-time [0-9]* ' | grep -vc -- '--max-time')" "2" \
+    "tarball-downloads met stall-guard en zonder --max-time"
+expect_eq "$(grep '\.sha256$' "$t/stub/curl-args" | grep -c -- '--max-time [0-9]* ')" "2" ".sha256-downloads met --max-time"
 end "$t"
 
 begin "nieuw: een gewijzigde pin herinstalleert die app"
