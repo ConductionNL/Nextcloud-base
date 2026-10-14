@@ -18,25 +18,30 @@ Besloten door Ruben op 2026-10-13.
   staat de opgeslagen versie niet op de pin, dan zet de hook de app uit en weer
   aan (`occ app:disable` + `occ app:enable`). Dat draait de migraties en slaat
   de nieuwe versie op, zonder maintenance mode en zonder andere apps te raken;
-  `occ upgrade` draait de hook nooit. Prijs: de install-repairstappen van de app
-  draaien opnieuw bij een pin-bump, en een beperking tot groepen op die app
-  vervalt (weer voor alle gebruikers). Beide downloads gaan alleen over https,
-  ook bij een redirect. De tarball breekt alleen af als hij stilvalt (minder dan
-  10 KiB/s gedurende 20 s), zodat een trage maar lopende download niet afgekapt
-  wordt; de `.sha256` heeft een grens van 10 s per poging. Falen is luid (log en
-  stderr), laat de vorige versie staan of zet hem terug (bij een eerste
-  installatie is er geen vorige versie en blijft mislukte nieuwe code staan) en
-  schrijft geen state, dus de volgende start probeert opnieuw. Een start die
-  niets installeert of vervangt slaat `db:add-missing-indices` en
-  `maintenance:repair --include-expensive` over; de ERROR staat er dan nog
-  steeds. De vorige code (ook een gebundelde `apps/<id>`) gaat tijdens de wissel
-  opzij en komt terug, en weer aan als hij aan stond, als verplaatsen, enable of
-  de versiecheck faalt. Wordt een start midden in de wissel gestopt, dan houdt
-  de volgende start de nieuwe code als Nextcloud zijn versie al opgeslagen heeft
-  (aangezet en gemigreerd), en zet anders de originele code terug, en weer aan
-  als de run stopte terwijl de app uit stond. Voorheen werd een mislukte
-  download stil geslikt, de gebundelde app al verwijderd en de state toch
-  geschreven.
+  `occ upgrade` draait de hook nooit. Gevolgen: de hook draait de
+  install-repairstappen van de app opnieuw bij elke pin-bump (en voor de oude
+  code als een bump teruggedraaid wordt); die stappen moeten veilig opnieuw
+  kunnen draaien, en dat is de verantwoordelijkheid van de app. Op 2026-10-14
+  hadden `portaliq` (`InitializeDemoPortal`: een verwijderd demoportaal komt
+  terug) en `launchpad` (`SeedRolePermissions`) stappen die alleen onder
+  `<install>` staan. Een beperking tot groepen op de app vervalt (weer voor alle
+  gebruikers), en apps die ervan afhangen loggen fouten zolang hij uit staat.
+  Beide downloads gaan alleen over https, ook bij een redirect. De tarball
+  breekt alleen af als hij stilvalt (minder dan 10 KiB/s gedurende 20 s), zodat
+  een trage maar lopende download niet afgekapt wordt; de `.sha256` heeft een
+  grens van 10 s per poging. Falen is luid (log en stderr), laat de vorige
+  versie staan of zet hem terug (bij een eerste installatie is er geen vorige
+  versie en blijft mislukte nieuwe code staan) en schrijft geen state, dus de
+  volgende start probeert opnieuw. Een start die niets installeert of vervangt
+  slaat `db:add-missing-indices` en `maintenance:repair --include-expensive`
+  over; de ERROR staat er dan nog steeds. De vorige code (ook een gebundelde
+  `apps/<id>`) gaat tijdens de wissel opzij en komt terug, en weer aan als hij
+  aan stond, als verplaatsen, enable of de versiecheck faalt. Wordt een start
+  midden in de wissel gestopt, dan houdt de volgende start de nieuwe code als
+  Nextcloud zijn versie al opgeslagen heeft (aangezet en gemigreerd), en zet
+  anders de originele code terug, en weer aan als de run stopte terwijl de app
+  uit stond. Voorheen werd een mislukte download stil geslikt, de gebundelde app
+  al verwijderd en de state toch geschreven.
 - De state-sleutel bevat nu elke pin. Voor de drie oude apps is hij byte voor
   byte gelijk aan de oude sleutel, zodat bestaande tenants niet herinstalleren.
 - `before-starting` en `post-installation` zijn één script via een YAML-anker.

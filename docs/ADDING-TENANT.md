@@ -122,9 +122,12 @@ pinned version. For an app that was already enabled, `occ app:enable` does
 nothing on Nextcloud 32, so when the stored version is not the pin the hook runs
 `occ app:disable` and `occ app:enable` for that app: this runs its migrations
 and stores the new version, without maintenance mode and without touching other
-apps (the hook never runs `occ upgrade`). The cost: the app's install repair
-steps run again on a pin bump, and an enabled-for-groups limit on that app is
-reset to all users. A failure is logged as `ERROR` in
+apps (the hook never runs `occ upgrade`). Consequences: the hook re-runs the
+app's install repair steps (`<repair-steps><install>` in `appinfo/info.xml`) on
+every pin bump, and again for the old code when a failed bump is rolled back; an
+enabled-for-groups limit on that app is reset to all users; and while the app is
+disabled, apps that depend on it (opencatalogi on openregister, for example) log
+errors. A failure is logged as `ERROR` in
 `/var/www/html/data/conduction-apps.log` and on the container's stderr, leaves
 the previously installed app in place or puts it back, and does not write the
 state file, so the next pod start retries. A retry that installs or replaces
@@ -144,6 +147,13 @@ puts the original code back, drops the new code, and enables the app again if
 the run was killed while it was disabled; then it handles the pin as usual. On a
 first install there is no previous code; then the new code stays in
 `custom_apps` and the next start tries again.
+
+**Install repair steps must be safe to run again.** That is the app's
+responsibility, not the platform's: a step that seeds data runs again on every
+pin bump. On 2026-10-14 two fleet apps had steps under `<install>` that are not
+also under `<post-migration>` (where they already run on every upgrade):
+`portaliq` (`InitializeDemoPortal`, so a pin bump re-seeds a demo portal that
+was deleted) and `launchpad` (`SeedRolePermissions`).
 
 **Changing a pin reinstalls.** The state file key holds the app list and every
 pin, so a changed pin reruns the bootstrap on the next pod start.

@@ -353,9 +353,10 @@ nextcloud:
   # Afterwards Nextcloud must report the pinned version: after `occ
   # app:enable`; an app that was already enabled on another version is
   # disabled and enabled again, because Nextcloud 32 does nothing on
-  # app:enable for an enabled app. That reruns its migrations and install
-  # repair steps and resets an enabled-for-groups limit to all users. The hook
-  # never runs `occ upgrade` (it would hold maintenance mode and update
+  # app:enable for an enabled app. That reruns its migrations and its install
+  # repair steps (which an app must keep safe to run again; that is the app's
+  # responsibility) and resets an enabled-for-groups limit to all users. The
+  # hook never runs `occ upgrade` (it would hold maintenance mode and update
   # unpinned app-store apps). Old repo names redirect on GitHub, so the app id
   # doubles as the repo name. The version in info.xml must equal the pin, or
   # nothing is replaced. The previous code (custom_apps/<id> and a bundled
@@ -706,9 +707,13 @@ nextcloud:
               # disable and enable the app: app:enable then runs
               # Installer::installApp (migrations, repair steps, stores the
               # new version). Unlike `occ upgrade` this needs no maintenance
-              # mode and touches no other app. Costs: the app's install repair
-              # steps run again, and an enabled-for-groups limit is reset to
-              # all users.
+              # mode and touches no other app. Consequences: the app's
+              # <repair-steps><install> run again on every pin bump (and again
+              # for the old code when it is restored); they must be safe to
+              # run again, which is the app's responsibility. An
+              # enabled-for-groups limit is reset to all users. Disabling does
+              # not cascade to dependent apps (e.g. opencatalogi on
+              # openregister): they log errors until the enable finishes.
               if [ "$(installed_version "$APP_NAME")" != "$VERSION" ]; then
                 log "$APP_NAME was already enabled: disabling and enabling it to run its migrations"
                 if ! php occ app:disable "$APP_NAME" >>"$LOG" 2>&1; then
