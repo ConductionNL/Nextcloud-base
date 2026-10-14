@@ -20,11 +20,13 @@ gerenderd (Argo-goTemplate met sprig en `missingkey=default`, daarna
 `helm template` met chart 8.9.0 en dezelfde valueFiles-volgorde), values en
 manifests per tenant byte voor byte gelijk.
 
-`validate-values.sh` controleert het nieuwe veld (lijst, geldige DNS-namen,
-geen dubbele, niet de primaire host, onder `commonground.nu` alleen de eigen
-namen, unieke secretnaam ≤ 253) en weigert over alle tenantbestanden heen een host die
-twee tenants claimen (primaire host, `extraHostnames`, `frontend.host`,
-`frontend.extraHosts`), met fixtures in
+`validate-values.sh` controleert het nieuwe veld (lijst, geldige DNS-namen en
+geen IP-adres, geen dubbele, niet de primaire host, onder `commonground.nu`
+alleen de eigen namen, unieke secretnaam ≤ 253, niet samen met
+`ingress.enabled: false`). Ook `tenant.hostname` mag geen IP-adres meer zijn.
+Over alle tenantbestanden heen weigert hij een host die twee tenants claimen
+(primaire host, `extraHostnames`, `frontend.host`, `frontend.extraHosts`) en
+een `tenant.name` die in twee bestanden staat, met fixtures in
 `nextcloud-platform/tests/cases/tenant-extra-hostnames-*`.
 
 Bekende beperkingen: `trusted_domains` wordt alleen bij de eerste installatie

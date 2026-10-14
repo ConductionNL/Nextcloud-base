@@ -481,10 +481,11 @@ effective_ingress_enabled() {
 # Extra hostnamen op dezelfde Nextcloud. De ApplicationSet zet ze in
 # trustedDomains en rendert er een tweede Ingress voor, met één TLS-secret
 # "nextcloud-<tenant>-<host met streepjes>-tls" per host. Gecontroleerd:
-# lijstvorm, geldige DNS-naam, geen dubbele, niet gelijk aan de primaire host,
-# onder commonground.nu alleen hosts van de eigen tenant, en een unieke
-# secretnaam die Kubernetes accepteert (DNS-subdomein, max 253). Botsingen met hosts van andere
-# tenants vangt validate_host_claims.
+# lijstvorm, geldige DNS-naam (geen IP-adres), geen dubbele, niet gelijk aan de
+# primaire host, onder commonground.nu alleen hosts van de eigen tenant, een
+# unieke secretnaam die Kubernetes accepteert (DNS-subdomein, max 253), en
+# ingress.enabled: true. Botsingen met hosts van andere tenants vangt
+# validate_host_claims; een dubbele tenant.name vangt dump_host_claims.
 validate_extra_hostnames() {
     local file="$1"
     local kind name hostname primary primary_bron
