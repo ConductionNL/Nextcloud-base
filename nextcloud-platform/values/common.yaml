@@ -346,12 +346,27 @@ nextcloud:
   #
   # A pinned app comes from
   #   https://github.com/ConductionNL/<id>/releases/download/v<ver>/<id>-<ver>.tar.gz
-  # and is verified before it replaces anything: the published .sha256 when the
-  # release has one, a single top folder named <id>, no absolute or '..'
-  # paths, and <id> in appinfo/info.xml. Old repo names redirect on GitHub, so
-  # the app id doubles as the repo name. A failed pin is logged as ERROR (also
-  # on stderr, so it shows in the container log), leaves the app as it was,
-  # and keeps the state file unwritten so the next start retries.
+  # and is checked before it replaces anything: the published .sha256 when the
+  # release has one (an integrity check only: it comes from the same release,
+  # so it does not prove origin), a single top folder named <id>, no absolute
+  # or '..' paths, no symlinks or hardlinks, and <id> in appinfo/info.xml.
+  # Afterwards Nextcloud must report the pinned version: after `occ
+  # app:enable`; an app that was already enabled on another version is
+  # disabled and enabled again, because Nextcloud 32 does nothing on
+  # app:enable for an enabled app. That reruns its migrations and its install
+  # repair steps (which an app must keep safe to run again; that is the app's
+  # responsibility) and resets an enabled-for-groups limit to all users. The
+  # hook never runs `occ upgrade` (it would hold maintenance mode and update
+  # unpinned app-store apps). Old repo names redirect on GitHub, so the app id
+  # doubles as the repo name. The version in info.xml must equal the pin, or
+  # nothing is replaced. The previous code (custom_apps/<id> and a bundled
+  # apps/<id>) is moved aside, not deleted, and put back (and enabled again if
+  # it was enabled) when the move, enable or version check fails. A failed pin
+  # is logged as ERROR (also on stderr, so it shows in the container log),
+  # leaves the previous code in place or puts it back (on a first install
+  # there is none, and new code that failed stays in custom_apps), and keeps
+  # the state file unwritten so the next start retries. A run that installed
+  # or replaced nothing skips the database maintenance.
   #
   # Tested with fixtures: nextcloud-platform/tests/run-hook-tests.sh
   # Log: /var/www/html/data/conduction-apps.log
@@ -371,6 +386,10 @@ nextcloud:
       ID_RE='^[a-z][a-z0-9_]*$'
       VER_RE='^[0-9]+[.][0-9]+[.][0-9]+([-.][0-9A-Za-z][0-9A-Za-z.-]*)?$'
       FAILED=0
+      # Set when this run installed, enabled or replaced an app with another
+      # version. Without it the database maintenance is skipped, so a pin that
+      # keeps failing does not rerun the expensive repair on every start.
+      CHANGED=0
 
       log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG" 2>&1; }
       # Errors go to the log AND stderr, and block writing the state file.
@@ -436,29 +455,135 @@ nextcloud:
         exit 0
       fi
 
-      # Download, verify and move one pinned app into custom_apps.
-      # Returns non-zero (after fail) without touching the installed app.
+      # During a swap the previous code of an app (custom_apps/<id>, and a
+      # bundled apps/<id>) waits in a dot-folder on its own volume; Nextcloud's
+      # app scan skips dot-folders. restore_previous puts it back when the new
+      # code fails; drop_previous removes it once the new code checked out.
+      prev_dir() { echo "$NC_ROOT/$1/.conduction-previous-$2.$$"; }
+      set_aside_previous() {
+        local d
+        for d in custom_apps apps; do
+          if [ -d "$NC_ROOT/$d/$1" ]; then
+            [ "$d" = apps ] && log "Moving bundled $1 aside from /apps/ to use pinned version"
+            mv "$NC_ROOT/$d/$1" "$(prev_dir "$d" "$1")" 2>>"$LOG" || return 1
+          fi
+        done
+      }
+      restore_previous() {
+        local d had=0
+        for d in custom_apps apps; do
+          if [ -d "$(prev_dir "$d" "$1")" ]; then had=1; fi
+        done
+        if [ "$had" = 0 ]; then log "$1: no previous version to restore"; return 2; fi
+        rm -rf "$NC_ROOT/custom_apps/$1"
+        for d in custom_apps apps; do
+          if [ -d "$(prev_dir "$d" "$1")" ]; then
+            mv "$(prev_dir "$d" "$1")" "$NC_ROOT/$d/$1" 2>>"$LOG" || { fail "$1: could not restore the previous $d/$1 (it is in $(prev_dir "$d" "$1"))"; return 1; }
+          fi
+        done
+        log "$1: previous version restored"
+      }
+      drop_previous() { rm -rf "$(prev_dir custom_apps "$1")" "$(prev_dir apps "$1")"; }
+      # For an app that was enabled before the swap: put the previous code back
+      # and enable it again. Its stored installed_version still belongs to that
+      # code, so enabling it runs no new migrations.
+      restore_and_reenable() {
+        local out
+        restore_previous "$1" || return 0
+        php occ app:disable "$1" >>"$LOG" 2>&1 || true
+        if out="$(php occ app:enable "$1" 2>>"$LOG")"; then
+          log "$1: previous version restored and enabled again"
+        else
+          fail "$1: previous version restored but enabling it failed ($out); the app is disabled"
+        fi
+      }
+      # A run killed mid-swap (startupProbe) leaves the original code in a
+      # previous-folder. If Nextcloud's stored installed_version already equals
+      # the version of the code in custom_apps/<id>, that code was enabled and
+      # migrated: keep it and drop the original (old code on a migrated schema
+      # would be worse). Otherwise the new code was never enabled: put the
+      # original back and remove the new code. The pin then runs as usual.
+      recover_interrupted_swap() {
+        local d p found=0 new_ver stored_ver
+        for d in custom_apps apps; do
+          for p in "$NC_ROOT/$d/.conduction-previous-$1."*; do
+            if [ -d "$p" ]; then found=1; fi
+          done
+        done
+        [ "$found" = 1 ] || return 0
+        new_ver="$(grep -o '<version>[^<]*</version>' "$NC_ROOT/custom_apps/$1/appinfo/info.xml" 2>/dev/null | head -1 | sed -e 's#<version>##' -e 's#</version>##')"
+        stored_ver="$(php occ config:app:get "$1" installed_version 2>>"$LOG")" || stored_ver=""
+        if [ -n "$new_ver" ] && [ "$new_ver" = "$stored_ver" ]; then
+          rm -rf "$NC_ROOT/custom_apps/.conduction-previous-$1."* "$NC_ROOT/apps/.conduction-previous-$1."*
+          log "$1: v$new_ver from an interrupted run was already enabled and migrated; kept it"
+          return 0
+        fi
+        rm -rf "$NC_ROOT/custom_apps/$1"
+        for d in custom_apps apps; do
+          for p in "$NC_ROOT/$d/.conduction-previous-$1."*; do
+            [ -d "$p" ] || continue
+            if [ ! -e "$NC_ROOT/$d/$1" ]; then
+              mv "$p" "$NC_ROOT/$d/$1" 2>>"$LOG" && log "$1: restored $d/$1 left aside by an interrupted run"
+            else
+              rm -rf "$p"
+            fi
+          done
+        done
+        # Killed between app:disable and the end of app:enable: the app is
+        # installed but off. Turn the restored code back on; its stored
+        # installed_version belongs to it.
+        if [ -n "$stored_ver" ] && [ "$(php occ config:app:get "$1" enabled 2>>"$LOG")" = "no" ]; then
+          if php occ app:enable "$1" >>"$LOG" 2>&1; then
+            log "$1: previous version enabled again after an interrupted run"
+          else
+            fail "$1: previous version restored after an interrupted run, but enabling it failed; the app is disabled"
+          fi
+        fi
+      }
+
+      # Download, verify and swap one pinned app into custom_apps. Returns
+      # non-zero (after fail) with the previous code in place.
       fetch_pinned() {
         local APP_NAME=$1 VERSION=$2
         local ASSET="$APP_NAME-$VERSION.tar.gz"
         local URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$ASSET"
-        local WORK STAGE CODE EXPECTED ACTUAL LISTING TOPS XML_ID XML_VER
+        local WORK STAGE CODE EXPECTED ACTUAL LISTING TOPS XML_ID XML_VER PREV_VER d
 
         if ! [[ "$APP_NAME" =~ $ID_RE ]] || ! [[ "$VERSION" =~ $VER_RE ]]; then
           fail "$APP_NAME: invalid pin '$VERSION' (expected e.g. 0.7.12 or 0.2.10-unstable.4, no leading v)"
           return 1
         fi
 
+        recover_interrupted_swap "$APP_NAME"
         log "Installing $APP_NAME v$VERSION (pinned)..."
         log "Download URL: $URL"
         WORK="$(mktemp -d "${TMPDIR:-/tmp}/conduction-$APP_NAME.XXXXXX")" || { fail "$APP_NAME: mktemp failed"; return 1; }
 
-        if ! curl -fsSL --retry 3 --retry-delay 5 "$URL" -o "$WORK/$ASSET" 2>>"$LOG"; then
-          fail "$APP_NAME v$VERSION: GitHub download failed for $URL (app left as it was)"
+        # Limits against a hanging GitHub, inside the startupProbe budget
+        # (accept: ~165 s before the container is killed). The tarball gets a
+        # stall guard, not a total cap: a release is up to ~100 MB
+        # (opencatalogi-1.0.9: 101,800,688 B), and a hard --max-time would
+        # break slow but working links. curl aborts an attempt only when it
+        # moves less than 10 KiB/s for 20 s; with --connect-timeout 10 a
+        # stalled attempt ends within ~30 s, and no new attempt starts after
+        # 50 s, so a fully stalled download gives up after ~65 s. A slow
+        # download that keeps moving is not cut off; if it needs more than
+        # the budget, the startupProbe ends it, as before. The .sha256 is a
+        # few bytes: at most 10 s per attempt, no new attempt after 20 s.
+        # https only, also on redirects.
+        if ! curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 \
+            --speed-limit 10240 --speed-time 20 \
+            --retry 3 --retry-delay 5 --retry-max-time 50 "$URL" -o "$WORK/$ASSET" 2>>"$LOG"; then
+          fail "$APP_NAME v$VERSION: GitHub download failed for $URL (installed version kept)"
           rm -rf "$WORK"; return 1
         fi
 
-        CODE="$(curl -sSL --retry 3 --retry-delay 5 -o "$WORK/$ASSET.sha256" -w '%{http_code}' "$URL.sha256" 2>>"$LOG")"
+        # The .sha256 comes from the same release as the tarball: an integrity
+        # check against a corrupt or truncated download, not proof of origin.
+        # Whoever can publish the release can publish a matching checksum.
+        CODE="$(curl -sSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 10 \
+            --retry 3 --retry-delay 5 --retry-max-time 20 \
+            -o "$WORK/$ASSET.sha256" -w '%{http_code}' "$URL.sha256" 2>>"$LOG")"
         if [ "$CODE" = "200" ]; then
           EXPECTED="$(awk '{print $1; exit}' "$WORK/$ASSET.sha256")"
           ACTUAL="$(sha256sum "$WORK/$ASSET" | awk '{print $1}')"
@@ -480,6 +605,12 @@ nextcloud:
         fi
         if printf '%s\n' "$LISTING" | grep -qE '(^/|(^|/)[.][.](/|$))'; then
           fail "$APP_NAME v$VERSION: $ASSET contains absolute or '..' paths"
+          rm -rf "$WORK"; return 1
+        fi
+        # The name check above does not see where a link points. An app needs
+        # no links, so refuse every symlink (type 'l') and hardlink ('h').
+        if tar -tvzf "$WORK/$ASSET" 2>>"$LOG" | grep -qE '^[lh]'; then
+          fail "$APP_NAME v$VERSION: $ASSET contains link entries (symlink or hardlink)"
           rm -rf "$WORK"; return 1
         fi
         TOPS="$(printf '%s\n' "$LISTING" | sed -e 's#^\./##' -e '/^$/d' | cut -d/ -f1 | sort -u | tr '\n' ' ')"
@@ -507,21 +638,34 @@ nextcloud:
         fi
         XML_VER="$(grep -o '<version>[^<]*</version>' "$STAGE/$APP_NAME/appinfo/info.xml" | head -1 | sed -e 's#<version>##' -e 's#</version>##')"
         if [ "$XML_VER" != "$VERSION" ]; then
-          log "WARNING: $APP_NAME: info.xml says version '$XML_VER', pin is '$VERSION'"
+          fail "$APP_NAME v$VERSION: info.xml says version '$XML_VER', pin is '$VERSION' (installed version kept)"
+          rm -rf "$STAGE"; return 1
         fi
 
-        if [ -d "$NC_ROOT/apps/$APP_NAME" ]; then
-          log "Removing bundled $APP_NAME from /apps/ to use pinned version"
-          rm -rf "$NC_ROOT/apps/$APP_NAME"
+        # Version of the code Nextcloud loads now; the same version again is
+        # not a change worth database maintenance.
+        PREV_VER=""
+        for d in custom_apps apps; do
+          if [ -f "$NC_ROOT/$d/$APP_NAME/appinfo/info.xml" ]; then
+            PREV_VER="$(grep -o '<version>[^<]*</version>' "$NC_ROOT/$d/$APP_NAME/appinfo/info.xml" | head -1 | sed -e 's#<version>##' -e 's#</version>##')"
+            break
+          fi
+        done
+
+        if ! set_aside_previous "$APP_NAME"; then
+          rm -rf "$STAGE"
+          fail "$APP_NAME v$VERSION: could not move the previous version aside"
+          restore_previous "$APP_NAME"; return 1
         fi
-        rm -rf "$NC_ROOT/custom_apps/$APP_NAME"
-        if ! mv "$STAGE/$APP_NAME" "$NC_ROOT/custom_apps/$APP_NAME"; then
+        if ! mv "$STAGE/$APP_NAME" "$NC_ROOT/custom_apps/$APP_NAME" 2>>"$LOG"; then
+          rm -rf "$STAGE"
           fail "$APP_NAME v$VERSION: moving into custom_apps failed"
-          rm -rf "$STAGE"; return 1
+          restore_previous "$APP_NAME"; return 1
         fi
         rm -rf "$STAGE"
         chown -R www-data:www-data "$NC_ROOT/custom_apps/$APP_NAME" 2>>"$LOG" || true
         log "$APP_NAME v$VERSION installed to custom_apps"
+        if [ "$PREV_VER" != "$VERSION" ]; then CHANGED=1; fi
         return 0
       }
 
@@ -529,8 +673,19 @@ nextcloud:
         php occ app:list 2>/dev/null | grep -- "- $1:" | sed 's/.*: //'
       }
 
+      # check_pinned_version <id> <pin> <when>: Nextcloud must report the pin.
+      check_pinned_version() {
+        local INSTALLED_VER
+        INSTALLED_VER="$(installed_version "$1")"
+        if [ "$INSTALLED_VER" != "$2" ]; then
+          fail "$1: pinned $2 but Nextcloud reports '$INSTALLED_VER' $3"
+          return 1
+        fi
+        log "$1 enabled (version: $INSTALLED_VER)"
+      }
+
       install_app() {
-        local APP_NAME=$1 VERSION="${PIN[$1]-}" INSTALLED_VER
+        local APP_NAME=$1 VERSION="${PIN[$1]-}" INSTALLED_VER ENABLE_OUT
 
         if [ -z "$VERSION" ] && [ -n "${BAD_PIN[$APP_NAME]-}" ]; then
           log "Skipping $APP_NAME: its pin is invalid (see ERROR above)"
@@ -539,18 +694,54 @@ nextcloud:
 
         if [ -n "$VERSION" ]; then
           fetch_pinned "$APP_NAME" "$VERSION" || return 0
-          php occ app:enable "$APP_NAME" 2>>"$LOG" || true
-          if [ -d "$NC_ROOT/apps/$APP_NAME" ]; then
-            log "Removing /apps/$APP_NAME (prefer custom_apps pinned version)"
-            rm -rf "$NC_ROOT/apps/$APP_NAME"
-            php occ app:enable "$APP_NAME" 2>>"$LOG" || true
-          fi
-          INSTALLED_VER="$(installed_version "$APP_NAME")"
-          if [ "$INSTALLED_VER" != "$VERSION" ]; then
-            fail "$APP_NAME: pinned $VERSION but Nextcloud reports '$INSTALLED_VER' after enable"
+          if ! ENABLE_OUT="$(php occ app:enable "$APP_NAME" 2>>"$LOG")"; then
+            fail "$APP_NAME v$VERSION: occ app:enable $APP_NAME failed: $ENABLE_OUT"
+            restore_previous "$APP_NAME"
             return 0
           fi
-          log "$APP_NAME enabled (version: $INSTALLED_VER)"
+          if [ -n "$ENABLE_OUT" ]; then log "occ app:enable $APP_NAME: $ENABLE_OUT"; fi
+          case "$ENABLE_OUT" in
+            *"$APP_NAME already enabled"*)
+              # Nextcloud 32 does nothing for an enabled app, and app:list keeps
+              # showing the stored installed_version. When that is not the pin,
+              # disable and enable the app: app:enable then runs
+              # Installer::installApp (migrations, repair steps, stores the
+              # new version). Unlike `occ upgrade` this needs no maintenance
+              # mode and touches no other app. Consequences: the app's
+              # <repair-steps><install> run again on every pin bump (and again
+              # for the old code when it is restored); they must be safe to
+              # run again, which is the app's responsibility. An
+              # enabled-for-groups limit is reset to all users. Disabling does
+              # not cascade to dependent apps (e.g. opencatalogi on
+              # openregister): they log errors until the enable finishes.
+              if [ "$(installed_version "$APP_NAME")" != "$VERSION" ]; then
+                log "$APP_NAME was already enabled: disabling and enabling it to run its migrations"
+                if ! php occ app:disable "$APP_NAME" >>"$LOG" 2>&1; then
+                  fail "$APP_NAME v$VERSION: occ app:disable $APP_NAME failed"
+                  restore_and_reenable "$APP_NAME"
+                  return 0
+                fi
+                if ! ENABLE_OUT="$(php occ app:enable "$APP_NAME" 2>>"$LOG")"; then
+                  fail "$APP_NAME v$VERSION: occ app:enable $APP_NAME failed: $ENABLE_OUT"
+                  restore_and_reenable "$APP_NAME"
+                  return 0
+                fi
+                log "occ app:enable $APP_NAME: $ENABLE_OUT"
+              fi
+              if check_pinned_version "$APP_NAME" "$VERSION" "after enable"; then
+                drop_previous "$APP_NAME"
+              else
+                restore_and_reenable "$APP_NAME"
+              fi
+              return 0
+              ;;
+          esac
+          CHANGED=1
+          if check_pinned_version "$APP_NAME" "$VERSION" "after enable"; then
+            drop_previous "$APP_NAME"
+          else
+            restore_previous "$APP_NAME"
+          fi
           return 0
         fi
 
@@ -561,6 +752,7 @@ nextcloud:
               return 0
             fi
             log "Installing $APP_NAME (latest from app store)..."
+            CHANGED=1
             php occ app:install "$APP_NAME" 2>>"$LOG" || true
             php occ app:enable "$APP_NAME" 2>>"$LOG" || true
             INSTALLED_VER="$(installed_version "$APP_NAME")"
@@ -568,8 +760,14 @@ nextcloud:
             ;;
           *)
             log "Installing $APP_NAME (app store, not pinned)..."
-            php occ app:install "$APP_NAME" 2>>"$LOG" || true
-            php occ app:enable "$APP_NAME" 2>>"$LOG" || true
+            # Only "already installed" plus "already enabled" is no change.
+            if php occ app:install "$APP_NAME" 2>>"$LOG"; then CHANGED=1; fi
+            ENABLE_OUT="$(php occ app:enable "$APP_NAME" 2>>"$LOG")" || true
+            if [ -n "$ENABLE_OUT" ]; then log "occ app:enable $APP_NAME: $ENABLE_OUT"; fi
+            case "$ENABLE_OUT" in
+              *"$APP_NAME already enabled"*) ;;
+              *) CHANGED=1 ;;
+            esac
             ;;
         esac
       }
@@ -578,10 +776,14 @@ nextcloud:
         install_app "$app"
       done
 
-      log "Running database maintenance..."
-      php occ db:add-missing-indices 2>>"$LOG" || true
-      php occ maintenance:repair --include-expensive 2>>"$LOG" || true
-      log "Database maintenance complete"
+      if [ "$CHANGED" -eq 1 ]; then
+        log "Running database maintenance..."
+        php occ db:add-missing-indices 2>>"$LOG" || true
+        php occ maintenance:repair --include-expensive 2>>"$LOG" || true
+        log "Database maintenance complete"
+      else
+        log "Nothing installed or replaced in this run; database maintenance skipped"
+      fi
 
       if [ "$FAILED" -ne 0 ]; then
         log "=== Conduction Apps Bootstrap INCOMPLETE: state not written, next start retries ==="

@@ -113,12 +113,47 @@ so existing tenant files behave exactly as before.
 
 **Before anything is replaced** the hook checks the download: the published
 `.sha256` when the release has one (older releases do not, then it logs a
-warning), a single top folder named `<id>`, no absolute or `..` paths, and
-`<id>` in `appinfo/info.xml`. After `occ app:enable` Nextcloud must report the
-pinned version. A failure is logged as `ERROR` in
+warning; this is an integrity check against a corrupt download, not proof of
+origin: the checksum comes from the same release, so whoever can publish the
+release can publish a matching one), a single top folder named `<id>`, no
+absolute or `..` paths, no symlinks or hardlinks, and `<id>` and the pinned
+version in `appinfo/info.xml`. After `occ app:enable` Nextcloud must report the
+pinned version. For an app that was already enabled, `occ app:enable` does
+nothing on Nextcloud 32, so when the stored version is not the pin the hook runs
+`occ app:disable` and `occ app:enable` for that app: this runs its migrations
+and stores the new version, without maintenance mode and without touching other
+apps (the hook never runs `occ upgrade`). Consequences: the hook re-runs the
+app's install repair steps (`<repair-steps><install>` in `appinfo/info.xml`) on
+every pin bump, and again for the old code when a failed bump is rolled back; an
+enabled-for-groups limit on that app is reset to all users; and while the app is
+disabled, apps that depend on it (opencatalogi on openregister, for example) log
+errors. A failure is logged as `ERROR` in
 `/var/www/html/data/conduction-apps.log` and on the container's stderr, leaves
-the installed app as it was, and does not write the state file, so the next
-pod start retries. The pod still starts.
+the previously installed app in place or puts it back, and does not write the
+state file, so the next pod start retries. A retry that installs or replaces
+nothing (the pin still fails) skips `db:add-missing-indices` and
+`maintenance:repair --include-expensive`, so a lasting failure does not rerun
+the expensive repair on every start; the `ERROR` still shows on every start. The
+pod still starts. Both downloads are https-only (also on redirects). The tarball
+download is aborted only when it stalls (under 10 KiB/s for 20 s), so a slow but
+moving download of a large release is not cut off; the `.sha256` has a 10 s
+limit per attempt. A fully stalled GitHub costs one pin about 65 s of the
+startup budget. During the swap the previous code (`custom_apps/<id>`, and a
+bundled `apps/<id>`) is moved aside, not deleted, and put back (and enabled
+again if it was enabled) when the move, `occ app:enable` or the version check
+fails. When a start is killed mid-swap, the next start keeps the new code if
+Nextcloud already stored its version (it was enabled and migrated) and otherwise
+puts the original code back, drops the new code, and enables the app again if
+the run was killed while it was disabled; then it handles the pin as usual. On a
+first install there is no previous code; then the new code stays in
+`custom_apps` and the next start tries again.
+
+**Install repair steps must be safe to run again.** That is the app's
+responsibility, not the platform's: a step that seeds data runs again on every
+pin bump. On 2026-10-14 two fleet apps had steps under `<install>` that are not
+also under `<post-migration>` (where they already run on every upgrade):
+`portaliq` (`InitializeDemoPortal`, so a pin bump re-seeds a demo portal that
+was deleted) and `launchpad` (`SeedRolePermissions`).
 
 **Changing a pin reinstalls.** The state file key holds the app list and every
 pin, so a changed pin reruns the bootstrap on the next pod start.
