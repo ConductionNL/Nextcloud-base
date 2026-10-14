@@ -495,10 +495,19 @@ nextcloud:
           fail "$1: previous version restored but enabling it failed ($out); the app is disabled"
         fi
       }
-      # A run killed mid-swap (startupProbe) leaves a previous copy behind: put
-      # it back when its place is empty, otherwise it is stale.
+      # A run killed mid-swap (startupProbe) leaves the original code in a
+      # previous-folder. Always put it back: whatever sits in custom_apps/<id>
+      # then is the new code that was never checked, so it goes. The pin then
+      # runs as usual against the original code.
       recover_interrupted_swap() {
-        local d p
+        local d p found=0
+        for d in custom_apps apps; do
+          for p in "$NC_ROOT/$d/.conduction-previous-$1."*; do
+            if [ -d "$p" ]; then found=1; fi
+          done
+        done
+        [ "$found" = 1 ] || return 0
+        rm -rf "$NC_ROOT/custom_apps/$1"
         for d in custom_apps apps; do
           for p in "$NC_ROOT/$d/.conduction-previous-$1."*; do
             [ -d "$p" ] || continue

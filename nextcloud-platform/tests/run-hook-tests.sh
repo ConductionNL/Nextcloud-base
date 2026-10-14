@@ -688,6 +688,37 @@ expect_app "$t" custom_apps openregister "$OR1"
 expect_state "$t" "(geen)"
 end "$t"
 
+# Gestopt NA het binnenzetten van de nieuwe code, vóór de versiecheck: de
+# opzijgezette originele code gaat altijd terug, de ongecontroleerde nieuwe code
+# weg, en daarna loopt de pin gewoon (met maintenance, want de versie wisselt).
+interrupted_after_move() {
+    make_app_dir "$1/root/custom_apps/.conduction-previous-portaliq.1" portaliq 0.2.1
+    make_app_dir "$1/root/custom_apps/portaliq" portaliq "$PQ1"
+    echo "0.2.1" > "$1/stub/enabled/portaliq"
+}
+begin "nieuw: gestopt na het binnenzetten van de nieuwe code, release beschikbaar"
+t="$(new_tenant interrupted-moved)"
+interrupted_after_move "$t"
+make_release "$t" portaliq "$PQ1" good
+run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+expect_file_has "$t/root/data/conduction-apps.log" "left aside by an interrupted run"
+expect_app "$t" custom_apps portaliq "$PQ1"
+expect_eq "$(cat "$t/stub/enabled/portaliq")" "$PQ1" "opgeslagen versie portaliq"
+expect_file_has "$t/stub/calls" "occ maintenance:repair --include-expensive"
+expect_state "$t" "APPS=portaliq;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=;PINS=portaliq=$PQ1"
+expect_no_leftovers "$t"
+end "$t"
+
+begin "nieuw: gestopt na het binnenzetten van de nieuwe code, download faalt daarna"
+t="$(new_tenant interrupted-moved-404)"
+interrupted_after_move "$t"
+run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+expect_file_has "$t/root/data/conduction-apps.log" "GitHub download failed"
+expect_app "$t" custom_apps portaliq 0.2.1
+expect_state "$t" "(geen)"
+expect_no_leftovers "$t"
+end "$t"
+
 begin "nieuw: pin voor een app die niet in CONDUCTION_APPS staat wordt niet geïnstalleerd"
 t="$(new_tenant notenabled)"
 make_release "$t" portaliq "$PQ1" good
