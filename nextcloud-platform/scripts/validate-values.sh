@@ -11,12 +11,14 @@
 # Usage:
 #   ./scripts/validate-values.sh [tenant-file.yaml ...]
 #   ./scripts/validate-values.sh  # validates all tenants
+#   ./scripts/validate-values.sh --dump-host-claims  # host-register (zie build_host_claims)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-TENANT_DIR="${REPO_ROOT}/values/tenants"
+# VALIDATE_TENANT_DIR: alleen voor tests/run-tests.sh (fixtures met een eigen vloot)
+TENANT_DIR="${VALIDATE_TENANT_DIR:-${REPO_ROOT}/values/tenants}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -600,30 +602,85 @@ tenant_host_claims() {
     ) | .[]' "$file" 2>/dev/null || true)
 }
 
-# Host-register over ALLE tenants, als regels "<host><TAB><tenant><TAB><bron>".
-# Bron: elk bestand in values/tenants/, plus de bestanden op de commandoregel.
-# Een bestand op de commandoregel vervangt het tenantbestand met dezelfde
-# tenant.name, zodat een gewijzigde kopie niet met zichzelf botst. Zo vergelijkt
-# ook `validate-values.sh <één bestand>` met de rest van de vloot.
-HOST_CLAIMS=""
-build_host_claims() {
+# Absoluut pad met symlinks opgelost, zonder GNU realpath
+abs_path() {
+    local dir
+    dir=$(cd "$(dirname "$1")" 2>/dev/null && pwd -P) || { echo "$1"; return 0; }
+    echo "${dir}/$(basename "$1")"
+}
+
+# Host-register van values/tenants/, als regels "<host><TAB><tenant><TAB><bron>".
+# Twee bestanden met dezelfde tenant.name zijn een fout: het register (en
+# daarmee de botsingscheck) zou er stil één van overslaan.
+dump_host_claims() {
     local -A by_name=()
-    local file name
+    local file name has_error=0 host bron
     while IFS= read -r -d '' file; do
         name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || continue
-        [ -n "$name" ] && by_name["$name"]="$file"
-    done < <(find "$TENANT_DIR" -name "tenant-*.yaml" -print0 2>/dev/null)
-    for file in "$@"; do
-        name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || continue
-        [ -n "$name" ] && by_name["$name"]="$file"
-    done
+        [ -z "$name" ] && continue
+        if [ -n "${by_name[$name]:-}" ]; then
+            log_error "$file: tenant.name '$name' staat ook in ${by_name[$name]}"
+            has_error=$((has_error + 1))
+            continue
+        fi
+        by_name["$name"]="$file"
+    done < <(find "$TENANT_DIR" -name "tenant-*.yaml" -print0 2>/dev/null | sort -z)
 
-    local host bron
     for name in "${!by_name[@]}"; do
         while IFS=$'\t' read -r host bron; do
             [ -z "$host" ] && continue
-            HOST_CLAIMS+="${host}"$'\t'"${name}"$'\t'"${bron}"$'\n'
+            printf '%s\t%s\t%s\n' "$host" "$name" "$bron"
         done < <(tenant_host_claims "${by_name[$name]}")
+    done
+    return $has_error
+}
+
+# Host-register over ALLE tenants: dat van values/tenants/, plus de bestanden op
+# de commandoregel. Een bestand BUITEN values/tenants/ (een fixture, een
+# gewijzigde kopie) vervangt het tenantbestand met dezelfde tenant.name, zodat
+# het niet met zichzelf botst. Zo vergelijkt ook `validate-values.sh <één
+# bestand>` met de rest van de vloot. Een bestand BINNEN values/tenants/ staat
+# al in het register; een tweede daar met een bestaande naam is een fout.
+#
+# VALIDATE_HOST_CLAIMS_FILE: een register dat `validate-values.sh
+# --dump-host-claims` eerder schreef (run-tests.sh bouwt het één keer). Ontbreekt
+# het bestand, dan wordt het register gewoon opnieuw opgebouwd.
+HOST_CLAIMS=""
+build_host_claims() {
+    local cache="${VALIDATE_HOST_CLAIMS_FILE:-}"
+    if [ -n "$cache" ] && [ -f "$cache" ]; then
+        HOST_CLAIMS=$(cat "$cache")
+    else
+        # Draait in een subshell: tel de fouten hier bij (de meldingen zelf
+        # staan al op stderr)
+        local dups=0
+        HOST_CLAIMS=$(dump_host_claims) || dups=$?
+        ERRORS=$((ERRORS + dups))
+    fi
+    [ -n "$HOST_CLAIMS" ] && HOST_CLAIMS+=$'\n'
+
+    local tenant_dir file path name host bron
+    tenant_dir=$(cd "$TENANT_DIR" 2>/dev/null && pwd -P) || tenant_dir="$TENANT_DIR"
+    local -A overlay=()
+    for file in "$@"; do
+        path=$(abs_path "$file")
+        [[ "$path" == "${tenant_dir}/"* ]] && continue
+        name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || continue
+        [ -z "$name" ] && continue
+        if [ -n "${overlay[$name]:-}" ] && [ "${overlay[$name]}" != "$path" ]; then
+            log_error "$file: tenant.name '$name' staat ook in ${overlay[$name]}"
+            continue
+        fi
+        overlay["$name"]="$path"
+    done
+
+    for name in "${!overlay[@]}"; do
+        HOST_CLAIMS=$(printf '%s' "$HOST_CLAIMS" | awk -F'\t' -v n="$name" '$2 != n')
+        [ -n "$HOST_CLAIMS" ] && HOST_CLAIMS+=$'\n'
+        while IFS=$'\t' read -r host bron; do
+            [ -z "$host" ] && continue
+            HOST_CLAIMS+="${host}"$'\t'"${name}"$'\t'"${bron}"$'\n'
+        done < <(tenant_host_claims "${overlay[$name]}")
     done
 }
 
@@ -911,6 +968,13 @@ validate_tenant_file() {
 # Main
 main() {
     check_dependencies
+
+    # --dump-host-claims: schrijf het host-register van values/tenants/ naar
+    # stdout, voor VALIDATE_HOST_CLAIMS_FILE (zie build_host_claims)
+    if [ "${1:-}" = "--dump-host-claims" ]; then
+        dump_host_claims
+        exit $?
+    fi
     
     local files=()
     
