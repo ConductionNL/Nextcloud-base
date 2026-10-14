@@ -202,7 +202,7 @@ What the ApplicationSet does with it (`argo/applicationsets/nextcloud-tenants.ya
 | `trusted_domains` | every extra host is added to `nextcloud.trustedDomains`, after the primary host |
 | routing | a second Ingress `nextcloud-extra-hosts`, because chart 8.9.0 puts only `nextcloud.host` in its own Ingress rules |
 | certificates | one TLS entry per host, secret `nextcloud-<tenant>-<host with dashes>-tls`, so one cert-manager Certificate per host via HTTP-01 (`letsencrypt-prod`). A host whose DNS is not ready does not block the others |
-| annotations | taken from `ingress.annotations`, `ingress.className` and `service.port` through the chart's `tpl`, so they always match the main Ingress |
+| annotations | taken from `ingress.annotations`, `ingress.className`, `ingress.path`, `ingress.pathType` and `service.port` through the chart's `tpl`, so they always match the main Ingress; with `ingress.enabled: false` neither Ingress is rendered |
 
 A tenant without `extraHostnames` renders byte-identical to before; the block is
 only emitted when the list is set.
@@ -220,10 +220,17 @@ Four things to know:
   reads `NEXTCLOUD_TRUSTED_DOMAINS` when it installs; adding a host to a running
   tenant later also needs `occ config:system:set trusted_domains <n> --value=<host>`
   in the pod (same pattern as `cutover-tenant.sh`). Put the full list in the file
-  before the tenant is first created.
+  before the tenant is first created. Removing a host from the list works the
+  same way: Argo prunes the Ingress, but the host stays in `config.php` until
+  you run `occ config:system:delete trusted_domains <n>`. In both cases run
+  `occ config:system:get trusted_domains` first to find the right `<n>`: `set`
+  on an index that is already in use overwrites that entry.
 - **Gateway API routes do not use this list.** `charts/tenant-httproute` takes one
   host; a tenant with `gateway.nextcloud: true` gets a route for the primary host
-  only.
+  only. The extra hosts stay on the nginx Ingress, and that Ingress follows
+  `ingress.enabled` like the chart's own: `ingress.enabled: false` would leave
+  them without any route, so `validate-values.sh` refuses `extraHostnames`
+  together with `ingress.enabled: false`.
 
 Validate before pushing:
 

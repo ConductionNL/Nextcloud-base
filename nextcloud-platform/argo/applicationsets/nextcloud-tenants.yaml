@@ -193,13 +193,15 @@ spec:
               # De chart (8.9.0) zet in zijn eigen Ingress alleen nextcloud.host
               # als rule, dus extra hosts krijgen hier een tweede Ingress. Eén
               # TLS-blok per host, dus één Certificate per host: een host waarvan
-              # DNS nog niet klopt houdt de andere niet tegen. Annotaties,
-              # ingressClassName en poort komen via de tpl van de chart uit
-              # dezelfde values als de hoofd-Ingress, dus geen tweede kopie van
-              # de nginx-instellingen. Alleen geëmit als de lijst gezet is:
-              # bestaande tenants renderen byte-identiek.
+              # DNS nog niet klopt houdt de andere niet tegen. ingress.enabled,
+              # annotaties, ingressClassName, path, pathType en poort komen via
+              # de tpl van de chart uit dezelfde values als de hoofd-Ingress,
+              # op dezelfde manier als templates/ingress.yaml van de chart, dus
+              # geen tweede kopie van de nginx-instellingen. Alleen geëmit als
+              # de lijst gezet is: bestaande tenants renderen byte-identiek.
               extraManifests:
                 - |
+                  {{`{{- if .Values.ingress.enabled }}`}}
                   apiVersion: networking.k8s.io/v1
                   kind: Ingress
                   metadata:
@@ -208,10 +210,14 @@ spec:
                       app.kubernetes.io/name: nextcloud
                       app.kubernetes.io/part-of: nextcloud-platform
                       nextcloud.platform/tenant: "{{ $name }}"
+                    {{`{{- with .Values.ingress.annotations }}`}}
                     annotations:
-                      {{`{{- toYaml .Values.ingress.annotations | nindent 4 }}`}}
+                      {{`{{- toYaml . | nindent 4 }}`}}
+                    {{`{{- end }}`}}
                   spec:
-                    ingressClassName: {{`{{ .Values.ingress.className }}`}}
+                    {{`{{- with .Values.ingress.className }}`}}
+                    ingressClassName: {{`{{ . }}`}}
+                    {{`{{- end }}`}}
                     tls:
                       {{- range $extraHosts }}
                       - secretName: "nextcloud-{{ $name }}-{{ replace "." "-" . }}-tls"
@@ -223,14 +229,15 @@ spec:
                       - host: "{{ . }}"
                         http:
                           paths:
-                            - path: /
-                              pathType: Prefix
+                            - path: {{`{{ .Values.ingress.path }}`}}
+                              pathType: {{`{{ .Values.ingress.pathType }}`}}
                               backend:
                                 service:
                                   name: nextcloud
                                   port:
                                     number: {{`{{ .Values.service.port }}`}}
                       {{- end }}
+                  {{`{{- end }}`}}
               {{- end }}
 
         # Our GitOps repo for values files

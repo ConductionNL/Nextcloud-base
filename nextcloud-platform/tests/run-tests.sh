@@ -21,6 +21,16 @@
 # Een fixture die per ongeluk op een ANDERE check faalt dan bedoeld wordt zo
 # ook gevangen: de verwachte deelstring komt dan niet voor.
 #
+# De validator vergelijkt hosts met alle tenantbestanden in values/tenants/,
+# ook bij één bestand. Fixtures die een botsing met een andere tenant toetsen
+# (tenant-extra-hostnames-andere-*) leunen daarom op tenant-dinkelland-prod.
+# Dat register bouwt deze runner één keer (VALIDATE_HOST_CLAIMS_FILE), niet per
+# case.
+#
+#   <naam>.fleet/  optioneel: een eigen map met tenantbestanden die voor deze
+#                  case values/tenants/ vervangt (VALIDATE_TENANT_DIR), voor
+#                  checks over de hele vloot, zoals een dubbele tenant.name.
+#
 # Writes: read-only (schrijft alleen in een eigen mktemp-map)
 # Idempotent: ja
 # Requires: bash, yq (via validate-values.sh)
@@ -62,7 +72,11 @@ run_case() {
 
     # validate-values.sh geeft non-zero bij fouten; dat is hier data, geen crash.
     set +e
-    output="$(bash "$VALIDATOR" "$yaml" 2>&1)"
+    if [[ -d "${CASES_DIR}/${name}.fleet" ]]; then
+        output="$(VALIDATE_TENANT_DIR="${CASES_DIR}/${name}.fleet" bash "$VALIDATOR" "$yaml" 2>&1)"
+    else
+        output="$(VALIDATE_HOST_CLAIMS_FILE="$CLAIMS_FILE" bash "$VALIDATOR" "$yaml" 2>&1)"
+    fi
     rc=$?
     set -e
     # ANSI-kleuren eruit, anders matchen de deelstrings niet
@@ -112,6 +126,16 @@ main() {
 
     if [[ ! -x "$VALIDATOR" ]] && [[ ! -f "$VALIDATOR" ]]; then
         echo "error: validator niet gevonden op $VALIDATOR" >&2
+        exit 1
+    fi
+
+    # Host-register van values/tenants/ één keer opbouwen in plaats van per
+    # case. Globaal: de EXIT-trap draait buiten deze functie.
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TMP_DIR"' EXIT
+    CLAIMS_FILE="${TMP_DIR}/host-claims.tsv"
+    if ! bash "$VALIDATOR" --dump-host-claims >"$CLAIMS_FILE"; then
+        echo "error: host-register van values/tenants/ niet op te bouwen" >&2
         exit 1
     fi
 

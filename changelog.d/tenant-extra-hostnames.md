@@ -10,9 +10,9 @@ Een tenant kan nu op meer dan één hostnaam antwoorden. Nieuw optioneel veld
   (`ingress.hosts` uit de ApplicationSet leest die chart niet);
 - geeft elke extra host een eigen TLS-blok en dus een eigen Certificate via
   HTTP-01, zodat één host met nog niet kloppende DNS de andere niet tegenhoudt;
-- neemt annotaties, `ingressClassName` en poort via de `tpl` van de chart over
-  uit dezelfde values als de hoofd-Ingress: geen tweede kopie van de
-  nginx-instellingen.
+- neemt `ingress.enabled`, annotaties, `ingressClassName`, `path`, `pathType`
+  en poort via de `tpl` van de chart over uit dezelfde values als de
+  hoofd-Ingress: geen tweede kopie van de nginx-instellingen.
 
 **Bestaande tenants renderen byte-identiek.** Het blok wordt alleen geëmit als
 de lijst gezet is. Gemeten: alle 89 tenantbestanden op main en op deze branch
@@ -20,10 +20,17 @@ gerenderd (Argo-goTemplate met sprig en `missingkey=default`, daarna
 `helm template` met chart 8.9.0 en dezelfde valueFiles-volgorde), values en
 manifests per tenant byte voor byte gelijk.
 
-`validate-values.sh` controleert het nieuwe veld (lijst, geldige DNS-namen,
-geen dubbele, niet de primaire host, secretnaam ≤ 253), met fixtures in
+`validate-values.sh` controleert het nieuwe veld (lijst, geldige DNS-namen en
+geen IP-adres, geen dubbele, niet de primaire host, onder `commonground.nu`
+alleen de eigen namen, unieke secretnaam ≤ 253, niet samen met
+`ingress.enabled: false`). Ook `tenant.hostname` mag geen IP-adres meer zijn.
+Over alle tenantbestanden heen weigert hij een host die twee tenants claimen
+(primaire host, `extraHostnames`, `frontend.host`, `frontend.extraHosts`) en
+een `tenant.name` die in twee bestanden staat, met fixtures in
 `nextcloud-platform/tests/cases/tenant-extra-hostnames-*`.
 
 Bekende beperkingen: `trusted_domains` wordt alleen bij de eerste installatie
-geschreven; `charts/tenant-httproute` neemt nog één host. Zie
+geschreven, en een verwijderde host blijft erin staan tot een
+`occ config:system:delete trusted_domains <n>`; `charts/tenant-httproute` neemt
+nog één host. Zie
 `docs/ADDING-TENANT.md`.

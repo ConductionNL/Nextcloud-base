@@ -50,7 +50,10 @@ blok dat altijd meegaat zou alle 84 Applications tegelijk laten hersyncen.
 `tenant.extraHostnames` (zie `docs/ADDING-TENANT.md`) gaat hier niet mee: de
 route krijgt alleen de primaire host. Een tenant met extra hostnamen blijft voor
 die hosts op de nginx-Ingress tot deze chart een lijst hostnames aanneemt, met
-per host een listener op de Gateway.
+per host een listener op de Gateway. Die Ingress (`nextcloud-extra-hosts`) volgt
+`ingress.enabled`, net als de hoofd-Ingress van de chart. `validate-values.sh`
+weigert daarom `extraHostnames` samen met `ingress.enabled: false`: de extra
+hosts zouden dan geen enkele route meer hebben.
 
 ## Waarom dit nog niet schaalt
 
@@ -94,8 +97,10 @@ De HTTPRoute komt náást de Ingress. Het verkeer verschuift **niet**: het
 DNS-record blijft naar ingress-nginx wijzen, want external-dns laat een bestaand
 record met rust zolang de Ingress bestaat. Gemeten 2026-08-17.
 
-De cutover is dus het weghalen van de Ingress. Doe dat niet lichtvaardig: het
-certificaat van deze host wordt via HTTP-01 over díé Ingress vernieuwd. Verdwijnt
+De cutover is dus het weghalen van de Ingress. Heeft de tenant
+`tenant.extraHostnames`, dan kan dat nog niet: `ingress.enabled: false` haalt ook
+de Ingress van de extra hosts weg, en de validator weigert die combinatie. Doe
+het ook verder niet lichtvaardig: het certificaat van deze host wordt via HTTP-01 over díé Ingress vernieuwd. Verdwijnt
 hij voordat cert-manager's `--enable-gateway-api` aanstaat (die vlag staat nu
 uit), dan breekt de vernieuwing stil en pas bij de eerstvolgende renewal.
 

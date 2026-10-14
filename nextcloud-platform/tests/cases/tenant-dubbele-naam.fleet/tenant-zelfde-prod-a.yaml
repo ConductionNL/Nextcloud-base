@@ -1,0 +1,9 @@
+---
+tenant:
+  name: zelfde-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  apps:
+    enabled:
+      - openregister

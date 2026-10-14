@@ -11,12 +11,14 @@
 # Usage:
 #   ./scripts/validate-values.sh [tenant-file.yaml ...]
 #   ./scripts/validate-values.sh  # validates all tenants
+#   ./scripts/validate-values.sh --dump-host-claims  # host-register (zie build_host_claims)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-TENANT_DIR="${REPO_ROOT}/values/tenants"
+# VALIDATE_TENANT_DIR: alleen voor tests/run-tests.sh (fixtures met een eigen vloot)
+TENANT_DIR="${VALIDATE_TENANT_DIR:-${REPO_ROOT}/values/tenants}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -331,6 +333,25 @@ validate_chart_version_format() {
     return 0
 }
 
+# Hostnaam zoals Kubernetes hem in een Ingress-rule accepteert (RFC 1123):
+# labels van kleine letters, cijfers en koppeltekens, minstens één punt, elk
+# label max 63 tekens en het geheel max 253, en het laatste label niet alleen
+# cijfers (dan is het een IP-adres, dat Kubernetes niet als Ingress-host neemt).
+# Anders weigert de API-server de Ingress en faalt de sync van de Application.
+#
+# Usage: is_valid_hostname <host>
+is_valid_hostname() {
+    local host="$1" label
+    [[ "$host" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)+$ ]] || return 1
+    [ ${#host} -le 253 ] || return 1
+    [[ "${host##*.}" =~ ^[0-9]+$ ]] && return 1
+    local IFS=.
+    for label in $host; do
+        [ ${#label} -le 63 ] || return 1
+    done
+    return 0
+}
+
 # Validate hostname format
 validate_hostname() {
     local file="$1"
@@ -343,8 +364,8 @@ validate_hostname() {
     fi
     
     # Basic hostname validation (RFC 1123)
-    if ! [[ "$hostname" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$ ]]; then
-        log_error "$file: Invalid hostname '$hostname'. Must be a valid DNS name."
+    if ! is_valid_hostname "$hostname"; then
+        log_error "$file: Invalid hostname '$hostname'. Must be a valid DNS name (at least one dot, labels max 63, total max 253, not an IP address)."
         return 1
     fi
     
@@ -405,16 +426,69 @@ validate_hostname_convention() {
     return 0
 }
 
+# Primaire host zoals de ApplicationSet (argo/applicationsets/nextcloud-tenants.yaml)
+# hem bepaalt: tenant.hostname, en anders afgeleid uit tenant.name. Houd dit
+# gelijk met dat template. Let op: het template kent 'demo' niet als suffix,
+# zo'n tenant valt terug op tenant.environment (bv. x-demo.accept.commonground.nu).
+#
+# Usage: primary_host <name> <environment> <hostname>
+primary_host() {
+    local name="$1" env="$2" hostname="$3" suffix="" org="$1" omgeving
+
+    if [ -n "$hostname" ] && [ "$hostname" != "null" ]; then
+        echo "$hostname"
+        return 0
+    fi
+
+    if [[ "$name" =~ (accept|test|prod)$ ]]; then
+        suffix="${BASH_REMATCH[1]}"
+    fi
+    if [[ "$name" =~ ^(.*)-(accept|test|prod)$ ]]; then
+        org="${BASH_REMATCH[1]}"
+    fi
+    omgeving="${suffix:-$env}"
+
+    if [ "$omgeving" = "prod" ]; then
+        echo "${org}.commonground.nu"
+    else
+        echo "${org}.${omgeving}.commonground.nu"
+    fi
+}
+
+# ingress.enabled zoals de render hem ziet: dezelfde valueFiles-volgorde als de
+# ApplicationSet (common, env, db, canary-overrides, tenantbestand), de laatste
+# die hem zet wint. De inline values van de ApplicationSet zetten hem niet.
+#
+# Usage: effective_ingress_enabled <file>
+effective_ingress_enabled() {
+    local file="$1" values="${REPO_ROOT}/values" env db canary value f result="false"
+    env=$(yq eval '.tenant.environment // ""' "$file" 2>/dev/null)
+    db=$(yq eval '.tenant.dbType // "postgres"' "$file" 2>/dev/null)
+    canary=$(yq eval '.tenant.canary // ""' "$file" 2>/dev/null)
+    local layers=("${values}/common.yaml" "${values}/env/${env}.yaml" "${values}/db/${db}.yaml")
+    [ "$canary" = "true" ] && layers+=("${values}/canary-overrides.yaml")
+    layers+=("$file")
+    for f in "${layers[@]}"; do
+        [ -f "$f" ] || continue
+        value=$(yq eval '.ingress.enabled' "$f" 2>/dev/null)
+        [ "$value" != "null" ] && [ -n "$value" ] && result="$value"
+    done
+    echo "$result"
+}
+
 # Validate tenant.extraHostnames (optioneel)
 #
 # Extra hostnamen op dezelfde Nextcloud. De ApplicationSet zet ze in
 # trustedDomains en rendert er een tweede Ingress voor, met één TLS-secret
 # "nextcloud-<tenant>-<host met streepjes>-tls" per host. Gecontroleerd:
-# lijstvorm, geldige DNS-naam, geen dubbele, niet gelijk aan de primaire host,
-# en een secretnaam die Kubernetes accepteert (DNS-subdomein, max 253).
+# lijstvorm, geldige DNS-naam (geen IP-adres), geen dubbele, niet gelijk aan de
+# primaire host, onder commonground.nu alleen hosts van de eigen tenant, een
+# unieke secretnaam die Kubernetes accepteert (DNS-subdomein, max 253), en
+# ingress.enabled: true. Botsingen met hosts van andere tenants vangt
+# validate_host_claims; een dubbele tenant.name vangt dump_host_claims.
 validate_extra_hostnames() {
     local file="$1"
-    local kind name primary
+    local kind name hostname primary primary_bron
     kind=$(yq eval '.tenant.extraHostnames | type' "$file" 2>/dev/null)
 
     if [ "$kind" = "!!null" ] || [ -z "$kind" ]; then
@@ -427,22 +501,37 @@ validate_extra_hostnames() {
     fi
 
     name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
-    primary=$(yq eval '.tenant.hostname // ""' "$file" 2>/dev/null)
+    hostname=$(yq eval '.tenant.hostname // ""' "$file" 2>/dev/null)
+    primary=$(primary_host "$name" "$(yq eval '.tenant.environment' "$file" 2>/dev/null)" "$hostname")
+    if [ -n "$hostname" ]; then
+        primary_bron="die staat al in tenant.hostname"
+    else
+        primary_bron="afgeleid uit tenant.name, zoals de ApplicationSet doet"
+    fi
 
-    local has_error=0 host seen=" " secret
+    local has_error=0 host seen=" " secret seen_secrets=" "
     while IFS= read -r host; do
-        if ! [[ "$host" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$ ]]; then
-            log_error "$file: tenant.extraHostnames bevat ongeldige hostnaam '$host'"
+        if ! is_valid_hostname "$host"; then
+            log_error "$file: tenant.extraHostnames bevat ongeldige hostnaam '$host' (kleine letters, minstens één punt, labels max 63, totaal max 253, geen IP-adres)"
             has_error=1
             continue
         fi
-        if [ -n "$primary" ] && [ "$host" = "$primary" ]; then
-            log_error "$file: tenant.extraHostnames bevat de primaire host '$host' (die staat al in tenant.hostname)"
+        if [ "$host" = "$primary" ]; then
+            log_error "$file: tenant.extraHostnames bevat de primaire host '$host' ($primary_bron)"
+            has_error=1
+        fi
+        # commonground.nu is van het platform: een extra host daaronder moet
+        # volgens de naamconventie bij deze tenant horen.
+        if [ "$host" != "$primary" ] && [[ "$host" == commonground.nu || "$host" == *.commonground.nu ]] \
+            && ! convention_hosts "$name" | grep -qxF -- "$host"; then
+            log_error "$file: tenant.extraHostnames bevat '$host' onder commonground.nu, maar die hoort niet bij tenant '$name' (toegestaan: $(convention_hosts "$name" | paste -sd ' '))"
             has_error=1
         fi
         if [[ "$seen" == *" $host "* ]]; then
             log_error "$file: tenant.extraHostnames bevat '$host' dubbel"
             has_error=1
+            # De eerste keer zijn de overige checks voor deze host al gedaan
+            continue
         fi
         seen="${seen}${host} "
         secret="nextcloud-${name}-${host//./-}-tls"
@@ -450,11 +539,180 @@ validate_extra_hostnames() {
             log_error "$file: TLS-secretnaam '$secret' voor '$host' is langer dan 253 tekens"
             has_error=1
         fi
+        # Punten worden streepjes, dus a-b.nl en a.b.nl krijgen hetzelfde
+        # secret: één Certificate dat maar één van beide hosts dekt.
+        if [[ "$seen_secrets" == *" $secret "* ]]; then
+            log_error "$file: TLS-secretnaam '$secret' voor '$host' is gelijk aan die van een andere extra host"
+            has_error=1
+        fi
+        seen_secrets="${seen_secrets}${secret} "
     done < <(yq eval '.tenant.extraHostnames[]' "$file" 2>/dev/null)
 
     if [ $has_error -eq 0 ]; then
         log_warning "$file: tenant.extraHostnames gezet; DNS en HTTP-01 per host moeten kloppen (zie docs/ADDING-TENANT.md)"
     fi
+
+    # De extra Ingress volgt ingress.enabled, net als die van de chart. Zonder
+    # Ingress hebben de extra hosts geen enkele route: charts/tenant-httproute
+    # neemt alleen de primaire host.
+    if [ "$(effective_ingress_enabled "$file")" != "true" ]; then
+        log_error "$file: tenant.extraHostnames vereist ingress.enabled: true. De extra hosts lopen via de nginx-Ingress zolang charts/tenant-httproute maar één host neemt (zie docs/GATEWAY-API.md)"
+        has_error=1
+    fi
+
+    return $has_error
+}
+
+# Hosts onder commonground.nu die volgens de conventie bij deze tenant horen.
+# Zelfde regel als validate_hostname_convention: prod krijgt <org>.commonground.nu
+# en de migratiehost <org>.migrate.commonground.nu, de rest
+# <org>.<suffix>.commonground.nu.
+#
+# Usage: convention_hosts <name>
+convention_hosts() {
+    local name="$1" org suffix
+    [[ "$name" =~ ^(.+)-(accept|test|demo|prod)$ ]] || return 0
+    org="${BASH_REMATCH[1]}"
+    suffix="${BASH_REMATCH[2]}"
+    if [ "$suffix" = "prod" ]; then
+        echo "${org}.commonground.nu"
+        echo "${org}.migrate.commonground.nu"
+    else
+        echo "${org}.${suffix}.commonground.nu"
+    fi
+}
+
+# Alle hosts die één tenantbestand claimt, als regels "<host><TAB><bron>":
+# de primaire host (zoals de ApplicationSet hem bepaalt), tenant.extraHostnames
+# en de WOO-frontend (tenant.frontend.host en tenant.frontend.extraHosts, alleen
+# als ze expliciet gezet zijn; de afgeleide frontend-host staat in React-base).
+#
+# Usage: tenant_host_claims <file>
+tenant_host_claims() {
+    local file="$1" name env hostname
+    name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || return 0
+    [ -z "$name" ] && return 0
+    env=$(yq eval '.tenant.environment // ""' "$file" 2>/dev/null)
+    hostname=$(yq eval '.tenant.hostname // ""' "$file" 2>/dev/null)
+    printf '%s\tprimaire host\n' "$(primary_host "$name" "$env" "$hostname")"
+    local bron host
+    while read -r bron host; do
+        [ -n "$host" ] && printf '%s\t%s\n' "$host" "$bron"
+    done < <(yq eval '.tenant as $t | (
+        [$t.extraHostnames // [] | select(tag == "!!seq") | .[] | to_string | "tenant.extraHostnames " + .] +
+        [$t.frontend.host // null | select(. != null) | to_string | "tenant.frontend.host " + .] +
+        [$t.frontend.extraHosts // [] | select(tag == "!!seq") | .[] | to_string | "tenant.frontend.extraHosts " + .]
+    ) | .[]' "$file" 2>/dev/null || true)
+}
+
+# Absoluut pad met symlinks opgelost, zonder GNU realpath
+abs_path() {
+    local dir
+    dir=$(cd "$(dirname "$1")" 2>/dev/null && pwd -P) || { echo "$1"; return 0; }
+    echo "${dir}/$(basename "$1")"
+}
+
+# Host-register van values/tenants/, als regels "<host><TAB><tenant><TAB><bron>".
+# Twee bestanden met dezelfde tenant.name zijn een fout: het register (en
+# daarmee de botsingscheck) zou er stil één van overslaan.
+dump_host_claims() {
+    local -A by_name=()
+    local file name has_error=0 host bron
+    while IFS= read -r -d '' file; do
+        name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || continue
+        [ -z "$name" ] && continue
+        if [ -n "${by_name[$name]:-}" ]; then
+            log_error "$file: tenant.name '$name' staat ook in ${by_name[$name]}"
+            has_error=$((has_error + 1))
+            continue
+        fi
+        by_name["$name"]="$file"
+    done < <(find "$TENANT_DIR" -name "tenant-*.yaml" -print0 2>/dev/null | sort -z)
+
+    for name in "${!by_name[@]}"; do
+        while IFS=$'\t' read -r host bron; do
+            [ -z "$host" ] && continue
+            printf '%s\t%s\t%s\n' "$host" "$name" "$bron"
+        done < <(tenant_host_claims "${by_name[$name]}")
+    done
+    return $has_error
+}
+
+# Host-register over ALLE tenants: dat van values/tenants/, plus de bestanden op
+# de commandoregel. Een bestand BUITEN values/tenants/ (een fixture, een
+# gewijzigde kopie) vervangt het tenantbestand met dezelfde tenant.name, zodat
+# het niet met zichzelf botst. Zo vergelijkt ook `validate-values.sh <één
+# bestand>` met de rest van de vloot. Een bestand BINNEN values/tenants/ staat
+# al in het register; een tweede daar met een bestaande naam is een fout.
+#
+# VALIDATE_HOST_CLAIMS_FILE: een register dat `validate-values.sh
+# --dump-host-claims` eerder schreef (run-tests.sh bouwt het één keer). Ontbreekt
+# het bestand, dan wordt het register gewoon opnieuw opgebouwd.
+HOST_CLAIMS=""
+build_host_claims() {
+    local cache="${VALIDATE_HOST_CLAIMS_FILE:-}"
+    if [ -n "$cache" ] && [ -f "$cache" ]; then
+        HOST_CLAIMS=$(cat "$cache")
+    else
+        # Draait in een subshell: tel de fouten hier bij (de meldingen zelf
+        # staan al op stderr)
+        local dups=0
+        HOST_CLAIMS=$(dump_host_claims) || dups=$?
+        ERRORS=$((ERRORS + dups))
+    fi
+    [ -n "$HOST_CLAIMS" ] && HOST_CLAIMS+=$'\n'
+
+    local tenant_dir file path name host bron
+    tenant_dir=$(cd "$TENANT_DIR" 2>/dev/null && pwd -P) || tenant_dir="$TENANT_DIR"
+    local -A overlay=()
+    for file in "$@"; do
+        path=$(abs_path "$file")
+        [[ "$path" == "${tenant_dir}/"* ]] && continue
+        name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || continue
+        [ -z "$name" ] && continue
+        if [ -n "${overlay[$name]:-}" ] && [ "${overlay[$name]}" != "$path" ]; then
+            log_error "$file: tenant.name '$name' staat ook in ${overlay[$name]}"
+            continue
+        fi
+        overlay["$name"]="$path"
+    done
+
+    for name in "${!overlay[@]}"; do
+        HOST_CLAIMS=$(printf '%s' "$HOST_CLAIMS" | awk -F'\t' -v n="$name" '$2 != n')
+        [ -n "$HOST_CLAIMS" ] && HOST_CLAIMS+=$'\n'
+        while IFS=$'\t' read -r host bron; do
+            [ -z "$host" ] && continue
+            HOST_CLAIMS+="${host}"$'\t'"${name}"$'\t'"${bron}"$'\n'
+        done < <(tenant_host_claims "${overlay[$name]}")
+    done
+}
+
+# Geen host mag door twee tenants geclaimd worden. Een tweede Ingress voor
+# dezelfde host (in een andere namespace) wordt door de admission-webhook van
+# ingress-nginx geweigerd, of zonder webhook samengevoegd met die van de ander:
+# dan gaat verkeer naar de verkeerde Nextcloud. Binnen één tenant mag een extra
+# host ook niet de host van de eigen WOO-frontend zijn (een andere Ingress).
+validate_host_claims() {
+    local file="$1" name
+    name=$(yq eval '.tenant.name // ""' "$file" 2>/dev/null) || return 0
+    [ -z "$name" ] && return 0
+
+    local own has_error=0 host bron other
+    own=$(tenant_host_claims "$file")
+    while IFS=$'\t' read -r host bron; do
+        [ -z "$host" ] && continue
+        while IFS=$'\t' read -r other; do
+            [ -z "$other" ] && continue
+            log_error "$file: host '$host' ($bron) wordt al geclaimd door tenant ${other}"
+            has_error=1
+        done < <(printf '%s' "$HOST_CLAIMS" | awk -F'\t' -v h="$host" -v n="$name" \
+            '$1 == h && $2 != n { print "\x27" $2 "\x27 (" $3 ")" }')
+        if [ "$bron" = "tenant.extraHostnames" ] \
+            && printf '%s\n' "$own" | grep -qxF -e "${host}"$'\t'"tenant.frontend.host" -e "${host}"$'\t'"tenant.frontend.extraHosts"; then
+            log_error "$file: tenant.extraHostnames bevat '$host', de host van de eigen WOO-frontend"
+            has_error=1
+        fi
+    done <<<"$own"
 
     return $has_error
 }
@@ -695,6 +953,7 @@ validate_tenant_file() {
     validate_hostname "$file" || ((file_errors++))
     validate_hostname_convention "$file" || ((file_errors++))
     validate_extra_hostnames "$file" || ((file_errors++))
+    validate_host_claims "$file" || ((file_errors++))
     validate_wave "$file" || ((file_errors++))
     validate_bucket "$file" || ((file_errors++))
     validate_frontend_image "$file" || ((file_errors++))
@@ -712,6 +971,13 @@ validate_tenant_file() {
 # Main
 main() {
     check_dependencies
+
+    # --dump-host-claims: schrijf het host-register van values/tenants/ naar
+    # stdout, voor VALIDATE_HOST_CLAIMS_FILE (zie build_host_claims)
+    if [ "${1:-}" = "--dump-host-claims" ]; then
+        dump_host_claims
+        exit $?
+    fi
     
     local files=()
     
@@ -729,6 +995,9 @@ main() {
         exit 0
     fi
     
+    # Hosts van alle tenants, voor validate_host_claims
+    build_host_claims "$@"
+
     echo "=========================================="
     echo "Validating ${#files[@]} tenant file(s)"
     echo "=========================================="

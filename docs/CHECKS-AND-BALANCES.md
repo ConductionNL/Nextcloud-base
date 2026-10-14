@@ -36,8 +36,13 @@ Before merge, CI runs `scripts/verify.sh`, which wraps:
 - `nextcloud-platform/scripts/smoke-checks.sh` — Helm chart renders
 
 `validate-values.sh` also checks the optional `tenant.extraHostnames` list (a
-list, valid DNS names, no duplicates, not the primary host, a derived TLS secret
-name Kubernetes accepts). A valid list still gives a warning, because DNS and
+list, valid DNS names and no IP address, no duplicates, not the primary host,
+under `commonground.nu` only this tenant's own names, a unique derived TLS
+secret name Kubernetes accepts, and not together with `ingress.enabled: false`).
+`tenant.hostname` is refused as an IP address too. It also checks across all
+tenant files that no host (primary, `extraHostnames`, `frontend.host`,
+`frontend.extraHosts`) is claimed by two tenants, also when it is run on a
+single file, and that no two tenant files share a `tenant.name`. A valid list still gives a warning, because DNS and
 HTTP-01 for those hosts are outside what CI can see. Fixtures for every branch
 are in `nextcloud-platform/tests/cases/tenant-extra-hostnames-*`.
 
