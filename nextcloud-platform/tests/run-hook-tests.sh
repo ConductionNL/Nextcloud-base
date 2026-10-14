@@ -631,6 +631,38 @@ expect_app "$t" custom_apps portaliq 0.2.1
 expect_no_leftovers "$t"
 end "$t"
 
+# Een fout die blijft (tikfout in een pin, 404) mag niet elke start de dure
+# maintenance draaien; de ERROR blijft wel elke start op stderr staan.
+begin "nieuw: een blijvend falende pin draait bij een herstart geen maintenance"
+t="$(new_tenant persistent)"
+make_app_dir "$t/root/custom_apps/portaliq" portaliq 0.2.1
+echo "0.2.1" > "$t/stub/enabled/portaliq"
+for run in 1 2; do
+    : > "$t/stub/calls"
+    run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=portaliq" "CONDUCTION_APP_VERSIONS=portaliq=$PQ1"
+    expect_file_has "$t/stderr" "conduction-apps ERROR"
+    expect_eq "$(wc -l < "$t/stub/calls" | tr -d ' ')" "0" "occ-aanroepen in start $run"
+done
+expect_state "$t" "(geen)"
+end "$t"
+
+begin "nieuw: naast een falende pin draait maintenance alleen in de start die iets installeerde"
+t="$(new_tenant persistent-mixed)"
+make_release "$t" openregister "$OR1" good
+for run in 1 2; do
+    : > "$t/stub/calls"
+    run_hook "$t" "$NEW_HOOK" "CONDUCTION_APPS=openregister portaliq" \
+        "CONDUCTION_APP_VERSIONS=openregister=$OR1 portaliq=$PQ1"
+    expect_file_has "$t/stderr" "conduction-apps ERROR"
+    cp "$t/stub/calls" "$t/calls-$run"
+done
+expect_file_has "$t/calls-1" "occ maintenance:repair --include-expensive"
+expect_file_lacks "$t/calls-2" "maintenance:repair"
+expect_file_lacks "$t/calls-2" "db:add-missing-indices"
+expect_app "$t" custom_apps openregister "$OR1"
+expect_state "$t" "(geen)"
+end "$t"
+
 begin "nieuw: pin voor een app die niet in CONDUCTION_APPS staat wordt niet geïnstalleerd"
 t="$(new_tenant notenabled)"
 make_release "$t" portaliq "$PQ1" good

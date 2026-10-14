@@ -18,11 +18,13 @@ Besloten door Ruben op 2026-10-13.
   de hook draait dan één keer `occ upgrade`, na alle pins, en controleert de
   versie daarna. Beide downloads gaan alleen over https, ook bij een redirect,
   en hebben tijdsgrenzen. Falen is luid (log en stderr), laat de app staan en
-  schrijft geen state, dus de volgende start probeert opnieuw. De vorige code
-  (ook een gebundelde `apps/<id>`) gaat tijdens de wissel opzij en komt terug
-  als verplaatsen, enable, upgrade of de versiecheck faalt. Voorheen werd een
-  mislukte download stil geslikt, de gebundelde app al verwijderd en de state
-  toch geschreven.
+  schrijft geen state, dus de volgende start probeert opnieuw. Een start die
+  niets installeert of vervangt slaat `db:add-missing-indices` en
+  `maintenance:repair --include-expensive` over; de ERROR staat er dan nog
+  steeds. De vorige code (ook een gebundelde `apps/<id>`) gaat tijdens de wissel
+  opzij en komt terug als verplaatsen, enable, upgrade of de versiecheck faalt.
+  Voorheen werd een mislukte download stil geslikt, de gebundelde app al
+  verwijderd en de state toch geschreven.
 - De state-sleutel bevat nu elke pin. Voor de drie oude apps is hij byte voor
   byte gelijk aan de oude sleutel, zodat bestaande tenants niet herinstalleren.
 - `before-starting` en `post-installation` zijn één script via een YAML-anker.
