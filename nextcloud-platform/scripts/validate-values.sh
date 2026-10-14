@@ -451,6 +451,27 @@ primary_host() {
     fi
 }
 
+# ingress.enabled zoals de render hem ziet: dezelfde valueFiles-volgorde als de
+# ApplicationSet (common, env, db, canary-overrides, tenantbestand), de laatste
+# die hem zet wint. De inline values van de ApplicationSet zetten hem niet.
+#
+# Usage: effective_ingress_enabled <file>
+effective_ingress_enabled() {
+    local file="$1" values="${REPO_ROOT}/values" env db canary value f result="false"
+    env=$(yq eval '.tenant.environment // ""' "$file" 2>/dev/null)
+    db=$(yq eval '.tenant.dbType // "postgres"' "$file" 2>/dev/null)
+    canary=$(yq eval '.tenant.canary // ""' "$file" 2>/dev/null)
+    local layers=("${values}/common.yaml" "${values}/env/${env}.yaml" "${values}/db/${db}.yaml")
+    [ "$canary" = "true" ] && layers+=("${values}/canary-overrides.yaml")
+    layers+=("$file")
+    for f in "${layers[@]}"; do
+        [ -f "$f" ] || continue
+        value=$(yq eval '.ingress.enabled' "$f" 2>/dev/null)
+        [ "$value" != "null" ] && [ -n "$value" ] && result="$value"
+    done
+    echo "$result"
+}
+
 # Validate tenant.extraHostnames (optioneel)
 #
 # Extra hostnamen op dezelfde Nextcloud. De ApplicationSet zet ze in
@@ -524,6 +545,14 @@ validate_extra_hostnames() {
 
     if [ $has_error -eq 0 ]; then
         log_warning "$file: tenant.extraHostnames gezet; DNS en HTTP-01 per host moeten kloppen (zie docs/ADDING-TENANT.md)"
+    fi
+
+    # De extra Ingress volgt ingress.enabled, net als die van de chart. Zonder
+    # Ingress hebben de extra hosts geen enkele route: charts/tenant-httproute
+    # neemt alleen de primaire host.
+    if [ "$(effective_ingress_enabled "$file")" != "true" ]; then
+        log_error "$file: tenant.extraHostnames vereist ingress.enabled: true. De extra hosts lopen via de nginx-Ingress zolang charts/tenant-httproute maar één host neemt (zie docs/GATEWAY-API.md)"
+        has_error=1
     fi
 
     return $has_error

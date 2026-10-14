@@ -227,7 +227,10 @@ Four things to know:
   on an index that is already in use overwrites that entry.
 - **Gateway API routes do not use this list.** `charts/tenant-httproute` takes one
   host; a tenant with `gateway.nextcloud: true` gets a route for the primary host
-  only.
+  only. The extra hosts stay on the nginx Ingress, and that Ingress follows
+  `ingress.enabled` like the chart's own: `ingress.enabled: false` would leave
+  them without any route, so `validate-values.sh` refuses `extraHostnames`
+  together with `ingress.enabled: false`.
 
 Validate before pushing:
 
