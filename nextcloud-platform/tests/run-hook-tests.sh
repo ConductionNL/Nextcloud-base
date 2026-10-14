@@ -55,14 +55,38 @@ trap 'rm -rf "$WORK"' EXIT
 STUBS="${WORK}/stubs"
 mkdir -p "$STUBS"
 
-# php occ <cmd>: houdt per tenant-root bij welke apps enabled zijn en met welke
-# versie, net als `occ app:list` die toont. Elke aanroep komt in $STUB_DIR/calls.
+# php occ <cmd>: gedraagt zich als Nextcloud 32.0.13 voor wat de hook gebruikt.
+# Per tenant-root houdt hij in $STUB_DIR/enabled/<id> de OPGESLAGEN versie
+# (appconfig installed_version) bij, los van de code in custom_apps of apps:
+#   app:enable   een app die al aan staat: '<id> already enabled', verder niets
+#                (core/Command/App/Enable.php). Anders slaat hij de versie uit
+#                info.xml op, zoals installApp doet.
+#   app:list     toont voor een ingeschakelde app de opgeslagen versie, niet die
+#                uit info.xml (core/Command/App/ListApps.php).
+#   upgrade      werkt de opgeslagen versie bij van elke ingeschakelde app
+#                waarvan info.xml nieuwer is; anders 'No upgrade required.'
+#                (core/Command/Upgrade.php).
+#   status       needsDbUpgrade: true zolang zo'n app bestaat.
+# Elke aanroep komt in $STUB_DIR/calls.
 cat > "${STUBS}/php" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$STUB_DIR/calls"
 [ "${1:-}" = "occ" ] || exit 1
 shift
 info_version() { grep -o '<version>[^<]*</version>' "$1" | head -1 | sed -e 's#<version>##' -e 's#</version>##'; }
+code_version() { # de versie in info.xml van de code die Nextcloud laadt
+  local d
+  for d in "$NC_FAKE_ROOT/custom_apps/$1" "$NC_FAKE_ROOT/apps/$1"; do
+    if [ -f "$d/appinfo/info.xml" ]; then info_version "$d/appinfo/info.xml"; return 0; fi
+  done
+  return 1
+}
+newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
+needs_upgrade() { # <id>: code nieuwer dan de opgeslagen versie
+  local code
+  code="$(code_version "$1")" || return 1
+  newer "$code" "$(cat "$STUB_DIR/enabled/$1")"
+}
 case "${1:-}" in
   app:list)
     echo "Enabled:"
@@ -77,11 +101,26 @@ case "${1:-}" in
     echo "Could not download app $2" >&2; exit 1
     ;;
   app:enable)
-    for d in "$NC_FAKE_ROOT/custom_apps/$2" "$NC_FAKE_ROOT/apps/$2"; do
-      if [ -f "$d/appinfo/info.xml" ]; then info_version "$d/appinfo/info.xml" > "$STUB_DIR/enabled/$2"; exit 0; fi
+    if [ -e "$STUB_DIR/enabled/$2" ]; then echo "$2 already enabled"; exit 0; fi
+    if v="$(code_version "$2")"; then echo "$v" > "$STUB_DIR/enabled/$2"; echo "$2 $v enabled"; exit 0; fi
+    echo "$2 not found"; exit 1
+    ;;
+  upgrade)
+    done_any=0
+    for f in "$STUB_DIR"/enabled/*; do
+      [ -e "$f" ] || continue
+      id="$(basename "$f")"
+      if needs_upgrade "$id"; then code_version "$id" > "$f"; echo "Updated $id"; done_any=1; fi
     done
-    [ -e "$STUB_DIR/enabled/$2" ] && exit 0
-    echo "$2 not found" >&2; exit 1
+    [ "$done_any" = 1 ] || echo "No upgrade required."
+    ;;
+  status)
+    nu=false
+    for f in "$STUB_DIR"/enabled/*; do
+      [ -e "$f" ] || continue
+      if needs_upgrade "$(basename "$f")"; then nu=true; fi
+    done
+    echo "  - needsDbUpgrade: $nu"
     ;;
   *) exit 0 ;;
 esac
@@ -200,6 +239,13 @@ snapshot() {
     echo "## state"; cat "$t/root/data/.conduction-apps-state" 2>/dev/null || echo "(geen)"
 }
 
+# occ status zoals een beheerder hem na de start zou draaien (telt niet als
+# hook-aanroep).
+occ_status() {
+    STUB_DIR="$1/stub" NC_FAKE_ROOT="$1/root" "${STUBS}/php" occ status
+    sed -i '$d' "$1/stub/calls"
+}
+
 # ---------------------------------------------------------------------------
 # Asserties
 # ---------------------------------------------------------------------------
@@ -315,6 +361,26 @@ expect_state "$t" "$before"
 expect_file_has "$t/root/data/conduction-apps.log" "already in desired state (skip)"
 end "$t"
 
+# Bewust verschil: een pin-bump op een app die al aan staat. De oude hook
+# verving de code en riep alleen app:enable aan; op Nextcloud 32 doet dat niets
+# voor een ingeschakelde app, dus bleef de instantie op "upgrade vereist" staan.
+# De nieuwe hook draait daarna `occ upgrade`. Daarom geen pariteit voor dit
+# geval, wel voor geen pin, ongewijzigde pin en state van de oude hook (boven).
+begin "verschil: pin-bump op een ingeschakelde app (oude hook liet 'upgrade vereist' achter)"
+a="$(new_tenant bump-old)"; b="$(new_tenant bump-new)"
+for x in "$a" "$b"; do
+    make_release "$x" openregister 1.1.5 good
+    make_app_dir "$x/root/custom_apps/openregister" openregister 1.1.4
+    echo "1.1.4" > "$x/stub/enabled/openregister"
+done
+run_hook "$a" legacy "CONDUCTION_APPS=openregister" "OPENREGISTER_VERSION=1.1.5"
+run_hook "$b" "$NEW_HOOK" "CONDUCTION_APPS=openregister" "OPENREGISTER_VERSION=1.1.5"
+expect_eq "$(occ_status "$a")" "  - needsDbUpgrade: true" "occ status na de oude hook"
+expect_eq "$(occ_status "$b")" "  - needsDbUpgrade: false" "occ status na de nieuwe hook"
+expect_eq "$(cat "$b/stub/enabled/openregister")" "1.1.5" "opgeslagen versie na de nieuwe hook"
+expect_state "$b" "APPS=openregister;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=1.1.5"
+end "$b"
+
 # ---------------------------------------------------------------------------
 # Nieuw gedrag
 # ---------------------------------------------------------------------------
@@ -355,6 +421,12 @@ run_hook "$t" "$NEW_HOOK" "$DEMO_APPS" "OPENREGISTER_VERSION=$OR1" \
 expect_app "$t" custom_apps portaliq "$PQ2"
 expect_file_has "$t/stub/curl-calls" "portaliq-$PQ2.tar.gz"
 expect_state "$t" "APPS=openregister portaliq dossiq;OPENCATALOGI_VERSION=;OPENCONNECTOR_VERSION=;OPENREGISTER_VERSION=$OR1;PINS=portaliq=$PQ2"
+# portaliq stond al aan: app:enable doet dan niets, alleen `occ upgrade` zet de
+# opgeslagen versie op de nieuwe code.
+expect_file_has "$t/stub/calls" "occ upgrade"
+expect_eq "$(cat "$t/stub/enabled/portaliq")" "$PQ2" "opgeslagen versie portaliq"
+expect_eq "$(occ_status "$t")" "  - needsDbUpgrade: false" "occ status na de bump"
+expect_eq "$(wc -c < "$t/stderr" | tr -d ' ')" "0" "stderr"
 end "$t"
 
 begin "nieuw: dezelfde pins nog eens is een no-op"

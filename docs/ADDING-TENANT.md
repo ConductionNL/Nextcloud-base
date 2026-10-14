@@ -115,7 +115,9 @@ so existing tenant files behave exactly as before.
 `.sha256` when the release has one (older releases do not, then it logs a
 warning), a single top folder named `<id>`, no absolute or `..` paths, and
 `<id>` in `appinfo/info.xml`. After `occ app:enable` Nextcloud must report the
-pinned version. A failure is logged as `ERROR` in
+pinned version. For an app that was already enabled, `occ app:enable` does
+nothing on Nextcloud 32, so the hook runs `occ upgrade` once, after all pins are
+in place, and checks the version after that. A failure is logged as `ERROR` in
 `/var/www/html/data/conduction-apps.log` and on the container's stderr, leaves
 the installed app as it was, and does not write the state file, so the next
 pod start retries. The pod still starts.
