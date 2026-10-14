@@ -79,28 +79,97 @@ in modern tenant files.
 #### Pinning app versions
 
 `tenant.apps.versions` is optional. Leave a key out and the tenant tracks the
-latest release of that app; set it and the version is pinned in Git.
+latest release of that app from the Nextcloud app store; set it and the version
+is pinned in Git. **Any Conduction app can be pinned**, including unstable
+prereleases built from `development`:
 
 ```yaml
 tenant:
   apps:
     enabled:
-      - opencatalogi
-      - openconnector
       - openregister
-    # Optional pins. Quote the value; no leading 'v'.
+      - portaliq
+      - dossiq
+    # Optional pins. Key = app id, value = version. Quote it; no leading 'v'.
     versions:
-      opencatalogi: "0.7.12"
-      openconnector: "0.2.16"
-      openregister: "0.2.11"
+      openregister: "2.1.41-unstable.20261012091248"
+      portaliq: "0.2.10-unstable.20261012182937"
+      dossiq: "0.4.53-unstable.20261013114333"
 ```
 
-**Only three keys are wired.** `opencatalogi`, `openconnector` and `openregister`
-are mapped by `argo/applicationsets/nextcloud-tenants.yaml` to the env vars
-`OPENCATALOGI_VERSION`, `OPENCONNECTOR_VERSION` and `OPENREGISTER_VERSION`. The
-validator has no allowlist of app names, so **any other key passes validation and
-is then silently ignored** — a pin that never takes effect. Adding a fourth
-pinnable app means adding it to the ApplicationSet too.
+**How it is wired.** `argo/applicationsets/nextcloud-tenants.yaml` passes every
+pin to the pod as one env var, `CONDUCTION_APP_VERSIONS="id=version id=version"`,
+only when the tenant pins something. The install hook in `values/common.yaml`
+then downloads
+
+```
+https://github.com/ConductionNL/<id>/releases/download/v<version>/<id>-<version>.tar.gz
+```
+
+into `custom_apps`. The app id doubles as the repo name; GitHub redirects old
+repo names to renamed ones. The three legacy env vars `OPENCATALOGI_VERSION`,
+`OPENCONNECTOR_VERSION` and `OPENREGISTER_VERSION` are still set and still win,
+so existing tenant files behave exactly as before.
+
+**Before anything is replaced** the hook checks the download: the published
+`.sha256` when the release has one (older releases do not, then it logs a
+warning; this is an integrity check against a corrupt download, not proof of
+origin: the checksum comes from the same release, so whoever can publish the
+release can publish a matching one), a single top folder named `<id>`, no
+absolute or `..` paths, no symlinks or hardlinks, and `<id>` and the pinned
+version in `appinfo/info.xml`. After `occ app:enable` Nextcloud must report the
+pinned version. For an app that was already enabled, `occ app:enable` does
+nothing on Nextcloud 32, so when the stored version is not the pin the hook runs
+`occ app:disable` and `occ app:enable` for that app: this runs its migrations
+and stores the new version, without maintenance mode and without touching other
+apps (the hook never runs `occ upgrade`). Consequences: the hook re-runs the
+app's install repair steps (`<repair-steps><install>` in `appinfo/info.xml`) on
+every pin bump, and again for the old code when a failed bump is rolled back; an
+enabled-for-groups limit on that app is reset to all users; and while the app is
+disabled, apps that depend on it (opencatalogi on openregister, for example) log
+errors. A failure is logged as `ERROR` in
+`/var/www/html/data/conduction-apps.log` and on the container's stderr, leaves
+the previously installed app in place or puts it back, and does not write the
+state file, so the next pod start retries. A retry that installs or replaces
+nothing (the pin still fails) skips `db:add-missing-indices` and
+`maintenance:repair --include-expensive`, so a lasting failure does not rerun
+the expensive repair on every start; the `ERROR` still shows on every start. The
+pod still starts. Both downloads are https-only (also on redirects). The tarball
+download is aborted only when it stalls (under 10 KiB/s for 20 s), so a slow but
+moving download of a large release is not cut off; the `.sha256` has a 10 s
+limit per attempt. A fully stalled GitHub costs one pin about 65 s of the
+startup budget. During the swap the previous code (`custom_apps/<id>`, and a
+bundled `apps/<id>`) is moved aside, not deleted, and put back (and enabled
+again if it was enabled) when the move, `occ app:enable` or the version check
+fails. When a start is killed mid-swap, the next start keeps the new code if
+Nextcloud already stored its version (it was enabled and migrated) and otherwise
+puts the original code back, drops the new code, and enables the app again if
+the run was killed while it was disabled; then it handles the pin as usual. On a
+first install there is no previous code; then the new code stays in
+`custom_apps` and the next start tries again.
+
+**Install repair steps must be safe to run again.** That is the app's
+responsibility, not the platform's: a step that seeds data runs again on every
+pin bump. On 2026-10-14 two fleet apps had steps under `<install>` that are not
+also under `<post-migration>` (where they already run on every upgrade):
+`portaliq` (`InitializeDemoPortal`, so a pin bump re-seeds a demo portal that
+was deleted) and `launchpad` (`SeedRolePermissions`).
+
+**Changing a pin reinstalls.** The state file key holds the app list and every
+pin, so a changed pin reruns the bootstrap on the next pod start.
+
+**The validator rejects** a pin whose key is not a lowercase app id, and a pin
+for an app that is not in `tenant.apps.enabled` (it would never be installed).
+
+**Renamed apps.** The app id is what counts, not the repo name.
+`openconnector` releases up to `0.2.24` ship `openconnector-<version>.tar.gz`
+and pin fine under `openconnector`. Releases from about
+`0.2.25-unstable.20260823` on are the app `integriq` (asset
+`integriq-<version>.tar.gz`, app id `integriq`): enable and pin `integriq`
+for those. Pinning `openconnector` to such a version fails loudly with a 404.
+
+**Where a pin may not exist.** `humaniq` and `planninq` had no unstable GitHub
+release on 2026-10-13. Check the release page before pinning.
 
 **Accepted format**, enforced by `validate_app_versions_format()` in
 `scripts/validate-values.sh`:
@@ -636,7 +705,7 @@ Use this order (most common causes first):
 ### All Tenants
 - [ ] Tenant values file created (`tenant-<name>.yaml`) — thin: name/environment/dbType/apps
 - [ ] `tenant.name`, `tenant.environment`, `tenant.dbType`, `tenant.apps.enabled` set (hostname derived)
-- [ ] Any `tenant.apps.versions` pins use a wired app name and a valid format (`validate-values.sh` green)
+- [ ] Any `tenant.apps.versions` pin names an app in `tenant.apps.enabled` and has a valid format (`validate-values.sh` green)
 - [ ] Any top-level `image:` override uses a patch-version tag, has no `digest:`, and is not lower than the version the tenant already runs
 - [ ] Namespace created (bare tenant name, e.g. `myorg-accept`)
 - [ ] Secrets created in namespace (use `create-tenant-secret.sh`)

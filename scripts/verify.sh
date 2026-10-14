@@ -146,4 +146,11 @@ echo "validator-tests OK"
 nextcloud-platform/tests/render-extra-hosts.sh >/dev/null
 echo "render-extra-hosts OK"
 
+# Fixture-tests voor de Conduction-apps install-hook in values/common.yaml. Die
+# hook draait in elke tenant-pod; een fout erin merk je pas bij de herstart van
+# de hele vloot. De suite draait hem lokaal met stubs en eist pariteit met de
+# oude hook voor tenants die alleen de drie oude pins gebruiken.
+nextcloud-platform/tests/run-hook-tests.sh >/dev/null
+echo "hook-tests OK"
+
 echo "verify: OK"

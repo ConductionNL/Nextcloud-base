@@ -95,6 +95,13 @@ spec:
               {{- $host := default $computedHost .tenant.hostname -}}
               {{- $apps := default (list "opencatalogi" "openconnector" "openregister") .tenant.apps.enabled -}}
               {{- $appsStr := join " " $apps -}}
+              {{- /* Every key in tenant.apps.versions is an app id, the value its pin. */ -}}
+              {{- $pins := list -}}
+              {{- range $appId, $appVer := .tenant.apps.versions -}}
+              {{- if $appVer -}}
+              {{- $pins = append $pins (printf "%s=%s" $appId (toString $appVer)) -}}
+              {{- end -}}
+              {{- end -}}
               {{- $appapiEnabled := default false .tenant.features.appapi -}}
               {{- $phpMemoryLimit := default "2048M" .tenant.phpMemoryLimit -}}
               {{- $extraHosts := default (list) .tenant.extraHostnames -}}
@@ -130,6 +137,12 @@ spec:
                     value: "{{ default "" .tenant.apps.versions.openconnector }}"
                   - name: OPENREGISTER_VERSION
                     value: "{{ default "" .tenant.apps.versions.openregister }}"
+                  {{- if $pins }}
+                  # All pins, any app: "id=version id=version". The three
+                  # vars above stay for backward compatibility and win.
+                  - name: CONDUCTION_APP_VERSIONS
+                    value: "{{ join " " $pins }}"
+                  {{- end }}
                   - name: APPAPI_ENABLED
                     value: '{{ ternary "true" "false" $appapiEnabled }}'
                   - name: APPAPI_DAEMON_MODE
