@@ -1,0 +1,49 @@
+{{- if .Values.demoReset.enabled }}
+{{- include "demo-reset.guard" . }}
+# Het enige recht van de reset: pods in deze namespace vinden en er een
+# commando in starten. Geen secrets, geen deployments, geen PVC's, niets buiten
+# de namespace. occ en psql draaien in de pods van de tenant zelf.
+#
+# pods/exec heeft `create` (SPDY, kubectl tot 1.29) en `get` (WebSocket,
+# kubectl vanaf 1.30) nodig; beide staan erin zodat een image-upgrade de Job
+# niet stil breekt.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-reset
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "demo-reset.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: demo-reset
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "demo-reset.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: demo-reset
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "demo-reset.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: demo-reset
+subjects:
+  - kind: ServiceAccount
+    name: demo-reset
+    namespace: {{ .Release.Namespace }}
+{{- end }}

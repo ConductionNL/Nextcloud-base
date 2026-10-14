@@ -1,0 +1,111 @@
+---
+# Nachtelijke demo-reset per tenant, als APARTE Application naast `nc-<tenant>`.
+#
+# Wat het doet: elke nacht de database en de datamap van een demo-tenant
+# terugzetten naar een gouden momentopname en daarna de voorbeeldsets opnieuw
+# laden. Alles wat bezoekers maakten (accounts, verzoeken, dossiers, uploads)
+# is dan weg. Zie docs/DEMO-RESET.md.
+#
+# Waarom een eigen ApplicationSet en geen vierde source in `nextcloud-tenants`:
+# dezelfde afweging als bij `nextcloud-tenant-routes`. Een source erbij
+# verandert de spec van álle tenant-Applications en laat ze hersyncen, voor een
+# component die op één tenant draait. Deze ApplicationSet levert voor de vloot
+# niets op: de post-selector matcht alleen een tenant met
+# `components.demoReset.enabled: true`, en een ontbrekende key matcht `In` niet.
+#
+# Uitzetten gaat met `paused: true` in het tenantbestand, NIET door `enabled`
+# weg te halen. Deze ApplicationSet heeft `preserveResourcesOnDeletion: true`
+# (zoals de andere twee): verdwijnt de Application, dan blijft de CronJob in de
+# namespace staan en draait hij gewoon door. docs/DEMO-RESET.md beschrijft hoe
+# je hem helemaal weghaalt.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nextcloud-tenant-demo-reset
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=default"]
+
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+
+  generators:
+    - git:
+        repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
+        revision: release
+        files:
+          - path: "nextcloud-platform/values/tenants/tenant-*.yaml"
+
+      # Opt-in, zelfde mechaniek als de gateway-selector in
+      # nextcloud-tenant-routes: de geflattende params met dotted keys.
+      selector:
+        matchExpressions:
+          - key: tenant.components.demoReset.enabled
+            operator: In
+            values:
+              - "true"
+
+  template:
+    metadata:
+      name: "nc-{{ .tenant.name }}-demo-reset"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/part-of: nextcloud-platform
+        nextcloud.platform/tenant: "{{ .tenant.name }}"
+        nextcloud.platform/environment: "{{ .tenant.environment }}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{ default \"1\" .tenant.wave }}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: nextcloud-platform
+
+      source:
+        repoURL: "https://github.com/ConductionNL/Nextcloud-base.git"
+        targetRevision: '{{ if eq (toString .tenant.wave) "0" }}HEAD{{ else if eq .tenant.environment "accept" }}release-accept{{ else }}release{{ end }}'
+        path: charts/tenant-demo-reset
+        helm:
+          releaseName: "nextcloud-demo-reset"
+          # De host-afleiding is dezelfde als in nextcloud-tenants en
+          # nextcloud-tenant-routes; wijzigt die, dan moet deze mee.
+          values: |
+            {{- $name := .tenant.name -}}
+            {{- $suffix := regexFind "(accept|test|prod)$" $name -}}
+            {{- $org := regexReplaceAll "-(accept|test|prod)$" $name "" -}}
+            {{- $omgeving := default .tenant.environment $suffix -}}
+            {{- $computedHost := "" -}}
+            {{- if eq $omgeving "prod" -}}
+            {{- $computedHost = printf "%s.commonground.nu" $org -}}
+            {{- else -}}
+            {{- $computedHost = printf "%s.%s.commonground.nu" $org $omgeving -}}
+            {{- end -}}
+            {{- $host := default $computedHost .tenant.hostname -}}
+            {{- $dr := .tenant.components.demoReset }}
+            tenant:
+              name: "{{ $name }}"
+              host: "{{ $host }}"
+            demoReset:
+              enabled: true
+              confirmWipe: "{{ default "" $dr.confirmWipe }}"
+              schedule: "{{ default "15 4 * * *" $dr.schedule }}"
+              paused: {{ default false $dr.paused }}
+              exampleSets: {{ default (list) $dr.exampleSets | toJson }}
+              exampleSetMode: "{{ default "install" $dr.exampleSetMode }}"
+              exampleSetPasswordSecret: "{{ default "" $dr.exampleSetPasswordSecret }}"
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ default .tenant.name .tenant.namespace }}"
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          # De namespace bestaat al; die is van de tenant-Application.
+          - CreateNamespace=false
+          - PrunePropagationPolicy=foreground

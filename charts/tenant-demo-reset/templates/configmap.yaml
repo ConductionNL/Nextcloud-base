@@ -1,0 +1,15 @@
+{{- if .Values.demoReset.enabled }}
+{{- include "demo-reset.guard" . }}
+# Het script staat als los bestand in files/, zodat het buiten de chart te
+# lezen, te linten en te testen is (nextcloud-platform/tests/run-demo-reset-tests.sh).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-reset-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "demo-reset.labels" . | nindent 4 }}
+data:
+  demo-reset.sh: |
+    {{- .Files.Get "files/demo-reset.sh" | nindent 4 }}
+{{- end }}

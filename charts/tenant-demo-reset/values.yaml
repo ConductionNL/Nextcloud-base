@@ -1,0 +1,61 @@
+# Default values, overschreven via de inline values van de ApplicationSet
+# nextcloud-tenant-demo-reset. Rendert NIETS tenzij demoReset.enabled true is.
+#
+# Deze component WIST elke nacht alles wat bezoekers in de tenant maakten.
+# Hij hoort alleen op een demo-tenant. Zie docs/DEMO-RESET.md.
+
+tenant:
+  name: ""                 # tenant.name, ook de namespace
+  host: ""                 # primaire hostnaam, voor de eindcontrole op status.php
+
+demoReset:
+  enabled: false
+
+  # Moet letterlijk tenant.name zijn. Een tenantbestand dat dit blok van een
+  # ander bestand overneemt, rendert dan niet in plaats van een gemeente te
+  # wissen.
+  confirmWipe: ""
+
+  # Kubernetes CronJob-syntax, in timeZone. 04:15 valt na het onderhoudsvenster
+  # van Nextcloud (maintenance_window_start 3 UTC in values/common.yaml) en ruim
+  # voor de ochtend.
+  schedule: "15 4 * * *"
+  timeZone: Europe/Amsterdam
+
+  # true = de nachtelijke CronJob staat stil (suspend). Zo zet je de reset uit
+  # zonder de momentopname of de rechten weg te halen.
+  paused: false
+
+  # Voorbeeldsets die na het terugzetten geladen worden met
+  # `occ openregister:example-set:install <set>`.
+  exampleSets: []
+
+  # install    alleen install. Wat in de momentopname al staat, blijft zoals
+  #            het was ("kept"), inclusief de datums.
+  # reinstall  eerst `example-set:remove`, dan install: alles opnieuw, met
+  #            relatieve datums vanaf vandaag.
+  exampleSetMode: install
+
+  # Optioneel: naam van een Secret in de namespace met sleutel `demo-password`.
+  # Dan krijgt install `--password-from-env`, met het wachtwoord via stdin.
+  exampleSetPasswordSecret: ""
+
+image:
+  # Hetzelfde image als de credential-refresh CronJob in cluster-infra: kubectl,
+  # jq en curl in één.
+  repository: alpine/k8s
+  tag: "1.29.2"
+  pullPolicy: IfNotPresent
+
+job:
+  # Een reset van een demo-tenant duurt minuten; een uur is ruim. Wat langer
+  # loopt, hangt.
+  activeDeadlineSeconds: 3600
+
+# Geen requests, alleen limits (Resource Policy in CLAUDE.md): een nachtelijke
+# Job hoeft geen capaciteit te reserveren. Het zware werk gebeurt in de pods
+# van de tenant zelf, via exec.
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
