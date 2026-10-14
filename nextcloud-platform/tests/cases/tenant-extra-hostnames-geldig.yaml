@@ -10,5 +10,5 @@ tenant:
     enabled:
       - openregister
   extraHostnames:
-    - voorbeeld.nl
+    - portaal.voorbeeld.nl
     - www.voorbeeld.nl

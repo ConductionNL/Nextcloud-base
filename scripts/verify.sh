@@ -12,7 +12,9 @@
 #
 # Writes: read-only
 # Idempotent: yes
-# Requires: bash, yq, yamllint (via validate-values), helm
+# Requires: bash, yq, yamllint (via validate-values), helm; netwerk naar
+#           nextcloud.github.io/helm voor render-extra-hosts.sh, of
+#           NEXTCLOUD_CHART naar een uitgepakte chart 8.9.0
 #
 # Usage:
 #   ./scripts/verify.sh
@@ -136,5 +138,12 @@ echo "doc-assertion OK (${script_count} scripts gedekt in de index)"
 # elke check aan een goed- én een foutgeval.
 nextcloud-platform/tests/run-tests.sh >/dev/null
 echo "validator-tests OK"
+
+# Render-check voor tenant.extraHostnames: wat de ApplicationSet van een geldige
+# lijst maakt. Een apex-host krijgt een eigen Ingress met
+# hsts-include-subdomains "false"; de hoofd-Ingress houdt zijn waarde. De
+# validator-tests hierboven zien de render niet.
+nextcloud-platform/tests/render-extra-hosts.sh >/dev/null
+echo "render-extra-hosts OK"
 
 echo "verify: OK"

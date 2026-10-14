@@ -483,8 +483,9 @@ effective_ingress_enabled() {
 # "nextcloud-<tenant>-<host met streepjes>-tls" per host. Gecontroleerd:
 # lijstvorm, geldige DNS-naam (geen IP-adres), geen dubbele, niet gelijk aan de
 # primaire host, onder commonground.nu alleen hosts van de eigen tenant, een
-# unieke secretnaam die Kubernetes accepteert (DNS-subdomein, max 253), en
-# ingress.enabled: true. Botsingen met hosts van andere tenants vangt
+# unieke secretnaam die Kubernetes accepteert (DNS-subdomein, max 253),
+# ingress.enabled: true, en een apex-host (twee labels, zoals gemeente.nl)
+# alleen met tenant.extraHostnamesAllowApex: true. Botsingen met hosts van andere tenants vangt
 # validate_host_claims; een dubbele tenant.name vangt dump_host_claims.
 validate_extra_hostnames() {
     local file="$1"
@@ -509,12 +510,29 @@ validate_extra_hostnames() {
         primary_bron="afgeleid uit tenant.name, zoals de ApplicationSet doet"
     fi
 
-    local has_error=0 host seen=" " secret seen_secrets=" "
+    # Opt-in voor apex-hosts. HSTS met includeSubDomains op een apex dwingt
+    # HTTPS af op elk subdomein van de klant, ook interne en http-only, en dat
+    # is niet terug te draaien. Alleen met een expliciete true, en alleen als de
+    # zone-eigenaar dat accepteert (docs/ADDING-TENANT.md).
+    local allow_apex allow_apex_kind
+    allow_apex_kind=$(yq eval '.tenant.extraHostnamesAllowApex | type' "$file" 2>/dev/null)
+    allow_apex=$(yq eval '.tenant.extraHostnamesAllowApex' "$file" 2>/dev/null)
+    local has_error=0
+    if [ "$allow_apex_kind" != "!!null" ] && [ "$allow_apex_kind" != "!!bool" ]; then
+        log_error "$file: tenant.extraHostnamesAllowApex moet true of false zijn (got $allow_apex_kind)"
+        has_error=1
+    fi
+
+    local host seen=" " secret seen_secrets=" "
     while IFS= read -r host; do
         if ! is_valid_hostname "$host"; then
             log_error "$file: tenant.extraHostnames bevat ongeldige hostnaam '$host' (kleine letters, minstens één punt, labels max 63, totaal max 253, geen IP-adres)"
             has_error=1
             continue
+        fi
+        if [[ "$host" != *.*.* ]] && [ "$allow_apex" != "true" ]; then
+            log_error "$file: tenant.extraHostnames bevat apex-host '$host'. Die krijgt HSTS met includeSubDomains, dus HTTPS-dwang op elk subdomein van de zone. Zet tenant.extraHostnamesAllowApex: true alleen als de zone-eigenaar dat accepteert (zie docs/ADDING-TENANT.md)"
+            has_error=1
         fi
         if [ "$host" = "$primary" ]; then
             log_error "$file: tenant.extraHostnames bevat de primaire host '$host' ($primary_bron)"

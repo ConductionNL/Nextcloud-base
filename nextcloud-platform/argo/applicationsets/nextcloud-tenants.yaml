@@ -98,6 +98,15 @@ spec:
               {{- $appapiEnabled := default false .tenant.features.appapi -}}
               {{- $phpMemoryLimit := default "2048M" .tenant.phpMemoryLimit -}}
               {{- $extraHosts := default (list) .tenant.extraHostnames -}}
+              {{- $subHosts := list -}}
+              {{- $apexHosts := list -}}
+              {{- range $extraHosts -}}
+              {{- if eq (len (splitList "." .)) 2 -}}
+              {{- $apexHosts = append $apexHosts . -}}
+              {{- else -}}
+              {{- $subHosts = append $subHosts . -}}
+              {{- end -}}
+              {{- end -}}
               fullnameOverride: "nextcloud"
               commonLabels:
                 nextcloud.platform/tenant: "{{ .tenant.name }}"
@@ -199,18 +208,32 @@ spec:
               # op dezelfde manier als templates/ingress.yaml van de chart, dus
               # geen tweede kopie van de nginx-instellingen. Alleen geëmit als
               # de lijst gezet is: bestaande tenants renderen byte-identiek.
+              #
+              # Apex-hosts (twee labels, zoals gemeente.nl) krijgen een eigen
+              # Ingress nextcloud-extra-hosts-apex met hsts-include-subdomains
+              # "false" over de annotaties heen: includeSubDomains op een apex
+              # dwingt HTTPS af op elk subdomein van de klant. De validator
+              # eist daarvoor tenant.extraHostnamesAllowApex: true. Let op: de
+              # annotatie is een intentie, ingress-nginx leest hsts-* alleen uit
+              # zijn ConfigMap (zie docs/ADDING-TENANT.md).
               extraManifests:
+              {{- range $group := list (dict "naam" "nextcloud-extra-hosts" "hosts" $subHosts "apex" false) (dict "naam" "nextcloud-extra-hosts-apex" "hosts" $apexHosts "apex" true) }}
+              {{- if $group.hosts }}
                 - |
                   {{`{{- if .Values.ingress.enabled }}`}}
                   apiVersion: networking.k8s.io/v1
                   kind: Ingress
                   metadata:
-                    name: nextcloud-extra-hosts
+                    name: {{ $group.naam }}
                     labels:
                       app.kubernetes.io/name: nextcloud
                       app.kubernetes.io/part-of: nextcloud-platform
                       nextcloud.platform/tenant: "{{ $name }}"
+                    {{- if $group.apex }}
+                    {{`{{- with merge (dict "nginx.ingress.kubernetes.io/hsts-include-subdomains" "false") (.Values.ingress.annotations | default dict) }}`}}
+                    {{- else }}
                     {{`{{- with .Values.ingress.annotations }}`}}
+                    {{- end }}
                     annotations:
                       {{`{{- toYaml . | nindent 4 }}`}}
                     {{`{{- end }}`}}
@@ -219,13 +242,13 @@ spec:
                     ingressClassName: {{`{{ . }}`}}
                     {{`{{- end }}`}}
                     tls:
-                      {{- range $extraHosts }}
+                      {{- range $group.hosts }}
                       - secretName: "nextcloud-{{ $name }}-{{ replace "." "-" . }}-tls"
                         hosts:
                           - "{{ . }}"
                       {{- end }}
                     rules:
-                      {{- range $extraHosts }}
+                      {{- range $group.hosts }}
                       - host: "{{ . }}"
                         http:
                           paths:
@@ -238,6 +261,8 @@ spec:
                                     number: {{`{{ .Values.service.port }}`}}
                       {{- end }}
                   {{`{{- end }}`}}
+              {{- end }}
+              {{- end }}
               {{- end }}
 
         # Our GitOps repo for values files
