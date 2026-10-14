@@ -309,6 +309,39 @@ validate_app_versions_format() {
     return 0
 }
 
+# Every key in tenant.apps.versions is an app id that the install hook pins
+# (argo/applicationsets/nextcloud-tenants.yaml -> CONDUCTION_APP_VERSIONS).
+# A pin for an app that is not enabled would never be installed, so it is an
+# error instead of a silent no-op. The key also ends up in a download URL and
+# a shell word, so it must look like a Nextcloud app id.
+validate_app_versions_enabled() {
+    local file="$1"
+    local key key_count enabled errors=0
+    local id_re='^[a-z][a-z0-9_]*$'
+
+    key_count=$(yq eval '.tenant.apps.versions | select(tag == "!!map") | keys | length' "$file" 2>/dev/null)
+    if ! [[ "$key_count" =~ ^[0-9]+$ ]] || [ "$key_count" -eq 0 ]; then
+        return 0
+    fi
+
+    enabled=" $(yq eval '.tenant.apps.enabled // [] | .[]' "$file" 2>/dev/null | tr '\n' ' ') "
+
+    while IFS= read -r key; do
+        [ -z "$key" ] && continue
+        if ! [[ "$key" =~ $id_re ]]; then
+            log_error "$file: tenant.apps.versions.$key is not a valid app id (expected lowercase, e.g. 'portaliq')"
+            errors=1
+            continue
+        fi
+        if [[ "$enabled" != *" $key "* ]]; then
+            log_error "$file: tenant.apps.versions.$key pins an app that is not in tenant.apps.enabled"
+            errors=1
+        fi
+    done < <(yq eval '.tenant.apps.versions | keys | .[]' "$file" 2>/dev/null)
+
+    return $errors
+}
+
 validate_chart_version_format() {
     local file="$1"
     local ver
@@ -637,6 +670,7 @@ validate_tenant_file() {
     validate_db_type "$file" || ((file_errors++))
     validate_apps_enabled "$file" || ((file_errors++))
     validate_app_versions_format "$file" || ((file_errors++))
+    validate_app_versions_enabled "$file" || ((file_errors++))
     validate_chart_version_format "$file" || ((file_errors++))
     validate_hostname "$file" || ((file_errors++))
     validate_hostname_convention "$file" || ((file_errors++))

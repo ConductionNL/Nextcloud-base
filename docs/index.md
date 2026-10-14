@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-10
+last_reviewed: 2026-10-13
 owner: info@conduction.nl
 ---
 
@@ -85,6 +85,14 @@ vereiste deelstrings). `scripts/verify.sh` draait de suite mee.
 Dat de validator over de echte vloot groen is, zegt alleen dat de huidige
 bestanden schoon zijn — niet dat een check nog aanslaat op een fout die niemand
 meer maakt. Een nieuwe check hoort dus met minstens twee cases te komen.
+
+`nextcloud-platform/tests/run-hook-tests.sh` draait de Conduction-apps
+install-hook uit `values/common.yaml` lokaal, met stubs voor `occ`, `curl` en
+`chown`. Pariteitscases vergelijken hem met de bevroren oude hook
+(`tests/hook-fixtures/legacy-before-starting.sh`); de overige cases dekken
+generieke pins, checksum, mapnaam, links in de tarball, info.xml-id, falen dat
+de vorige versie laat staan of terugzet, en een afgebroken wissel.
+`scripts/verify.sh` draait ook deze suite mee.
 
 ## Conventies (gelden overal)
 

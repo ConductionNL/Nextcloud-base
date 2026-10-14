@@ -1,0 +1,11 @@
+---
+tenant:
+  name: canary-accept
+  environment: accept
+  wave: "0"
+  dbType: postgres
+  apps:
+    enabled:
+      - PortalIQ
+    versions:
+      PortalIQ: "0.2.10"
