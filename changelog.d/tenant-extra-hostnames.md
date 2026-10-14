@@ -10,9 +10,9 @@ Een tenant kan nu op meer dan één hostnaam antwoorden. Nieuw optioneel veld
   (`ingress.hosts` uit de ApplicationSet leest die chart niet);
 - geeft elke extra host een eigen TLS-blok en dus een eigen Certificate via
   HTTP-01, zodat één host met nog niet kloppende DNS de andere niet tegenhoudt;
-- neemt annotaties, `ingressClassName` en poort via de `tpl` van de chart over
-  uit dezelfde values als de hoofd-Ingress: geen tweede kopie van de
-  nginx-instellingen.
+- neemt `ingress.enabled`, annotaties, `ingressClassName`, `path`, `pathType`
+  en poort via de `tpl` van de chart over uit dezelfde values als de
+  hoofd-Ingress: geen tweede kopie van de nginx-instellingen.
 
 **Bestaande tenants renderen byte-identiek.** Het blok wordt alleen geëmit als
 de lijst gezet is. Gemeten: alle 89 tenantbestanden op main en op deze branch
