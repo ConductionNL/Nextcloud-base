@@ -362,9 +362,10 @@ nextcloud:
   # apps/<id>) is moved aside, not deleted, and put back (and enabled again if
   # it was enabled) when the move, enable or version check fails. A failed pin
   # is logged as ERROR (also on stderr, so it shows in the container log),
-  # leaves the app as it was, and keeps the state file unwritten so the next
-  # start retries. A run that installed or replaced nothing skips the database
-  # maintenance.
+  # leaves the previous code in place or puts it back (on a first install
+  # there is none, and new code that failed stays in custom_apps), and keeps
+  # the state file unwritten so the next start retries. A run that installed
+  # or replaced nothing skips the database maintenance.
   #
   # Tested with fixtures: nextcloud-platform/tests/run-hook-tests.sh
   # Log: /var/www/html/data/conduction-apps.log

@@ -9,7 +9,8 @@
 # De hook draait in de Nextcloud-pod, maar hij is gewoon bash. Deze suite haalt
 # de tekst uit common.yaml en draait hem lokaal tegen een nep-/var/www/html
 # (CONDUCTION_NC_ROOT), met stubs voor `php` (occ), `curl` (GitHub-releases uit
-# een fixture-map) en `chown`. tar, sha256sum en awk zijn echt.
+# een fixture-map), `chown` en `mv` (echt, met faalinjectie). tar, sha256sum
+# en awk zijn echt.
 #
 # Twee soorten cases:
 #
@@ -19,7 +20,9 @@
 #             het state-bestand moeten gelijk zijn. Dat is het bewijs dat een
 #             bestaande tenant hetzelfde gedrag houdt.
 #   nieuw     generieke pins, checksum, mapnaam, links, info.xml-id, falen dat luid
-#             is en niets half achterlaat, state-sleutel per pin.
+#             is en de vorige code laat staan of terugzet (bij een eerste
+#             installatie is er geen vorige code: mislukte nieuwe code blijft
+#             dan in custom_apps), state-sleutel per pin.
 #
 # Writes: alleen in een eigen mktemp-map
 # Idempotent: ja
@@ -486,7 +489,8 @@ expect_eq "$(wc -l < "$t/stub/calls" | tr -d ' ')" "0" "occ-aanroepen"
 expect_eq "$(wc -l < "$t/stub/curl-calls" | tr -d ' ')" "0" "downloads (volgorde van pins maakt niet uit)"
 end "$t"
 
-# Een mislukte pin: luid, niets half, geen state, volgende start probeert opnieuw.
+# Een pin die faalt vóór de wissel: luid, vorige versie blijft, geen state,
+# volgende start probeert opnieuw.
 fail_case() { # <naam> <setup> <verwachte-logtekst> [env...]
     local name="$1" setup="$2" needle="$3"
     shift 3

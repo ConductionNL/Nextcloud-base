@@ -24,15 +24,17 @@ Besloten door Ruben op 2026-10-13.
   ook bij een redirect. De tarball breekt alleen af als hij stilvalt (minder dan
   10 KiB/s gedurende 20 s), zodat een trage maar lopende download niet afgekapt
   wordt; de `.sha256` heeft een grens van 10 s per poging. Falen is luid (log en
-  stderr), laat de app staan en schrijft geen state, dus de volgende start
-  probeert opnieuw. Een start die niets installeert of vervangt slaat
-  `db:add-missing-indices` en `maintenance:repair --include-expensive` over; de
-  ERROR staat er dan nog steeds. De vorige code (ook een gebundelde `apps/<id>`)
-  gaat tijdens de wissel opzij en komt terug, en weer aan als hij aan stond, als
-  verplaatsen, enable of de versiecheck faalt. Wordt een start midden in de
-  wissel gestopt, dan zet de volgende start eerst de originele code terug en
-  gooit de ongecontroleerde nieuwe code weg. Voorheen werd een mislukte download
-  stil geslikt, de gebundelde app al verwijderd en de state toch geschreven.
+  stderr), laat de vorige versie staan of zet hem terug (bij een eerste
+  installatie is er geen vorige versie en blijft mislukte nieuwe code staan) en
+  schrijft geen state, dus de volgende start probeert opnieuw. Een start die
+  niets installeert of vervangt slaat `db:add-missing-indices` en
+  `maintenance:repair --include-expensive` over; de ERROR staat er dan nog
+  steeds. De vorige code (ook een gebundelde `apps/<id>`) gaat tijdens de wissel
+  opzij en komt terug, en weer aan als hij aan stond, als verplaatsen, enable of
+  de versiecheck faalt. Wordt een start midden in de wissel gestopt, dan zet de
+  volgende start eerst de originele code terug en gooit de ongecontroleerde
+  nieuwe code weg. Voorheen werd een mislukte download stil geslikt, de
+  gebundelde app al verwijderd en de state toch geschreven.
 - De state-sleutel bevat nu elke pin. Voor de drie oude apps is hij byte voor
   byte gelijk aan de oude sleutel, zodat bestaande tenants niet herinstalleren.
 - `before-starting` en `post-installation` zijn één script via een YAML-anker.
