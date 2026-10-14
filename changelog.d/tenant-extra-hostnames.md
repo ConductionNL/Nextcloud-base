@@ -28,5 +28,7 @@ twee tenants claimen (primaire host, `extraHostnames`, `frontend.host`,
 `nextcloud-platform/tests/cases/tenant-extra-hostnames-*`.
 
 Bekende beperkingen: `trusted_domains` wordt alleen bij de eerste installatie
-geschreven; `charts/tenant-httproute` neemt nog één host. Zie
+geschreven, en een verwijderde host blijft erin staan tot een
+`occ config:system:delete trusted_domains <n>`; `charts/tenant-httproute` neemt
+nog één host. Zie
 `docs/ADDING-TENANT.md`.

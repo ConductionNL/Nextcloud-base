@@ -220,7 +220,11 @@ Four things to know:
   reads `NEXTCLOUD_TRUSTED_DOMAINS` when it installs; adding a host to a running
   tenant later also needs `occ config:system:set trusted_domains <n> --value=<host>`
   in the pod (same pattern as `cutover-tenant.sh`). Put the full list in the file
-  before the tenant is first created.
+  before the tenant is first created. Removing a host from the list works the
+  same way: Argo prunes the Ingress, but the host stays in `config.php` until
+  you run `occ config:system:delete trusted_domains <n>`. In both cases run
+  `occ config:system:get trusted_domains` first to find the right `<n>`: `set`
+  on an index that is already in use overwrites that entry.
 - **Gateway API routes do not use this list.** `charts/tenant-httproute` takes one
   host; a tenant with `gateway.nextcloud: true` gets a route for the primary host
   only.
