@@ -623,8 +623,9 @@ validate_frontend_branding() {
 COMPONENT_KEYS=("demoReset")
 DEMO_RESET_KEYS=(
     "enabled" "confirmWipe" "schedule" "paused" "exampleSets"
-    "exampleSetMode" "exampleSetPasswordSecret"
+    "exampleSetMode" "exampleSetPasswordSecret" "limitApps"
 )
+DEMO_RESET_LIMIT_APPS_KEYS=("apps" "exceptGroups")
 
 # Sleutels onder een pad toetsen aan een allowlist (los van _check_keys in
 # validate_frontend_keys, dat pas bestaat nadat die functie één keer liep).
@@ -735,9 +736,48 @@ validate_demo_reset() {
             log_error "$file: tenant.components.demoReset.exampleSetPasswordSecret is gezet zonder exampleSets. Het wachtwoord is alleen voor het laden van de sets."
             has_error=1
         fi
-    elif ! yq eval '.tenant.apps.enabled[]' "$file" 2>/dev/null | grep -qx 'openregister'; then
+    elif ! yq eval '.tenant.apps.enabled[]' "$file" 2>/dev/null | grep -x 'openregister' >/dev/null; then
         log_error "$file: tenant.components.demoReset.exampleSets vraagt openregister (occ openregister:example-set:install), maar openregister staat niet in tenant.apps.enabled."
         has_error=1
+    fi
+
+    # limitApps: na de sets apps beperken tot alle groepen behalve exceptGroups.
+    local limit_type
+    limit_type=$(yq eval "$base.limitApps | type" "$file" 2>/dev/null)
+    if [ "$limit_type" != "!!null" ] && [ "$limit_type" != "!!map" ]; then
+        log_error "$file: tenant.components.demoReset.limitApps moet een map zijn met apps en exceptGroups."
+        has_error=1
+    elif [ "$limit_type" = "!!map" ]; then
+        check_allowed_keys "$file" "$base.limitApps" 'tenant.components.demoReset.limitApps' "${DEMO_RESET_LIMIT_APPS_KEYS[@]}" || has_error=1
+        local list_key list_type item app_count=0 group_count=0
+        for list_key in apps exceptGroups; do
+            list_type=$(yq eval "$base.limitApps.$list_key | type" "$file" 2>/dev/null)
+            if [ "$list_type" != "!!null" ] && [ "$list_type" != "!!seq" ]; then
+                log_error "$file: tenant.components.demoReset.limitApps.$list_key moet een lijst zijn."
+                has_error=1
+                continue
+            fi
+            while IFS= read -r item; do
+                [ -z "$item" ] && continue
+                if [ "$list_key" = "apps" ]; then
+                    app_count=$((app_count + 1))
+                    if ! [[ "$item" =~ ^[a-z][a-z0-9_]{0,63}$ ]]; then
+                        log_error "$file: tenant.components.demoReset.limitApps.apps bevat '$item'; verwacht een app-id zoals 'dossiq'."
+                        has_error=1
+                    fi
+                else
+                    group_count=$((group_count + 1))
+                    if ! [[ "$item" =~ ^[A-Za-z0-9._@-]{1,64}$ ]]; then
+                        log_error "$file: tenant.components.demoReset.limitApps.exceptGroups bevat '$item'; verwacht een groeps-id (letters, cijfers, . _ @ -)."
+                        has_error=1
+                    fi
+                fi
+            done < <(yq eval "$base.limitApps.${list_key}[]" "$file" 2>/dev/null)
+        done
+        if [ $app_count -gt 0 ] && [ $group_count -eq 0 ]; then
+            log_error "$file: tenant.components.demoReset.limitApps.apps is gezet zonder exceptGroups. Dan krijgt elke groep de apps en beperkt de stap niets."
+            has_error=1
+        fi
     fi
 
     # Wat alleen telt als hij echt aan staat.

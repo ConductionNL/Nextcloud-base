@@ -27,6 +27,14 @@ Validator: vijftien nieuwe cases. Nieuwe suite
 `nextcloud-platform/tests/run-demo-reset-tests.sh`, gedraaid door
 `scripts/verify.sh`. Docs: `docs/DEMO-RESET.md`.
 
+Optioneel `limitApps` (`apps` + `exceptGroups`): na de voorbeeldsets zet de
+reset elke app uit `apps` aan voor alle groepen behalve `exceptGroups`, per app
+apart; een app die zich niet tot groepen laat beperken gaat aan voor iedereen,
+met een WARN. Nodig omdat een set groepen aanmaakt die in de momentopname nog
+niet bestaan, en omdat de install-hook bij een pin-bump een groepsbeperking
+laat vervallen. Eerste gebruik: werkplek-apps alleen voor medewerkers in
+Zuiddrecht, inwoners zien het portaal.
+
 **Openstaand:** de ApplicationSet komt pas na een handmatige sync van
 `nextcloud-platform-bootstrap`. Het image `alpine/k8s:1.29.2` is op tag
 gepind, niet op digest. Nooit op een cluster gedraaid.

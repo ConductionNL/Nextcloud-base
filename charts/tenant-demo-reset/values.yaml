@@ -40,6 +40,14 @@ demoReset:
   # Dan krijgt install `--password-from-env`, met het wachtwoord via stdin.
   exampleSetPasswordSecret: ""
 
+  # Optioneel: na de voorbeeldsets elke app uit `apps` aanzetten voor alle
+  # groepen behalve `exceptGroups` (`occ app:enable --groups=...`). Zo blijven
+  # werkplek-apps voor medewerkers en ziet een inwoner alleen het portaal. Een
+  # app die Nextcloud niet tot groepen laat beperken, gaat aan voor iedereen.
+  limitApps:
+    apps: []
+    exceptGroups: []
+
 image:
   # Hetzelfde image als de credential-refresh CronJob in cluster-infra: kubectl,
   # jq en curl in één.

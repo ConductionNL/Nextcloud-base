@@ -91,10 +91,31 @@ tenant:
 | `exampleSets` | nee | leeg | Sets voor `occ openregister:example-set:install`. Vraagt `openregister` in `apps.enabled`. |
 | `exampleSetMode` | nee | `install` | `install` of `reinstall` (eerst `example-set:remove`). |
 | `exampleSetPasswordSecret` | nee | | Naam van een Secret in de namespace met sleutel `demo-password`. Dan krijgt install `--password-from-env`; het wachtwoord gaat via stdin. |
+| `limitApps.apps` | nee | leeg | Apps die na de sets alleen aan staan voor alle groepen behalve `limitApps.exceptGroups`. Vraagt `exceptGroups`. |
+| `limitApps.exceptGroups` | als `limitApps.apps` gezet is | leeg | Groepen die de apps níet krijgen, bv. `inwoners`. |
 
 De validator weigert: een onbekende sleutel, `enabled` als tekst, een andere
 `confirmWipe`, `dbType` anders dan postgres, `tenant.canary: true` (S3), een
-ongeldig schema, en sets zonder openregister.
+ongeldig schema, sets zonder openregister, en `limitApps.apps` zonder
+`exceptGroups`.
+
+### Apps alleen voor medewerkers (`limitApps`)
+
+Op een demo met inwoners-accounts horen werkplek-apps alleen bij medewerkers.
+De groepen van medewerkers komen uit de voorbeeldset, dus de beperking moet na
+het laden van de set opnieuw gezet worden: een set kan groepen aanmaken die in
+de momentopname nog niet bestonden. Ook zet de install-hook bij een pin-bump een
+app uit en weer aan, en dan vervalt een groepsbeperking.
+
+```yaml
+      limitApps:
+        apps: [dashboard, mail, dossiq, pipelinq]
+        exceptGroups: [inwoners]
+```
+
+Faalt deze stap (geen groep over, of een groepsnaam die niet veilig door `occ`
+kan), dan faalt de Job zichtbaar. De tenant staat dan al op de momentopname en
+blijft in de lucht.
 
 ### install of reinstall
 
@@ -135,6 +156,10 @@ hij compleet is.
 6. php-fpm herladen. `occ upgrade` als de app-code nieuwer is.
 7. Onderhoudsmodus uit. `occ memcache:distributed:clear`.
 8. Per set `occ openregister:example-set:install <set>`.
+   Daarna, met `limitApps`, per app `occ app:enable --groups=<g> ... <app>` voor
+   elke groep behalve `exceptGroups`. Een app die Nextcloud niet tot groepen
+   laat beperken (spreed, photos, activity) gaat aan voor iedereen, met een
+   WARN in de log; een app die niet geïnstalleerd is, wordt overgeslagen.
 9. Eindcontrole: `occ status` en `status.php` via de service.
    `/var/www/demo-reset/last-reset` krijgt tijd en momentopname-id.
 

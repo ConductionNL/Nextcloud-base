@@ -95,6 +95,10 @@ spec:
               exampleSets: {{ default (list) $dr.exampleSets | toJson }}
               exampleSetMode: "{{ default "install" $dr.exampleSetMode }}"
               exampleSetPasswordSecret: "{{ default "" $dr.exampleSetPasswordSecret }}"
+              {{- $la := default (dict) $dr.limitApps }}
+              limitApps:
+                apps: {{ default (list) $la.apps | toJson }}
+                exceptGroups: {{ default (list) $la.exceptGroups | toJson }}
 
       destination:
         server: https://kubernetes.default.svc

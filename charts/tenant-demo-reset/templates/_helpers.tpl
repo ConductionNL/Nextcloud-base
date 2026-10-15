@@ -66,6 +66,14 @@ spec:
           value: {{ join " " $root.Values.demoReset.exampleSets | quote }}
         - name: EXAMPLE_SET_MODE
           value: {{ $root.Values.demoReset.exampleSetMode | quote }}
+        {{- with $root.Values.demoReset.limitApps }}
+        {{- if .apps }}
+        - name: LIMIT_APPS
+          value: {{ join " " .apps | quote }}
+        - name: LIMIT_EXCEPT_GROUPS
+          value: {{ join " " (default (list) .exceptGroups) | quote }}
+        {{- end }}
+        {{- end }}
         {{- if $root.Values.demoReset.exampleSetPasswordSecret }}
         - name: PASSWORD_FILE
           value: /secrets/demo-password

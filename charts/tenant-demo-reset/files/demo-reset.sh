@@ -98,6 +98,8 @@ readonly STATUS_URL="${STATUS_URL:-http://nextcloud.${NS}.svc.cluster.local:8080
 EXAMPLE_SETS="${EXAMPLE_SETS:-}"
 EXAMPLE_SET_MODE="${EXAMPLE_SET_MODE:-install}"
 PASSWORD_FILE="${PASSWORD_FILE:-}"
+LIMIT_APPS="${LIMIT_APPS:-}"
+LIMIT_EXCEPT_GROUPS="${LIMIT_EXCEPT_GROUPS:-}"
 
 case "${EXAMPLE_SET_MODE}" in
   install | reinstall) ;;
@@ -108,6 +110,15 @@ for set_id in ${EXAMPLE_SETS}; do
 done
 if [ -n "${PASSWORD_FILE}" ] && [ ! -s "${PASSWORD_FILE}" ]; then
   die "PASSWORD_FILE ${PASSWORD_FILE} is leeg of bestaat niet. Er is niets gewist."
+fi
+for app in ${LIMIT_APPS}; do
+  [[ "${app}" =~ ^[a-z][a-z0-9_]{0,63}$ ]] || die "app '${app}' in LIMIT_APPS is geen app-id. Er is niets gewist."
+done
+for group in ${LIMIT_EXCEPT_GROUPS}; do
+  [[ "${group}" =~ ^[A-Za-z0-9._@-]{1,64}$ ]] || die "groep '${group}' in LIMIT_EXCEPT_GROUPS heeft een ongeldige naam. Er is niets gewist."
+done
+if [ -n "${LIMIT_APPS}" ] && [ -z "${LIMIT_EXCEPT_GROUPS}" ]; then
+  die "LIMIT_APPS is gezet zonder LIMIT_EXCEPT_GROUPS; dan krijgt elke groep de apps en beperkt de stap niets. Er is niets gewist."
 fi
 
 # ---------------------------------------------------------------------------
@@ -345,6 +356,44 @@ load_example_sets() {
   done
 }
 
+# Zet elke app uit LIMIT_APPS aan voor alle groepen behalve LIMIT_EXCEPT_GROUPS.
+# Draait na de voorbeeldsets, omdat een set groepen aanmaakt die er in de
+# momentopname nog niet waren. Een app die Nextcloud niet tot groepen laat
+# beperken (bv. spreed, photos, activity) gaat aan voor iedereen, met een WARN.
+# Per app apart: één weigering in een gezamenlijke aanroep liet de rest uit.
+limit_apps_to_groups() {
+  local groups_json apps_json app group g except
+  local -a groups=() group_args=()
+  [ -n "${LIMIT_APPS}" ] || return 0
+
+  groups_json="$(occ group:list --output=json)"
+  while IFS= read -r group; do
+    except=0
+    for g in ${LIMIT_EXCEPT_GROUPS}; do [ "${group}" = "${g}" ] && except=1; done
+    [ "${except}" = 1 ] && continue
+    [[ "${group}" =~ ^[A-Za-z0-9._@-]{1,64}$ ]] ||
+      die "groep '${group}' heeft een naam die niet veilig door occ kan; apps niet beperkt."
+    groups+=("${group}")
+  done < <(jq -r 'keys[]' <<<"${groups_json}")
+  [ "${#groups[@]}" -gt 0 ] ||
+    die "geen groepen over na het weglaten van '${LIMIT_EXCEPT_GROUPS}'; apps niet beperkt."
+  for group in "${groups[@]}"; do group_args+=("--groups=${group}"); done
+
+  apps_json="$(occ app:list --output=json)"
+  for app in ${LIMIT_APPS}; do
+    if ! jq -e --arg a "${app}" '(.enabled // {}) + (.disabled // {}) | has($a)' >/dev/null <<<"${apps_json}"; then
+      log "app ${app} is niet geïnstalleerd; overgeslagen"
+      continue
+    fi
+    if occ app:enable "${group_args[@]}" "${app}" >/dev/null; then
+      log "app ${app} beperkt tot ${#groups[@]} groepen"
+    else
+      log "WARN: app ${app} laat zich niet tot groepen beperken; aan voor iedereen" >&2
+      occ app:enable "${app}" >/dev/null
+    fi
+  done
+}
+
 reset_to_golden() {
   local golden_id manifest golden_comment
 
@@ -417,6 +466,7 @@ cp -a '${STORE}/golden/data/.' '${DATA}/'"
   log "tenant staat op momentopname ${golden_id}"
 
   load_example_sets
+  limit_apps_to_groups
 
   STATUS="$(occ status --output=json)"
   jq -e '.installed == true and .maintenance == false and .needsDbUpgrade == false' >/dev/null <<<"${STATUS}" ||

@@ -109,6 +109,16 @@ check "script in ConfigMap gelijk aan files/demo-reset.sh" test \
 check "geen requests (Resource Policy)" not grep -q 'requests:' "$WORK/on.yaml"
 finish
 
+start "chart: limitApps komt als env door, en ontbreekt als hij leeg is"
+reset_env() { yq "select(.metadata.name == \"demo-reset\") | .spec.jobTemplate.spec.template.spec.containers[0].env[] | select(.name == \"$2\") | .value" "$1"; }
+check "zonder limitApps geen LIMIT_APPS-env" test -z "$(reset_env "$WORK/on.yaml" LIMIT_APPS)"
+helm template t "$CHART" -n zuiddrecht-prod "${ON[@]}" --set 'demoReset.limitApps.apps={dossiq,mail}' \
+    --set 'demoReset.limitApps.exceptGroups={inwoners}' >"$WORK/l.yaml"
+check "kubeconform" kubeconform -strict "$WORK/l.yaml" >/dev/null
+check "LIMIT_APPS" test "$(reset_env "$WORK/l.yaml" LIMIT_APPS)" = "dossiq mail"
+check "LIMIT_EXCEPT_GROUPS" test "$(reset_env "$WORK/l.yaml" LIMIT_EXCEPT_GROUPS)" = "inwoners"
+finish
+
 start "chart: verkeerde confirmWipe rendert niet"
 set +e
 err="$(helm template t "$CHART" -n zuiddrecht-prod "${ON[@]}" --set demoReset.confirmWipe=alkmaar-prod 2>&1)"
@@ -154,6 +164,9 @@ tenant:
       exampleSets: [zuiddrecht, extra]
       exampleSetMode: reinstall
       exampleSetPasswordSecret: demo-reset-password
+      limitApps:
+        apps: [dossiq, mail]
+        exceptGroups: [inwoners]
 EOF
 render_appset_values "$WORK/t1.yaml" >"$WORK/v1.yaml"
 check "host uit tenant.hostname" test "$(yq .tenant.host "$WORK/v1.yaml")" = "cloud.zuiddrecht.nl"
@@ -161,6 +174,8 @@ check "schedule" test "$(yq .demoReset.schedule "$WORK/v1.yaml")" = "30 2 * * *"
 check "paused" test "$(yq .demoReset.paused "$WORK/v1.yaml")" = "true"
 check "exampleSets" test "$(yq -o=json -I=0 .demoReset.exampleSets "$WORK/v1.yaml")" = '["zuiddrecht","extra"]'
 check "mode" test "$(yq .demoReset.exampleSetMode "$WORK/v1.yaml")" = "reinstall"
+check "limitApps.apps" test "$(yq -o=json -I=0 .demoReset.limitApps.apps "$WORK/v1.yaml")" = '["dossiq","mail"]'
+check "limitApps.exceptGroups" test "$(yq -o=json -I=0 .demoReset.limitApps.exceptGroups "$WORK/v1.yaml")" = '["inwoners"]'
 helm template t "$CHART" -n zuiddrecht-prod -f "$WORK/v1.yaml" >"$WORK/v1.manifests.yaml"
 check "chart rendert met deze values" kubeconform -strict "$WORK/v1.manifests.yaml" >/dev/null
 finish
@@ -181,6 +196,7 @@ check "schedule default" test "$(yq .demoReset.schedule "$WORK/v2.yaml")" = "15 
 check "paused default" test "$(yq .demoReset.paused "$WORK/v2.yaml")" = "false"
 check "exampleSets leeg" test "$(yq -o=json -I=0 .demoReset.exampleSets "$WORK/v2.yaml")" = '[]'
 check "mode default" test "$(yq .demoReset.exampleSetMode "$WORK/v2.yaml")" = "install"
+check "limitApps.apps leeg" test "$(yq -o=json -I=0 .demoReset.limitApps.apps "$WORK/v2.yaml")" = '[]'
 helm template t "$CHART" -n demo-accept -f "$WORK/v2.yaml" >"$WORK/v2.manifests.yaml"
 check "chart rendert met deze values" kubeconform -strict "$WORK/v2.manifests.yaml" >/dev/null
 finish
@@ -278,7 +294,13 @@ case "$*" in
     "config:system:get objectstore") [ -n "${FAKE_OBJECTSTORE:-}" ] && { echo S3; exit 0; }; exit 1 ;;
     "maintenance:mode --on") touch "$S/maintenance" ;;
     "maintenance:mode --off") rm -f "$S/maintenance" ;;
-    "app:list --output=json") echo '{"enabled":{"openregister":"2.1.41"},"disabled":{}}' ;;
+    "app:list --output=json") echo '{"enabled":{"openregister":"2.1.41","dossiq":"0.4.53","spreed":"22.0.0"},"disabled":{"mail":"5.0.0"}}' ;;
+    "group:list --output=json") echo "${FAKE_GROUPS-{\"admin\":[\"admin\"],\"inwoners\":[],\"medewerkers\":[]}}" ;;
+    "app:enable --groups="*)
+        if [ -n "${FAKE_NO_GROUP_LIMIT:-}" ] && [[ "$*" == *" $FAKE_NO_GROUP_LIMIT" ]]; then
+            echo "$FAKE_NO_GROUP_LIMIT can't be enabled for groups." >&2; exit 1
+        fi ;;
+    "app:enable "*) ;;
     "upgrade") rm -f "$S/needs-upgrade" ;;
     "memcache:distributed:clear") ;;
     openregister:example-set:*)
@@ -349,7 +371,8 @@ new_tenant() {
     echo "hook-state" >"$d/.conduction-apps-state"
     : >"$FAKE_STATE/kubectl.log"
     : >"$FAKE_STATE/occ.log"
-    unset FAKE_FAIL_EXEC FAKE_FAIL_OCC FAKE_FAIL_SQL FAKE_OBJECTSTORE FAKE_INSTANCEID FAKE_OWN_PODS FAKE_NC_PODS
+    unset FAKE_FAIL_EXEC FAKE_FAIL_OCC FAKE_FAIL_SQL FAKE_OBJECTSTORE FAKE_INSTANCEID FAKE_OWN_PODS FAKE_NC_PODS \
+        FAKE_GROUPS FAKE_NO_GROUP_LIMIT
 }
 
 # Bezoekers doen dingen: database anders, een upload, een verwijderd bestand,
@@ -369,6 +392,7 @@ run_script() { # <mode> ; zet RC en schrijft uitvoer naar $WORK/out
         POD_NAMESPACE=zuiddrecht-prod TENANT_NAME=zuiddrecht-prod TENANT_HOST=cloud.zuiddrecht.nl \
         CONFIRM_WIPE="${CONFIRM:-zuiddrecht-prod}" EXAMPLE_SETS="${SETS-zuiddrecht}" \
         EXAMPLE_SET_MODE="${SETMODE:-install}" PASSWORD_FILE="${PWFILE:-}" \
+        LIMIT_APPS="${LIMITAPPS-}" LIMIT_EXCEPT_GROUPS="${LIMITEXCEPT-}" \
         bash "$SCRIPT" "$1" >"$WORK/out" 2>&1
     RC=$?
     set -e
@@ -594,6 +618,56 @@ check "exit 1" test "$RC" -eq 1
 check "melding" grep -qF 'precies één draaiende nextcloud-pod' "$WORK/out"
 FAKE_NC_PODS="" run_script reset
 check "geen pod: exit 1" test "$RC" -eq 1
+finish
+
+start "script: limitApps beperkt na de sets, per app, buiten onderhoud"
+golden_ready
+FAKE_NO_GROUP_LIMIT=spreed LIMITAPPS="dossiq spreed mail kalender" LIMITEXCEPT=inwoners run_script reset
+check "exit 0" test "$RC" -eq 0
+check "dossiq voor alle groepen behalve inwoners" grep -q '^maint=0 app:enable --groups=admin --groups=medewerkers dossiq$' "$FAKE_STATE/occ.log"
+check "een uitgeschakelde app telt als geïnstalleerd" grep -q '^maint=0 app:enable --groups=admin --groups=medewerkers mail$' "$FAKE_STATE/occ.log"
+check "inwoners nooit in --groups" not grep -q -- '--groups=inwoners' "$FAKE_STATE/occ.log"
+check "spreed weigert groepen en gaat aan voor iedereen" grep -q '^maint=0 app:enable spreed$' "$FAKE_STATE/occ.log"
+check "WARN voor spreed" grep -qF 'WARN: app spreed' "$WORK/out"
+check "niet-geïnstalleerde app overgeslagen" grep -qF 'app kalender is niet geïnstalleerd' "$WORK/out"
+check "kalender nooit aangezet" not grep -q 'app:enable.*kalender' "$FAKE_STATE/occ.log"
+check "na de voorbeeldset" before "openregister:example-set:install zuiddrecht" "app:enable --groups=admin --groups=medewerkers dossiq"
+finish
+
+start "script: zonder limitApps geen groepsstap"
+golden_ready
+run_script reset
+check "exit 0" test "$RC" -eq 0
+check "geen group:list" not grep -q 'group:list' "$FAKE_STATE/occ.log"
+check "geen app:enable" not grep -q 'app:enable' "$FAKE_STATE/occ.log"
+finish
+
+start "script: limitApps zonder uitzondering raakt de cluster niet"
+golden_ready
+: >"$FAKE_STATE/kubectl.log"
+LIMITAPPS="dossiq" LIMITEXCEPT="" run_script reset
+check "exit 1" test "$RC" -eq 1
+check "melding" grep -qF 'LIMIT_APPS is gezet zonder LIMIT_EXCEPT_GROUPS' "$WORK/out"
+check "geen enkele kubectl-aanroep" test ! -s "$FAKE_STATE/kubectl.log"
+finish
+
+start "script: geen groep over faalt zichtbaar, tenant blijft op de momentopname"
+golden_ready
+visitors_were_here
+FAKE_GROUPS='{"inwoners":[]}' LIMITAPPS="dossiq" LIMITEXCEPT=inwoners run_script reset
+check "exit 1" test "$RC" -eq 1
+check "melding" grep -qF 'geen groepen over' "$WORK/out"
+check "database terug" test "$(db nextcloud)" = "demo"
+check "onderhoud uit" not maint_on_now
+check "geen app:enable" not grep -q 'app:enable' "$FAKE_STATE/occ.log"
+finish
+
+start "script: groepsnaam die niet veilig door occ kan stopt de stap"
+golden_ready
+FAKE_GROUPS='{"admin":[],"a b;id":[],"inwoners":[]}' LIMITAPPS="dossiq" LIMITEXCEPT=inwoners run_script reset
+check "exit 1" test "$RC" -eq 1
+check "melding" grep -qF 'niet veilig door occ' "$WORK/out"
+check "geen app:enable" not grep -q 'app:enable' "$FAKE_STATE/occ.log"
 finish
 
 echo
