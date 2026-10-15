@@ -47,21 +47,22 @@ tenant:
       - hermiq
       - versioniq
       - registration
-    # Elke Conduction-app gepind op de nieuwste unstable GitHub-release van
-    # 14 oktober 2026 (generieke pins, PR #140).
+    # Elke Conduction-app gepind op de set die de generale repetitie van
+    # 15 oktober 2026 op een verse NC 32.0.13 heeft gedraaid (generieke pins,
+    # PR #140). integriq staat op de release met de fix voor integriq#2433.
     versions:
-      openregister: "2.1.41-unstable.20261014180323"
-      opencatalogi: "2.1.22-unstable.20261014065917"
-      integriq: "0.4.12-unstable.20261012180338"
+      openregister: "2.1.41-unstable.20261015074215"
+      opencatalogi: "2.1.23-unstable.20261015034953"
+      integriq: "0.4.12-unstable.20261015175726"
       filinq: "0.2.7-unstable.20261014104957"
-      thematiq: "1.2.27-unstable.20261014095701"
+      thematiq: "1.2.29-unstable.20261015075549"
       launchpad: "1.1.8-unstable.20261014090925"
-      stackiq: "0.2.6-unstable.20261013155552"
-      dossiq: "0.4.53-unstable.20261014171843"
-      pipelinq: "0.5.21-unstable.20261014135158"
-      shillinq: "0.5.7-unstable.20261014121022"
-      portaliq: "0.2.10-unstable.20261014180047"
-      decidiq: "1.2.7-unstable.20261014181300"
+      stackiq: "0.2.6-unstable.20261015083340"
+      dossiq: "0.4.53-unstable.20261015090320"
+      pipelinq: "0.5.21-unstable.20261015083803"
+      shillinq: "0.5.7-unstable.20261015084746"
+      portaliq: "0.2.10-unstable.20261015090615"
+      decidiq: "1.2.7-unstable.20261014191306"
       buildiq: "0.7.17-unstable.20261012161234"
       keepiq: "0.3.12-unstable.20261012125958"
       hermiq: "0.2.18-unstable.20261013171153"
@@ -79,9 +80,10 @@ nextcloud:
       );
 
 # Uitzondering op het dunne tenantbestand: de eerste start haalt 16 apps van
-# GitHub voordat php-fpm opkomt. De probe zit op de nginx-container; met de
-# prod-standaard (30 s + 30 x 10 s) gaat nginx in CrashLoopBackOff en komt de
-# tenant pas na de backoff online. 84 pogingen geeft 30 s + 840 s, ongeveer
-# 15 minuten, voor alleen deze tenant.
+# GitHub en draait hun migraties voordat php-fpm opkomt. De probe zit op de
+# nginx-container; met de prod-standaard (30 s + 30 x 10 s) gaat nginx in
+# CrashLoopBackOff en komt de tenant pas na de backoff online. De generale
+# repetitie van 15 oktober deed er 22 minuten over op een verse installatie.
+# 180 pogingen geeft 30 s + 1800 s, ruim 30 minuten, voor alleen deze tenant.
 startupProbe:
-  failureThreshold: 84
+  failureThreshold: 180
