@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-21
+last_reviewed: 2026-10-14
 owner: info@conduction.nl
 ---
 
@@ -48,6 +48,10 @@ Alleen de **hostname** wijzigen is wél een gewone operatie — zie
 namespace, de prefix en de database niet.
 
 ## Tenant Reset (Data wissen)
+
+> Een demo-tenant elke nacht terugzetten naar een vaste stand doe je niet met
+> de hand, maar met `tenant.components.demoReset`. Zie
+> [DEMO-RESET.md](DEMO-RESET.md).
 
 Reset een tenant naar een schone staat **zonder** de configuratie te verwijderen.
 

@@ -1,0 +1,19 @@
+---
+tenant:
+  name: zuiddrecht-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  apps:
+    enabled:
+      - openregister
+      - opencatalogi
+  components:
+    demoReset:
+      enabled: true
+      confirmWipe: zuiddrecht-prod
+      schedule: "15 4 * * *"
+      exampleSets:
+        - zuiddrecht
+      exampleSetMode: reinstall
+      exampleSetPasswordSecret: demo-reset-password
