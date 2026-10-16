@@ -26,3 +26,6 @@ tenant:
       themeClassname: "noorderzijlvest-theme"
       jumbotronImageUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/main/water-authorities/noorderzijlvest/jumbotron.webp"
       faviconUrl: "https://raw.githubusercontent.com/ConductionNL/woo-website-assets/main/water-authorities/noorderzijlvest/favicon.ico"
+    env:
+      GATSBY_JUMBOTRON_TITLE: "Openbare documenten van Waterschap Noorderzijlvest"
+      GATSBY_JUMBOTRON_SUBTITLE: "Op deze website vind je de documenten die Waterschap Noorderzijlvest openbaar heeft gemaakt."
