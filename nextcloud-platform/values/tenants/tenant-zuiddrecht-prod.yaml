@@ -1,0 +1,91 @@
+---
+# Demogemeente Zuiddrecht: één Nextcloud op vier hostnamen.
+#   cloud.zuiddrecht.nl        werkplek (primaire host, nextcloud.host)
+#   zuiddrecht.nl, www.        publieke website (app portaliq)
+#   mijn.zuiddrecht.nl         inlogpagina van het portaal
+# De zone zuiddrecht.nl staat NIET onder external-dns: de vier A-records zet de
+# zone-eigenaar met de hand, DNS only, naar de ingress-loadbalancer
+# (81.24.6.82). Certificaten komen per host via HTTP-01 (letsencrypt-prod).
+# Vereist tenant.extraHostnames uit PR #138.
+tenant:
+  name: zuiddrecht-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  # ESO maakt nextcloud-secrets aan, zoals bij elke nieuwe tenant.
+  secrets:
+    managed: true
+  hostname: cloud.zuiddrecht.nl
+  hostnameOverride: true
+  extraHostnames:
+    - zuiddrecht.nl
+    - www.zuiddrecht.nl
+    - mijn.zuiddrecht.nl
+  # zuiddrecht.nl is een apex-host. Die krijgt HSTS zonder includeSubDomains;
+  # de zone is van de demo, dus de opt-in is hier bewust.
+  extraHostnamesAllowApex: true
+  apps:
+    # Echte app-ids uit appinfo/info.xml, openregister eerst.
+    # Niet in deze demo: learniq, larpinq, zaakafhandelapp, humaniq, planninq.
+    # registration komt uit de Nextcloud app store (zonder pin, dus de laatste
+    # release): inwoners maken daarmee zelf een account aan.
+    # integriq staat er voorlopig niet in (Ruben, 16 oktober 2026): een van zijn
+    # externe synchronisaties loopt in cron tegen het geheugen aan. Hij komt terug
+    # met een pin-bump zodra die fix uit is.
+    enabled:
+      - openregister
+      - opencatalogi
+      - filinq
+      - thematiq
+      - launchpad
+      - stackiq
+      - dossiq
+      - pipelinq
+      - shillinq
+      - portaliq
+      - decidiq
+      - buildiq
+      - keepiq
+      - hermiq
+      - versioniq
+      - registration
+    # Elke Conduction-app gepind op de set die de derde generale repetitie van
+    # 16 oktober 2026 op een verse NC 32.0.13 heeft gedraaid (generieke pins,
+    # PR #140). decidiq staat een release verder: alleen de voorbeelddata van
+    # de vergaderingen is aangepast, zodat de nachtelijke reset slaagt.
+    versions:
+      openregister: "2.1.41-unstable.20261016001240"
+      opencatalogi: "2.1.24-unstable.20261015182328"
+      filinq: "0.2.7-unstable.20261015234320"
+      thematiq: "1.2.29-unstable.20261016012937"
+      launchpad: "1.1.8-unstable.20261016015758"
+      stackiq: "0.2.7-unstable.20261015120739"
+      dossiq: "0.4.54-unstable.20261016050320"
+      pipelinq: "0.5.21-unstable.20261016025750"
+      shillinq: "0.5.7-unstable.20261016045526"
+      portaliq: "0.2.10-unstable.20261016030501"
+      decidiq: "1.2.7-unstable.20261016094104"
+      buildiq: "0.7.17-unstable.20261015170626"
+      keepiq: "0.3.12-unstable.20261015140654"
+      hermiq: "0.2.18-unstable.20261015181333"
+      versioniq: "1.6.8-unstable.20261012134348"
+
+# Uitzondering op het dunne tenantbestand: overwrite.cli.url. Links die cron en
+# achtergrondtaken bouwen (mails, notificaties) moeten naar de werkplek wijzen.
+# Taal, locale en telefoonregio staan al voor de hele vloot in common.yaml.
+nextcloud:
+  configs:
+    zuiddrecht.config.php: |
+      <?php
+      $CONFIG = array (
+        'overwrite.cli.url' => 'https://cloud.zuiddrecht.nl',
+      );
+
+# Uitzondering op het dunne tenantbestand: de eerste start haalt 16 apps van
+# GitHub en draait hun migraties voordat php-fpm opkomt. De probe zit op de
+# nginx-container; met de prod-standaard (30 s + 30 x 10 s) gaat nginx in
+# CrashLoopBackOff en komt de tenant pas na de backoff online. De generale
+# repetitie van 15 oktober deed er 22 minuten over op een verse installatie.
+# 180 pogingen geeft 30 s + 1800 s, ruim 30 minuten, voor alleen deze tenant.
+startupProbe:
+  failureThreshold: 180
