@@ -1,0 +1,11 @@
+---
+tenant:
+  name: voorbeeld-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  hostname: localhost
+  hostnameOverride: true
+  apps:
+    enabled:
+      - openregister

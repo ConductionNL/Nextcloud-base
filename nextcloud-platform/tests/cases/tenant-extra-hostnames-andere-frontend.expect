@@ -1,0 +1,1 @@
+host 'open.dinkelland.nl' (tenant.extraHostnames) wordt al geclaimd door tenant 'dinkelland-prod' (tenant.frontend.host)

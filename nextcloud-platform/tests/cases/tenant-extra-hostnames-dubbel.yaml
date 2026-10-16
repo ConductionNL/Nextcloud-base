@@ -1,0 +1,14 @@
+---
+tenant:
+  name: voorbeeld-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  hostname: cloud.voorbeeld.nl
+  hostnameOverride: true
+  apps:
+    enabled:
+      - openregister
+  extraHostnames:
+    - www.voorbeeld.nl
+    - www.voorbeeld.nl
