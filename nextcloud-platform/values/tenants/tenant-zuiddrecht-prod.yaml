@@ -29,10 +29,12 @@ tenant:
     # Niet in deze demo: learniq, larpinq, zaakafhandelapp, humaniq, planninq.
     # registration komt uit de Nextcloud app store (zonder pin, dus de laatste
     # release): inwoners maken daarmee zelf een account aan.
+    # integriq staat er voorlopig niet in (Ruben, 16 oktober 2026): een van zijn
+    # externe synchronisaties loopt in cron tegen het geheugen aan. Hij komt terug
+    # met een pin-bump zodra die fix uit is.
     enabled:
       - openregister
       - opencatalogi
-      - integriq
       - filinq
       - thematiq
       - launchpad
@@ -47,25 +49,25 @@ tenant:
       - hermiq
       - versioniq
       - registration
-    # Elke Conduction-app gepind op de set die de generale repetitie van
-    # 15 oktober 2026 op een verse NC 32.0.13 heeft gedraaid (generieke pins,
-    # PR #140). integriq staat op de release met de fix voor integriq#2433.
+    # Elke Conduction-app gepind op de set die de derde generale repetitie van
+    # 16 oktober 2026 op een verse NC 32.0.13 heeft gedraaid (generieke pins,
+    # PR #140). decidiq staat een release verder: alleen de voorbeelddata van
+    # de vergaderingen is aangepast, zodat de nachtelijke reset slaagt.
     versions:
-      openregister: "2.1.41-unstable.20261015074215"
-      opencatalogi: "2.1.23-unstable.20261015034953"
-      integriq: "0.4.12-unstable.20261015175726"
-      filinq: "0.2.7-unstable.20261014104957"
-      thematiq: "1.2.29-unstable.20261015075549"
-      launchpad: "1.1.8-unstable.20261014090925"
-      stackiq: "0.2.6-unstable.20261015083340"
-      dossiq: "0.4.53-unstable.20261015090320"
-      pipelinq: "0.5.21-unstable.20261015083803"
-      shillinq: "0.5.7-unstable.20261015084746"
-      portaliq: "0.2.10-unstable.20261015090615"
-      decidiq: "1.2.7-unstable.20261014191306"
-      buildiq: "0.7.17-unstable.20261012161234"
-      keepiq: "0.3.12-unstable.20261012125958"
-      hermiq: "0.2.18-unstable.20261013171153"
+      openregister: "2.1.41-unstable.20261016001240"
+      opencatalogi: "2.1.24-unstable.20261015182328"
+      filinq: "0.2.7-unstable.20261015234320"
+      thematiq: "1.2.29-unstable.20261016012937"
+      launchpad: "1.1.8-unstable.20261016015758"
+      stackiq: "0.2.7-unstable.20261015120739"
+      dossiq: "0.4.54-unstable.20261016050320"
+      pipelinq: "0.5.21-unstable.20261016025750"
+      shillinq: "0.5.7-unstable.20261016045526"
+      portaliq: "0.2.10-unstable.20261016030501"
+      decidiq: "1.2.7-unstable.20261016094104"
+      buildiq: "0.7.17-unstable.20261015170626"
+      keepiq: "0.3.12-unstable.20261015140654"
+      hermiq: "0.2.18-unstable.20261015181333"
       versioniq: "1.6.8-unstable.20261012134348"
 
 # Uitzondering op het dunne tenantbestand: overwrite.cli.url. Links die cron en
