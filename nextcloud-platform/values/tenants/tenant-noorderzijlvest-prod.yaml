@@ -20,7 +20,7 @@ tenant:
     host: open.noorderzijlvest.nl
     tls:
       secretName: open-noorderzijlvest-nl-tls
-      issuer: letsencrypt-prod
+      issuer: none
     branding:
       organisationName: "Waterschap Noorderzijlvest"
       themeClassname: "noorderzijlvest-theme"
