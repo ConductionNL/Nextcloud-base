@@ -17,6 +17,7 @@ tenant:
       openregister: "1.1.5"
   frontend:
     tag: "v1.0.0"
+    host: open.stichtsevecht.nl
     branding:
       organisationName: "Gemeente Stichtsevecht"
       themeClassname: "stichtse-vecht-theme"
