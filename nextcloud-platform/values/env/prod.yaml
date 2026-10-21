@@ -129,8 +129,6 @@ podDisruptionBudget:
 # Overrides only www.conf; other phpConfigs keys from common.yaml are unaffected (map merge).
 nextcloud:
   phpConfigs:
-    zz-upload-progress.ini: |
-      session.upload_progress.enabled = Off
     www.conf: |
       [www]
       user = www-data

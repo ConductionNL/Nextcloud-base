@@ -22,9 +22,6 @@ hpa:
 
 # Debug logging
 nextcloud:
-  phpConfigs:
-    zz-upload-progress.ini: |
-      session.upload_progress.enabled = Off
   configs:
     logging.config.php: |
       <?php
