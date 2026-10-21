@@ -1,4 +1,6 @@
 ---
+image:
+  tag: "32.0.15-fpm"
 tenant:
   name: live-prod
   environment: prod
