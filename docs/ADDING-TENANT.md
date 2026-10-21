@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-10-13
+last_reviewed: 2026-10-14
 owner: info@conduction.nl
 ---
 
@@ -248,6 +248,102 @@ soap-enabled build from `ConductionNL/nextcloud-images`.
 
 `validate-values.sh` has no top-level key allowlist, so an `image:` block passes
 validation as-is — the rules above are not machine-checked.
+
+#### Extra hostnames on one tenant
+
+One Nextcloud can answer on more than one hostname, for example a workplace on
+`cloud.<domain>` and a public site served by an app on `www.<domain>`. Set the
+primary host as usual and list the others:
+
+```yaml
+tenant:
+  hostname: cloud.example.nl
+  hostnameOverride: true
+  extraHostnames:
+    - www.example.nl
+```
+
+A bare apex such as `example.nl` is refused unless you also set
+`extraHostnamesAllowApex: true`; read the HSTS point below first.
+
+What the ApplicationSet does with it (`argo/applicationsets/nextcloud-tenants.yaml`):
+
+| Effect | Detail |
+|---|---|
+| `trusted_domains` | every extra host is added to `nextcloud.trustedDomains`, after the primary host |
+| routing | a second Ingress `nextcloud-extra-hosts`, because chart 8.9.0 puts only `nextcloud.host` in its own Ingress rules. Apex hosts (two labels) go into a third Ingress `nextcloud-extra-hosts-apex` |
+| certificates | one TLS entry per host, secret `nextcloud-<tenant>-<host with dashes>-tls`, so one cert-manager Certificate per host via HTTP-01 (`letsencrypt-prod`). A host whose DNS is not ready does not block the others |
+| annotations | taken from `ingress.annotations`, `ingress.className`, `ingress.path`, `ingress.pathType` and `service.port` through the chart's `tpl`, so they always match the main Ingress; with `ingress.enabled: false` no Ingress is rendered. The apex Ingress has one difference: `nginx.ingress.kubernetes.io/hsts-include-subdomains: "false"` |
+
+A tenant without `extraHostnames` renders byte-identical to before; the block is
+only emitted when the list is set.
+
+Seven things to know:
+
+- **An apex host gets HSTS with includeSubDomains, so it needs an opt-in.**
+  Every host on our ingress-nginx answers with
+  `Strict-Transport-Security: max-age=31536000; includeSubDomains` (measured on
+  `dinkelland.commonground.nu`). On an apex like `example.nl` that means a
+  browser that visits it once forces HTTPS on every `*.example.nl` for a year,
+  including internal or http-only subdomains of the customer. Neither we nor the
+  customer can undo that in a browser that already has it. `validate-values.sh`
+  therefore refuses an extra host with two labels unless the tenant sets
+  `tenant.extraHostnamesAllowApex: true`. Set it only when the owner of the zone
+  has accepted that every subdomain must work over HTTPS.
+- **The apex Ingress asks for no includeSubDomains, but ingress-nginx does not
+  read that today.** `nextcloud-extra-hosts-apex` carries
+  `hsts-include-subdomains: "false"`; the main Ingress and the other extra hosts
+  keep their value. ingress-nginx has no per-Ingress HSTS annotations: `hsts`,
+  `hsts-max-age` and `hsts-include-subdomains` are settings of the controller
+  ConfigMap. That is why the live max-age is 31536000 (the ConfigMap default)
+  and not the 15552000 in `values/common.yaml` (see `docs/GATEWAY-API.md`). The
+  ConfigMap `nginx-ingress-nginx-controller` is in no repo (Helm release `nginx`,
+  see `cluster-infra/scripts/tls-sigalgs-apply.sh`). So with the opt-in, the
+  apex host does get includeSubDomains until one of these changes: the
+  controller ConfigMap sets `hsts-include-subdomains: "false"` (for every host
+  on the cluster), the apex Ingress gets a `configuration-snippet` that sets the
+  header itself (only if the controller allows snippet annotations, not
+  verified), or the apex host moves to a Gateway API route whose `route.hsts`
+  leaves includeSubDomains out (`charts/tenant-httproute` does that per tenant,
+  but takes one host). The nginx sidecar in the pod also sends its own header,
+  `max-age=15768000; includeSubDomains; preload` (`values/common.yaml`,
+  `nginx.config.default`). ingress-nginx replaces it today, but a route that
+  does not set HSTS itself lets it through.
+- **Extra hosts only get Let's Encrypt.** Both extra Ingresses inherit
+  `cert-manager.io/cluster-issuer: letsencrypt-prod` from `ingress.annotations`,
+  so cert-manager creates and owns the certificate of every extra host. A paid
+  or own certificate per extra host is not possible yet: a certificate you put
+  in `nextcloud-<tenant>-<host with dashes>-tls` yourself is overwritten by
+  cert-manager, and a CAA record that allows only the customer's own CA leaves
+  the Certificate on `Ready=False` while nginx serves its fake certificate. The
+  existing pattern for a customer certificate is `tenant.frontend.tls`
+  (`secretName` plus `issuer: none`, an Ingress without the cert-manager
+  annotation; see `tenant-tubbergen-prod.yaml`). `extraHostnames` has no such
+  option; a host that needs its own certificate cannot be an extra host for now.
+
+- **DNS is yours when the zone is not ours.** external-dns only manages
+  `commonground.nu`, `openwoo.app` and `opencatalogi.nl`
+  (`cluster-infra/external-dns/values.yaml`). For any other zone the zone owner
+  creates the records by hand, pointing at the ingress-nginx load balancer, and
+  keeps them **DNS only** (not proxied): Cloudflare caps request bodies at 100 MB
+  against our 16G, and HTTP-01 has to reach the Ingress.
+- **A CAA record on the zone must allow `letsencrypt.org`**, or issuance fails
+  (see the Let's Encrypt point above).
+- **`trusted_domains` is written at first install only.** The Nextcloud image
+  reads `NEXTCLOUD_TRUSTED_DOMAINS` when it installs; adding a host to a running
+  tenant later also needs `occ config:system:set trusted_domains <n> --value=<host>`
+  in the pod (same pattern as `cutover-tenant.sh`). Put the full list in the file
+  before the tenant is first created. Removing a host from the list works the
+  same way: Argo prunes the Ingress, but the host stays in `config.php` until
+  you run `occ config:system:delete trusted_domains <n>`. In both cases run
+  `occ config:system:get trusted_domains` first to find the right `<n>`: `set`
+  on an index that is already in use overwrites that entry.
+- **Gateway API routes do not use this list.** `charts/tenant-httproute` takes one
+  host; a tenant with `gateway.nextcloud: true` gets a route for the primary host
+  only. The extra hosts stay on the nginx Ingress, and that Ingress follows
+  `ingress.enabled` like the chart's own: `ingress.enabled: false` would leave
+  them without any route, so `validate-values.sh` refuses `extraHostnames`
+  together with `ingress.enabled: false`.
 
 Validate before pushing:
 

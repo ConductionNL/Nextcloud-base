@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-08-10
+last_reviewed: 2026-10-14
 owner: info@conduction.nl
 ---
 
@@ -34,6 +34,23 @@ Before merge, CI runs `scripts/verify.sh`, which wraps:
 - `nextcloud-platform/scripts/validate-values.sh` — required/forbidden fields
   and patterns across all tenant files
 - `nextcloud-platform/scripts/smoke-checks.sh` — Helm chart renders
+
+`validate-values.sh` also checks the optional `tenant.extraHostnames` list (a
+list, valid DNS names and no IP address, no duplicates, not the primary host,
+under `commonground.nu` only this tenant's own names, a unique derived TLS
+secret name Kubernetes accepts, not together with `ingress.enabled: false`, and
+no apex host such as `gemeente.nl` without `tenant.extraHostnamesAllowApex: true`).
+`tenant.hostname` is refused as an IP address too. It also checks across all
+tenant files that no host (primary, `extraHostnames`, `frontend.host`,
+`frontend.extraHosts`) is claimed by two tenants, also when it is run on a
+single file, and that no two tenant files share a `tenant.name`. A valid list still gives a warning, because DNS and
+HTTP-01 for those hosts are outside what CI can see. Fixtures for every branch
+are in `nextcloud-platform/tests/cases/tenant-extra-hostnames-*`.
+`nextcloud-platform/tests/render-extra-hosts.sh` (also in `verify.sh`) renders
+two of those fixtures through the ApplicationSet and chart 8.9.0 and checks the
+result: an apex host lands in its own Ingress with
+`hsts-include-subdomains: "false"`, the main Ingress keeps its value, and both
+extra Ingresses keep the cert-manager issuer.
 
 This catches invalid values and Helm/rendering failures early. Both are dry-run:
 CI needs no cluster access and no secrets. The same gate runs locally via
