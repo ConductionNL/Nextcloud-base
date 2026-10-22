@@ -30,4 +30,4 @@ image:
   #
   # Tag komt uit ConductionNL/nextcloud-images; de workflow leidt het
   # versienummer af uit de `FROM` van soap-client/Dockerfile.
-  tag: "32.0.6-fpm-soap"
+  tag: "32.0.15-fpm-soap"
