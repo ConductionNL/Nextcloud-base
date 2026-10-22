@@ -160,6 +160,22 @@ The custom image (`conduction2022/nextcloud-images:postgres16-ext-*`) includes:
 - Additional extensions for performance
 - Optimized settings for Nextcloud
 
+### Lock-tabel (`max_locks_per_transaction`)
+
+`values/db/postgres.yaml` zet via `postgresql.primary.extendedConfiguration`
+`max_locks_per_transaction = 1024` (default 64). OpenRegister zoekt met één
+UNION over al zijn schematabellen, en elke tabel plus elke index kost een lock
+in één transactie. Met ~1.329 tabellen gaf 64 `out of shared memory`.
+
+Kosten: ongeveer 46MB extra shared memory per Postgres-pod (143MB naar 189MB
+`shared_memory_size`, gemeten op het image). Een wijziging van deze waarde
+herstart Postgres, voor elke postgres-tenant tegelijk als hij in dit bestand
+staat. Een tenant kan hem ook alleen voor zichzelf zetten met hetzelfde blok in
+zijn tenantbestand.
+
+Geldt niet voor `dbType: external`: die tenants draaien op het gedeelde
+cluster uit `platform/postgres/cluster.yaml`, dat zijn eigen parameters heeft.
+
 ### Secret Creation
 
 ```bash
