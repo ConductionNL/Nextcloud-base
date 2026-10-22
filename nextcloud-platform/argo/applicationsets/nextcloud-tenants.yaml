@@ -182,6 +182,48 @@ spec:
                   # (currently canary-overrides only; graduates to env/prod.yaml).
                   - name: NEXTCLOUD_OBJECTSTORE_PREFIX
                     value: "{{ $name }}/"
+                  {{- if eq (toString .tenant.mail.enabled) "true" }}
+                  # Uitgaande mail, opt-in per tenant (tenant.mail, zie
+                  # docs/TENANT-OPERATIONS.md "Uitgaande mail"). Dezelfde env
+                  # vars als de chart bij nextcloud.mail.enabled zet, maar de
+                  # secret-sleutels zijn optional: ontbreken smtp-host,
+                  # smtp-username of smtp-password nog in nextcloud-secrets, dan
+                  # start de pod gewoon en verstuurt Nextcloud niets
+                  # (smtp.config.php doet niets zonder SMTP_HOST). Met de
+                  # chart-route bleef de pod dan in CreateContainerConfigError.
+                  - name: MAIL_FROM_ADDRESS
+                    value: "{{ .tenant.mail.fromAddress }}"
+                  - name: MAIL_DOMAIN
+                    value: "{{ .tenant.mail.domain }}"
+                  - name: SMTP_SECURE
+                    value: '{{ if eq (toString .tenant.mail.secure) "none" }}{{ else }}ssl{{ end }}'
+                  - name: SMTP_PORT
+                    value: "{{ default 465 .tenant.mail.port }}"
+                  - name: SMTP_HOST
+                    valueFrom:
+                      secretKeyRef:
+                        name: nextcloud-secrets
+                        key: smtp-host
+                        optional: true
+                  - name: SMTP_NAME
+                    valueFrom:
+                      secretKeyRef:
+                        name: nextcloud-secrets
+                        key: smtp-username
+                        optional: true
+                  - name: SMTP_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: nextcloud-secrets
+                        key: smtp-password
+                        optional: true
+                  {{- end }}
+                {{- if eq (toString .tenant.mail.enabled) "true" }}
+                # common.yaml zet smtp.config.php fleet-breed uit; alleen een
+                # tenant met tenant.mail krijgt hem, read-only uit de chart.
+                defaultConfigs:
+                  smtp.config.php: true
+                {{- end }}
               ingress:
                 tls:
                   - secretName: "nextcloud-{{ $name }}-tls"
