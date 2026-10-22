@@ -209,7 +209,7 @@ tenant:
 image:
   registry: ghcr.io
   repository: conductionnl/nextcloud-images
-  tag: "32.0.6-fpm-soap"
+  tag: "32.0.15-fpm-soap"
 ```
 
 This works because the tenant file is the **last** entry in the ApplicationSet's

@@ -27,4 +27,4 @@ image:
   # `fpm-soap` — see tenant-rijswijk-accept.yaml for why: with pullPolicy
   # IfNotPresent a floating tag makes the running version depend on when a
   # node last pulled it.
-  tag: "32.0.6-fpm-soap"
+  tag: "32.0.15-fpm-soap"
