@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-10-13
+last_reviewed: 2026-10-22
 owner: info@conduction.nl
 ---
 
@@ -195,7 +195,7 @@ Rejected: `"v0.7.12"`, `"0.7"`, `"0.7.x"`, `"latest"`.
 
 #### Overriding the Nextcloud image
 
-The platform image is set once in `values/common.yaml` (`nextcloud:32.0.13-fpm`).
+The platform image is set once in `values/common.yaml` (`nextcloud:32.0.15-fpm`).
 A tenant that needs a different build — a PHP extension the official image does
 not ship, for instance — overrides it with a **top-level** `image:` block in its
 own tenant file:
