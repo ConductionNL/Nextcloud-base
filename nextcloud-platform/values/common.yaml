@@ -547,6 +547,10 @@ nextcloud:
         local APP_NAME=$1 VERSION=$2
         local ASSET="$APP_NAME-$VERSION.tar.gz"
         local URL="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$ASSET"
+        # A few older releases published the asset with a leading "v" baked into the
+        # filename itself (e.g. "openconnector-v0.2.24-woo-3.tar.gz"), not just the tag.
+        # Current releases don't do this; this is a fallback name to try on 404.
+        local URL_LEGACY="https://github.com/ConductionNL/$APP_NAME/releases/download/v$VERSION/$APP_NAME-v$VERSION.tar.gz"
         local WORK STAGE CODE EXPECTED ACTUAL LISTING TOPS XML_ID XML_VER PREV_VER d
 
         if ! [[ "$APP_NAME" =~ $ID_RE ]] || ! [[ "$VERSION" =~ $VER_RE ]]; then
@@ -574,8 +578,14 @@ nextcloud:
         if ! curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 \
             --speed-limit 10240 --speed-time 20 \
             --retry 3 --retry-delay 5 --retry-max-time 50 "$URL" -o "$WORK/$ASSET" 2>>"$LOG"; then
-          fail "$APP_NAME v$VERSION: GitHub download failed for $URL (installed version kept)"
-          rm -rf "$WORK"; return 1
+          log "$APP_NAME v$VERSION: $URL failed, retrying with legacy asset name $URL_LEGACY"
+          if ! curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 \
+              --speed-limit 10240 --speed-time 20 \
+              --retry 3 --retry-delay 5 --retry-max-time 50 "$URL_LEGACY" -o "$WORK/$ASSET" 2>>"$LOG"; then
+            fail "$APP_NAME v$VERSION: GitHub download failed for $URL and $URL_LEGACY (installed version kept)"
+            rm -rf "$WORK"; return 1
+          fi
+          URL="$URL_LEGACY"
         fi
 
         # The .sha256 comes from the same release as the tarball: an integrity
