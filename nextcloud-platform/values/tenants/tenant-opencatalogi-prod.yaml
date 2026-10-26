@@ -1,0 +1,35 @@
+---
+# opencatalogi-prod: backend for the public website opencatalogi.nl
+# (replaces the standalone Application opencatalogi-poc-accept-nextcloud
+# in namespace opencatalogi-poc; ConductionNL/opencatalogi#1993).
+# frontend.enabled false: the site is served by tilburg-woo-ui, not the WOO PWA.
+# image: new environments run the latest Nextcloud (35.0.2); patch tag, no digest.
+# versions: the beta set that directory.opencatalogi.nl runs since 2026-10-26.
+tenant:
+  name: opencatalogi-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  secrets:
+    managed: true
+  frontend:
+    enabled: false
+  apps:
+    enabled:
+      - openregister
+      - opencatalogi
+      - stackiq
+      - integriq
+      - portaliq
+      - thematiq
+    versions:
+      openregister: "2.1.41-beta.20261020102916"
+      opencatalogi: "2.1.30-beta.20261021070013"
+      stackiq: "0.2.7-beta.20261020105142"
+      integriq: "0.4.12-beta.20261016150933"
+      portaliq: "0.2.9-beta.20261008070505"
+      thematiq: "1.2.26-beta.20261008130306"
+image:
+  registry: docker.io
+  repository: nextcloud
+  tag: "35.0.2-fpm"
