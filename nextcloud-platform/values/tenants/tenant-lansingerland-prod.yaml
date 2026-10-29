@@ -10,6 +10,9 @@ tenant:
       - opencatalogi
       - openconnector
       - openregister
+    versions:
+      openregister: "1.1.5-woo-2"
+      openconnector: "0.2.24-woo-3"
   # Migratie legacy frontend (ns lansingerland) 2026-07-06 — waardes 1:1 uit de
   # legacy deploy; backend
   # serveert zelf lansingerland.commonground.nu, upstream default klopt. Nieuw
