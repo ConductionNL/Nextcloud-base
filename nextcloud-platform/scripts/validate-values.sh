@@ -617,6 +617,84 @@ validate_frontend_branding() {
     return 0
 }
 
+# Validate tenant.mail (uitgaande mail, opt-in)
+#
+# De ApplicationSet zet bij tenant.mail.enabled: true de SMTP-env vars en
+# smtp.config.php. Host, gebruiker en wachtwoord staan NOOIT hier maar in
+# nextcloud-secrets (smtp-host, smtp-username, smtp-password).
+# fromAddress is alleen het deel vóór de @ (Nextcloud plakt mail_domain erachter);
+# `noreply@zuiddrecht.nl` hier zou `noreply@zuiddrecht.nl@zuiddrecht.nl` opleveren.
+MAIL_KEYS=("enabled" "fromAddress" "domain" "port" "secure")
+validate_mail() {
+    local file="$1"
+    local has_error=0
+    local key found a
+
+    while IFS= read -r key; do
+        [ -z "$key" ] && continue
+        found=0
+        for a in "${MAIL_KEYS[@]}"; do
+            if [ "$key" = "$a" ]; then
+                found=1
+                break
+            fi
+        done
+        if [ $found -eq 0 ]; then
+            log_error "$file: Onbekende sleutel '$key' onder tenant.mail. Niets leest hem, dus hij wordt stil genegeerd. Toegestaan: ${MAIL_KEYS[*]}. SMTP-host en -inloggegevens horen in nextcloud-secrets, niet hier."
+            has_error=1
+        fi
+    done < <(yq eval '.tenant.mail // {} | keys | .[]' "$file" 2>/dev/null)
+
+    local enabled from domain port secure
+    enabled=$(yq eval '.tenant.mail.enabled // ""' "$file" 2>/dev/null)
+    [ -z "$enabled" ] && return $has_error
+
+    if [ "$enabled" != "true" ] && [ "$enabled" != "false" ]; then
+        log_error "$file: tenant.mail.enabled moet true of false zijn (got '$enabled')"
+        return 1
+    fi
+    [ "$enabled" = "false" ] && return $has_error
+
+    from=$(yq eval '.tenant.mail.fromAddress // ""' "$file" 2>/dev/null)
+    domain=$(yq eval '.tenant.mail.domain // ""' "$file" 2>/dev/null)
+    port=$(yq eval '.tenant.mail.port // ""' "$file" 2>/dev/null)
+    secure=$(yq eval '.tenant.mail.secure // ""' "$file" 2>/dev/null)
+
+    if [ -z "$from" ]; then
+        log_error "$file: tenant.mail.fromAddress ontbreekt (het deel vóór de @, bv. 'noreply')"
+        has_error=1
+    elif [[ "$from" == *@* ]]; then
+        log_error "$file: tenant.mail.fromAddress '$from' bevat een @. Alleen het deel vóór de @; het domein hoort in tenant.mail.domain."
+        has_error=1
+    elif ! [[ "$from" =~ ^[a-zA-Z0-9]([a-zA-Z0-9._+-]{0,62}[a-zA-Z0-9])?$ ]]; then
+        log_error "$file: Invalid tenant.mail.fromAddress '$from' (letters, cijfers, . _ + -)"
+        has_error=1
+    fi
+
+    if [ -z "$domain" ]; then
+        log_error "$file: tenant.mail.domain ontbreekt (bv. 'zuiddrecht.nl')"
+        has_error=1
+    elif ! [[ "$domain" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]]; then
+        log_error "$file: Invalid tenant.mail.domain '$domain' (kleine letters, bv. 'zuiddrecht.nl')"
+        has_error=1
+    fi
+
+    if [ -n "$port" ] && ! { [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; }; then
+        log_error "$file: Invalid tenant.mail.port '$port' (1-65535)"
+        has_error=1
+    fi
+
+    if [ -n "$secure" ] && [ "$secure" != "ssl" ] && [ "$secure" != "none" ]; then
+        log_error "$file: Invalid tenant.mail.secure '$secure'. Toegestaan: ssl (standaard, poort 465) of none."
+        has_error=1
+    elif [ "$secure" = "none" ] && [ -z "$port" ]; then
+        log_error "$file: tenant.mail.secure is none maar tenant.mail.port ontbreekt. De standaardpoort 465 is impliciete TLS; geef de poort expliciet."
+        has_error=1
+    fi
+
+    return $has_error
+}
+
 # Check for potential secrets in file content
 check_for_secrets() {
     local file="$1"
@@ -679,6 +757,7 @@ validate_tenant_file() {
     validate_frontend_image "$file" || ((file_errors++))
     validate_frontend_keys "$file" || ((file_errors++))
     validate_frontend_branding "$file" || ((file_errors++))
+    validate_mail "$file" || ((file_errors++))
     check_for_secrets "$file" || true  # Warnings only
     
     if [ $file_errors -eq 0 ]; then
