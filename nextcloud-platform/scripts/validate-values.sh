@@ -617,6 +617,195 @@ validate_frontend_branding() {
     return 0
 }
 
+# Optionele componenten per tenant (tenant.components.*). Elke sleutel hier
+# heeft een eigen ApplicationSet die hem leest; een sleutel die niemand leest
+# wordt stil genegeerd, dus die weigeren we.
+COMPONENT_KEYS=("demoReset")
+DEMO_RESET_KEYS=(
+    "enabled" "confirmWipe" "schedule" "paused" "exampleSets"
+    "exampleSetMode" "exampleSetPasswordSecret" "limitApps"
+)
+DEMO_RESET_LIMIT_APPS_KEYS=("apps" "exceptGroups")
+
+# Sleutels onder een pad toetsen aan een allowlist (los van _check_keys in
+# validate_frontend_keys, dat pas bestaat nadat die functie één keer liep).
+check_allowed_keys() {
+    local file="$1" path="$2" label="$3"
+    shift 3
+    local allowed=("$@") key a found has_error=0
+    while IFS= read -r key; do
+        [ -z "$key" ] && continue
+        found=0
+        for a in "${allowed[@]}"; do
+            if [ "$key" = "$a" ]; then
+                found=1
+                break
+            fi
+        done
+        if [ $found -eq 0 ]; then
+            log_error "$file: Onbekende sleutel '$key' onder $label. Niets leest hem, dus hij wordt stil genegeerd. Toegestaan: ${allowed[*]}"
+            has_error=1
+        fi
+    done < <(yq eval "$path // {} | keys | .[]" "$file" 2>/dev/null)
+    return $has_error
+}
+
+# Validate tenant.components.demoReset (charts/tenant-demo-reset)
+#
+# Deze component WIST elke nacht alles wat bezoekers in de tenant maakten. Een
+# fout hier kost dus geen render, maar een gemeente. Daarom strenger dan de
+# rest: `enabled` moet een echte boolean zijn (de ApplicationSet-selector
+# matcht de string "true"; `yes` of `"true"` gedraagt zich anders dan het
+# leest), en `confirmWipe` moet letterlijk de tenantnaam herhalen, zodat een
+# blok dat van een ander tenantbestand is overgenomen niet stil meegaat.
+# Zie docs/DEMO-RESET.md.
+validate_demo_reset() {
+    local file="$1"
+    local base='.tenant.components.demoReset'
+    local has_error=0
+
+    if [ "$(yq eval '.tenant.components | type' "$file" 2>/dev/null)" = "!!null" ]; then
+        return 0
+    fi
+    check_allowed_keys "$file" '.tenant.components' 'tenant.components' "${COMPONENT_KEYS[@]}" || has_error=1
+
+    if [ "$(yq eval "$base | type" "$file" 2>/dev/null)" = "!!null" ]; then
+        return $has_error
+    fi
+    check_allowed_keys "$file" "$base" 'tenant.components.demoReset' "${DEMO_RESET_KEYS[@]}" || has_error=1
+
+    local enabled_type enabled
+    enabled_type=$(yq eval "$base.enabled | type" "$file" 2>/dev/null)
+    enabled=$(yq eval "$base.enabled" "$file" 2>/dev/null)
+    if [ "$enabled_type" != "!!bool" ]; then
+        log_error "$file: tenant.components.demoReset.enabled moet true of false zijn (een YAML-boolean, zonder aanhalingstekens), niet '$enabled'."
+        has_error=1
+    fi
+
+    local paused_type
+    paused_type=$(yq eval "$base.paused | type" "$file" 2>/dev/null)
+    if [ "$paused_type" != "!!null" ] && [ "$paused_type" != "!!bool" ]; then
+        log_error "$file: tenant.components.demoReset.paused moet true of false zijn (een YAML-boolean)."
+        has_error=1
+    fi
+
+    # Vijf velden, alleen cijfers en * , / -. Geen @daily-macro's of namen: de
+    # bedoeling moet in het tenantbestand te lezen zijn.
+    local schedule
+    schedule=$(yq eval "$base.schedule // \"\"" "$file" 2>/dev/null)
+    if [ -n "$schedule" ] && ! [[ "$schedule" =~ ^[0-9*/,-]+( [0-9*/,-]+){4}$ ]]; then
+        log_error "$file: tenant.components.demoReset.schedule '$schedule' is geen cron-schema met vijf velden (bv. \"15 4 * * *\", tijdzone Europe/Amsterdam)."
+        has_error=1
+    fi
+
+    local sets_type set_id set_count=0
+    sets_type=$(yq eval "$base.exampleSets | type" "$file" 2>/dev/null)
+    if [ "$sets_type" != "!!null" ] && [ "$sets_type" != "!!seq" ]; then
+        log_error "$file: tenant.components.demoReset.exampleSets moet een lijst zijn."
+        has_error=1
+    elif [ "$sets_type" = "!!seq" ]; then
+        while IFS= read -r set_id; do
+            set_count=$((set_count + 1))
+            if ! [[ "$set_id" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then
+                log_error "$file: tenant.components.demoReset.exampleSets bevat '$set_id'; verwacht een set-id zoals 'zuiddrecht' (kleine letters, cijfers, koppeltekens)."
+                has_error=1
+            fi
+        done < <(yq eval "$base.exampleSets[]" "$file" 2>/dev/null)
+    fi
+
+    local mode
+    mode=$(yq eval "$base.exampleSetMode // \"\"" "$file" 2>/dev/null)
+    if [ -n "$mode" ] && [ "$mode" != "install" ] && [ "$mode" != "reinstall" ]; then
+        log_error "$file: tenant.components.demoReset.exampleSetMode '$mode' is onbekend. Toegestaan: install, reinstall."
+        has_error=1
+    fi
+
+    local secret
+    secret=$(yq eval "$base.exampleSetPasswordSecret // \"\"" "$file" 2>/dev/null)
+    if [ -n "$secret" ] && ! [[ "$secret" =~ ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$ ]]; then
+        log_error "$file: tenant.components.demoReset.exampleSetPasswordSecret '$secret' is geen geldige Secret-naam."
+        has_error=1
+    fi
+
+    if [ $set_count -eq 0 ]; then
+        if [ -n "$mode" ]; then
+            log_error "$file: tenant.components.demoReset.exampleSetMode is gezet zonder exampleSets. Zonder sets wordt er niets geladen."
+            has_error=1
+        fi
+        if [ -n "$secret" ]; then
+            log_error "$file: tenant.components.demoReset.exampleSetPasswordSecret is gezet zonder exampleSets. Het wachtwoord is alleen voor het laden van de sets."
+            has_error=1
+        fi
+    elif ! yq eval '.tenant.apps.enabled[]' "$file" 2>/dev/null | grep -x 'openregister' >/dev/null; then
+        log_error "$file: tenant.components.demoReset.exampleSets vraagt openregister (occ openregister:example-set:install), maar openregister staat niet in tenant.apps.enabled."
+        has_error=1
+    fi
+
+    # limitApps: na de sets apps beperken tot alle groepen behalve exceptGroups.
+    local limit_type
+    limit_type=$(yq eval "$base.limitApps | type" "$file" 2>/dev/null)
+    if [ "$limit_type" != "!!null" ] && [ "$limit_type" != "!!map" ]; then
+        log_error "$file: tenant.components.demoReset.limitApps moet een map zijn met apps en exceptGroups."
+        has_error=1
+    elif [ "$limit_type" = "!!map" ]; then
+        check_allowed_keys "$file" "$base.limitApps" 'tenant.components.demoReset.limitApps' "${DEMO_RESET_LIMIT_APPS_KEYS[@]}" || has_error=1
+        local list_key list_type item app_count=0 group_count=0
+        for list_key in apps exceptGroups; do
+            list_type=$(yq eval "$base.limitApps.$list_key | type" "$file" 2>/dev/null)
+            if [ "$list_type" != "!!null" ] && [ "$list_type" != "!!seq" ]; then
+                log_error "$file: tenant.components.demoReset.limitApps.$list_key moet een lijst zijn."
+                has_error=1
+                continue
+            fi
+            while IFS= read -r item; do
+                [ -z "$item" ] && continue
+                if [ "$list_key" = "apps" ]; then
+                    app_count=$((app_count + 1))
+                    if ! [[ "$item" =~ ^[a-z][a-z0-9_]{0,63}$ ]]; then
+                        log_error "$file: tenant.components.demoReset.limitApps.apps bevat '$item'; verwacht een app-id zoals 'dossiq'."
+                        has_error=1
+                    fi
+                else
+                    group_count=$((group_count + 1))
+                    if ! [[ "$item" =~ ^[A-Za-z0-9._@-]{1,64}$ ]]; then
+                        log_error "$file: tenant.components.demoReset.limitApps.exceptGroups bevat '$item'; verwacht een groeps-id (letters, cijfers, . _ @ -)."
+                        has_error=1
+                    fi
+                fi
+            done < <(yq eval "$base.limitApps.${list_key}[]" "$file" 2>/dev/null)
+        done
+        if [ $app_count -gt 0 ] && [ $group_count -eq 0 ]; then
+            log_error "$file: tenant.components.demoReset.limitApps.apps is gezet zonder exceptGroups. Dan krijgt elke groep de apps en beperkt de stap niets."
+            has_error=1
+        fi
+    fi
+
+    # Wat alleen telt als hij echt aan staat.
+    if [ "$enabled" = "true" ] && [ "$enabled_type" = "!!bool" ]; then
+        local name confirm db canary
+        name=$(yq eval '.tenant.name' "$file" 2>/dev/null)
+        confirm=$(yq eval "$base.confirmWipe // \"\"" "$file" 2>/dev/null)
+        if [ "$confirm" != "$name" ]; then
+            log_error "$file: tenant.components.demoReset.confirmWipe moet letterlijk de tenantnaam '$name' zijn (nu: '$confirm'). Deze component wist elke nacht alles wat bezoekers maakten."
+            has_error=1
+        fi
+
+        db=$(yq eval '.tenant.dbType' "$file" 2>/dev/null)
+        if [ "$db" != "postgres" ]; then
+            log_error "$file: tenant.components.demoReset werkt alleen met dbType postgres (de momentopname is een Postgres-template); deze tenant heeft '$db'."
+            has_error=1
+        fi
+
+        canary=$(yq eval '.tenant.canary // false' "$file" 2>/dev/null)
+        if [ "$canary" = "true" ]; then
+            log_error "$file: tenant.components.demoReset kan niet op een tenant met tenant.canary: true. Die zet de bestanden in S3 (canary-overrides.yaml) en demo-reset zet alleen een lokale datamap terug."
+            has_error=1
+        fi
+    fi
+
+    return $has_error
+}
+
 # Check for potential secrets in file content
 check_for_secrets() {
     local file="$1"
@@ -679,6 +868,7 @@ validate_tenant_file() {
     validate_frontend_image "$file" || ((file_errors++))
     validate_frontend_keys "$file" || ((file_errors++))
     validate_frontend_branding "$file" || ((file_errors++))
+    validate_demo_reset "$file" || ((file_errors++))
     check_for_secrets "$file" || true  # Warnings only
     
     if [ $file_errors -eq 0 ]; then
