@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-09-30
+last_reviewed: 2026-11-04
 owner: info@conduction.nl
 ---
 
@@ -19,6 +19,7 @@ Het sleuteltype hangt af van de CA, dus check eerst wat die accepteert en kies h
 |---|---|---|
 | certSIGN | alleen RSA 2048 of 4096, met `sha256`/`sha384`/`sha512WithRSAEncryption` | RSA 4096 |
 | Trust Provider | EC P-256 | EC P-256 |
+| Sectigo | RSA 4096 (gebruikt op 2026-11-04 voor `open.noorderzijlvest.nl`; EC niet geprobeerd) | RSA 4096 |
 
 Neem bij RSA nooit 2048: dat is in de internet.nl-audit van 2026-08-18 als phase-out aangemerkt (zie `React-base` → `docs/SECURITY-HEADERS.md`).
 
@@ -45,6 +46,10 @@ Plak de bestanden niet met `cat` aan elkaar. De `.cer`-bestanden van Trust Provi
 
     { openssl x509 -in <leaf>.cer; openssl x509 -in <intermediate>.cer; } > fullchain.pem
 
+Ga bij het kiezen van de intermediates niet af op mapnamen. De zip van Sectigo zet onder `Root Certificates/` drie certs, maar alleen `USERTrustRSACertificationAuthority.crt` is een echte root. `SectigoPublicServerAuthenticationRootR46-USERTrustRSA.crt` is een cross-signed intermediate en hoort wél in de keten, na `SectigoPublicServerAuthenticationCADVR36.crt`. Een cert is alleen een root als subject en issuer gelijk zijn:
+
+    openssl x509 -in <cert> -noout -subject -issuer
+
 Controleer vóór het zaaien dat de keten klopt en dat `kubectl` het paar accepteert. De tweede regel stuurt niets naar het cluster en faalt ook als sleutel en cert niet bij elkaar horen:
 
     openssl verify -CAfile <root>.cer -untrusted fullchain.pem fullchain.pem
@@ -57,15 +62,24 @@ De namespace is de kale tenant-naam en de secretnaam staat in het tenant-bestand
 
 ### Nieuwe tenant, of een tenant die al op `none` staat
 
-Zaai of vervang het secret met de replace-vorm. Die maakt het secret aan als het nog niet bestaat en vervangt de inhoud als het er al is. Bij een nieuwe tenant doe je dit vóórdat je de tenant-wijziging merget, anders serveert de Ingress even geen bruikbaar cert.
+Kijk eerst of er nog een Certificate voor dit secret staat. Lege uitvoer betekent dat je door kunt:
+
+    kubectl -n <tenant> get certificate
+
+Staat er wel een, doe dan eerst stap 2 van de volgende sectie. Dat geldt ook als de site het klantcert nog netjes serveert. Een Certificate op `Ready=False` is niet onschuldig: cert-manager blijft orders proberen en één geslaagde order zet Let's Encrypt over het klantcert heen. Gemeten op 4 november 2026: `noorderzijlvest-prod` stond al op `none`, serveerde het Sectigo-cert, en had nog een Certificate naar `letsencrypt-prod` dat bleef proberen.
+
+Bestaat het secret nog niet (nieuwe tenant), maak het dan aan. Doe dit vóórdat je de tenant-wijziging merget, anders serveert de Ingress even geen bruikbaar cert.
+
+    kubectl -n <tenant> create secret tls <secretName> \
+      --cert=fullchain.pem --key=<host>.key
+
+Bestaat het secret al, vervang dan het hele object:
 
     kubectl -n <tenant> create secret tls <secretName> \
       --cert=fullchain.pem --key=<host>.key \
-      --dry-run=client -o yaml | kubectl apply -f -
+      --dry-run=client -o yaml | kubectl replace -f -
 
-Een waarschuwing over een ontbrekende `last-applied-configuration`-annotatie is onschuldig als het secret oorspronkelijk door cert-manager is gemaakt.
-
-Staat de tenant al op `none` maar serveert hij toch Let's Encrypt, dan hangt er nog een Certificate van vroeger. Doe dan eerst stap 2 van de volgende sectie.
+Gebruik hier geen `kubectl apply`. Dat zet een kopie van het hele object in de annotatie `kubectl.kubernetes.io/last-applied-configuration`, dus ook `tls.key` in platte tekst, en die kopie blijft staan als de sleutel al lang vervangen is. `replace` overschrijft alle annotaties en ruimt zo'n achtergebleven kopie meteen op.
 
 ### Een bestaande tenant omzetten van een issuer naar `none`
 
@@ -80,11 +94,17 @@ De volgorde is daarom:
        kubectl -n <tenant> get ingress woo-website \
          -o jsonpath='{.metadata.annotations.cert-manager\.io/cluster-issuer}'
 
-2. Verwijder het achtergebleven Certificate. Het secret blijft staan en serveert tot stap 3 het laatste Let's Encrypt-cert, dus er is geen onderbreking. Doe je dit vóórdat stap 1 klaar is, dan maakt cert-manager het Certificate meteen opnieuw aan.
+2. Verwijder het achtergebleven Certificate. Doe je dit vóórdat stap 1 klaar is, dan maakt cert-manager het Certificate meteen opnieuw aan.
+
+   Controleer eerst dat het secret geen `ownerReferences` heeft. Draait cert-manager met `--enable-certificate-owner-ref`, dan hangt het secret aan het Certificate en ruimt Kubernetes het secret mee op, en serveert de Ingress geen bruikbaar cert tot stap 3. Dit commando print alleen de namen van de annotaties, dus geen sleutelmateriaal:
+
+       kubectl -n <tenant> get secret <secretName> -o go-template='owners: {{.metadata.ownerReferences}}{{"\n"}}{{range $k, $v := .metadata.annotations}}{{$k}}{{"\n"}}{{end}}'
+
+   Staat er `owners: <no value>`, dan blijft het secret staan en serveert het tot stap 3 het huidige cert, zonder onderbreking. Noemt `owners` een Certificate, zet dan stap 3 klaar zodat je hem direct na het verwijderen draait.
 
        kubectl -n <tenant> delete certificate <secretName>
 
-3. Zaai het klantcert met de replace-vorm hierboven.
+3. Vervang het secret met `kubectl replace`, zoals hierboven.
 
 ## 4. Nameten
 
@@ -107,6 +127,6 @@ Niets bewaakt de vervaldatum. Cert-manager kijkt niet naar dit secret, en de ale
 - als commentaar bij `issuer: none` in het tenant-bestand;
 - in de agenda, ruim vóór de vervaldatum, want de klant moet de verlenging bij de CA regelen.
 
-Bij verlenging vraagt de klant meestal om een nieuwe CSR. Maak dan een nieuwe sleutel (stap 1), verwerk de nieuwe bestanden (stap 2) en vervang het secret met de replace-vorm (stap 3). De tenant staat al op `none`, dus aan het tenant-bestand verandert alleen de vervaldatum in het commentaar.
+Bij verlenging vraagt de klant meestal om een nieuwe CSR. Maak dan een nieuwe sleutel (stap 1), verwerk de nieuwe bestanden (stap 2) en vervang het secret met `kubectl replace` (stap 3). De tenant staat al op `none`, dus aan het tenant-bestand verandert alleen de vervaldatum in het commentaar.
 
 Het secret staat niet in git. Raakt de namespace kwijt, dan is het cert kwijt en is opnieuw zaaien vanuit Passwork de enige herstelweg.
