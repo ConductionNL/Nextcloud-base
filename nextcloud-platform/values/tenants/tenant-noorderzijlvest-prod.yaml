@@ -20,6 +20,9 @@ tenant:
     host: open.noorderzijlvest.nl
     tls:
       secretName: open-noorderzijlvest-nl-tls
+      # Betaald Sectigo-cert (verloopt 13 mei 2027), handmatig gezaaid.
+      # issuer: none => geen cert-manager-annotatie op de Ingress, dus geen
+      # Certificate-object en geen Let's Encrypt die het klantcert overschrijft.
       issuer: none
     branding:
       organisationName: "Waterschap Noorderzijlvest"
