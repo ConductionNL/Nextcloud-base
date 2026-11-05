@@ -11,12 +11,12 @@ tenant:
   apps:
     enabled:
       - opencatalogi
-      - openconnector
+      - integriq
       - openregister
     versions:
-      opencatalogi: "1.0.9"
-      openconnector: "0.2.24"
-      openregister: "1.1.5"
+      opencatalogi: "2.1.41-beta.20261105064520"
+      integriq: "0.4.13-beta.20261102161437"
+      openregister: "2.1.42-beta.20261102161558"
   frontend:
     tag: "v1.0.0"
     branding:
