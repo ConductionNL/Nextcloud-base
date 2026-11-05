@@ -144,4 +144,11 @@ echo "validator-tests OK"
 nextcloud-platform/tests/run-hook-tests.sh >/dev/null
 echo "hook-tests OK"
 
+# Tests voor de demo-reset (charts/tenant-demo-reset). Die component wist elke
+# nacht een tenant; hij draait op een cluster dat hier niet is. De suite rendert
+# de chart en het values-blok van de ApplicationSet, en draait het script tegen
+# een nep-kubectl, inclusief wat er gebeurt als het halverwege faalt.
+nextcloud-platform/tests/run-demo-reset-tests.sh >/dev/null
+echo "demo-reset-tests OK"
+
 echo "verify: OK"

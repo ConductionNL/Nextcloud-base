@@ -1,0 +1,65 @@
+{{- if .Values.demoReset.enabled }}
+{{- include "demo-reset.guard" . }}
+# De nachtelijke reset. `paused: true` in het tenantbestand zet hem stil.
+#
+# backoffLimit 0: geen automatische herhaling. Een tweede poging direct na een
+# fout raakt dezelfde fout, en een run die na de eerste onomkeerbare stap faalt
+# laat de onderhoudsmodus bewust aan. Herstarten is een menselijk besluit
+# (docs/DEMO-RESET.md); de volgende nacht probeert hij het vanzelf opnieuw.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: demo-reset
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "demo-reset.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.demoReset.schedule | quote }}
+  timeZone: {{ .Values.demoReset.timeZone | quote }}
+  suspend: {{ .Values.demoReset.paused }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "demo-reset.labels" . | nindent 8 }}
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.job.activeDeadlineSeconds }}
+      template:
+        {{- include "demo-reset.pod" (dict "root" . "mode" "reset") | nindent 8 }}
+---
+# De gouden momentopname. Draait NOOIT vanzelf: suspend staat vast op true en
+# het schema (31 februari) bestaat niet. Een mens start hem, na een
+# gecontroleerde stand van de demo:
+#
+#   kubectl create job -n {{ .Release.Namespace }} --from=cronjob/demo-reset-golden demo-reset-golden-$(date +%Y%m%d%H%M)
+#
+# Het is een CronJob en geen losse Job omdat een Job in git door Argo bij elke
+# sync opnieuw zou worden aangemaakt of als OutOfSync blijft staan; een CronJob
+# is een sjabloon dat je met de hand afvuurt.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: demo-reset-golden
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "demo-reset.labels" . | nindent 4 }}
+spec:
+  schedule: "0 0 31 2 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "demo-reset.labels" . | nindent 8 }}
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.job.activeDeadlineSeconds }}
+      template:
+        {{- include "demo-reset.pod" (dict "root" . "mode" "golden") | nindent 8 }}
+{{- end }}
