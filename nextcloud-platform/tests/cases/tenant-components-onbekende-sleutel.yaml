@@ -1,0 +1,13 @@
+---
+tenant:
+  name: zuiddrecht-prod
+  environment: prod
+  wave: "1"
+  dbType: postgres
+  apps:
+    enabled:
+      - openregister
+      - opencatalogi
+  components:
+    keycloak:
+      enabled: true
