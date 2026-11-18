@@ -1,6 +1,6 @@
 ---
 image:
-  tag: "32.0.15-fpm"
+  tag: "33.0.11-fpm"
 tenant:
   name: live-prod
   environment: prod
@@ -14,9 +14,9 @@ tenant:
       - integriq
       - openregister
     versions:
-      opencatalogi: "2.1.41-beta.20261105064520"
-      integriq: "0.4.13-beta.20261102161437"
-      openregister: "2.1.42-beta.20261102161558"
+      opencatalogi: "2.1.56-beta.20261118105009"
+      integriq: "0.4.19-beta.20261118105601"
+      openregister: "2.1.46-beta.20261106201943"
   frontend:
     tag: "v1.0.0"
     branding:
