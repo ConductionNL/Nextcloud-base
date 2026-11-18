@@ -6,6 +6,7 @@ tenant:
   environment: prod
   wave: "1"
   dbType: postgres
+  phpMemoryLimit: "4096M"
   secrets:
     managed: true
   apps:
