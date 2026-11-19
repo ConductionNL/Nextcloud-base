@@ -134,9 +134,17 @@ externalDatabase:
 # De fasering zit niet in dit bestand maar in de refs: wave-0 volgt main
 # en krijgt dit bij de merge, de andere 74 volgen `release` en krijgen
 # het pas bij promotie. Zie CLAUDE.md, sectie Sync Windows.
+#
+# Digest-pin sinds 2026-11-19 (PHP security release 2026-11-18): Docker Hub
+# heeft `32.0.15-fpm` herbouwd op PHP 8.3.37 zonder de tag te veranderen.
+# Met IfNotPresent zou een node die de oude 32.0.15-fpm (PHP 8.3.36) al
+# heeft die blijven draaien. De chart (8.9.0) rendert geen `digest:`-veld,
+# maar plakt `tag` letterlijk achter `repository:`, dus `@sha256:` in de tag
+# komt in de podspec en dwingt de pull af. Bij een volgende tag: digest
+# meenemen of weghalen, nooit een oude digest onder een nieuwe tag laten.
 image:
   repository: nextcloud
-  tag: "32.0.15-fpm"
+  tag: "32.0.15-fpm@sha256:2207fa4f5394eaceab05db4b492ca0a489ffac4e69357e64bdf951851f8a512b"
   pullPolicy: IfNotPresent
 
 # Replica count (can be overridden per env/tenant)
