@@ -61,6 +61,24 @@ postgresql:
       failureThreshold: 3
       successThreshold: 1
 
+    # -------------------------------------------------------------------------
+    # Lock-tabel: max_locks_per_transaction 64 -> 1024
+    # -------------------------------------------------------------------------
+    # OpenRegister zet elk schema in een eigen tabel (magic tables) en zoekt
+    # over schema's heen met één UNION. Elke tabel en elke index daarvan kost
+    # een lock in één transactie. Bij ~1.329 tabellen gaf de default 64:
+    #   ERROR: out of shared memory
+    #   HINT:  You might need to increase max_locks_per_transaction.
+    # Gemeten 2026-10-15 op dit image: 1.329 tabellen met 8 indexen (11.963
+    # locks) faalt op 64 en slaagt op 1024.
+    #
+    # Kosten: de lock-tabel staat in shared memory. shared_memory_size gaat van
+    # 143MB naar 189MB (+46MB, gemeten), binnen de limiet van 512Mi uit
+    # common.yaml. Vraagt een herstart van Postgres; de chart zet daarvoor een
+    # checksum-annotatie op de StatefulSet.
+    extendedConfiguration: |
+      max_locks_per_transaction = 1024
+
     initdb:
       scripts:
         01-enable-extensions.sql: |
