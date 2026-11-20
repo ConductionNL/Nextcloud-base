@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-07-10
+last_reviewed: 2026-10-14
 owner: info@conduction.nl
 ---
 
@@ -15,6 +15,8 @@ Guardrails voor agents in deze repo, per het handboek-formaat
 | Tenant-bestand aanmaken (`values/tenants/tenant-<org>-<env>.yaml` uit de template) | **voorstel-eerst** (toon het volledige bestand, schrijf pas na akkoord — creatie-regel 2026-07-10) | declaratief: bestand bestaat al → geen tweede aanmaak (check eerst) | `./scripts/verify.sh` (validator + smoke-render) groen |
 | Frontend-blok (`tenant.frontend:`): nieuw toevoegen **voorstel-eerst**, bestaand wijzigen autonoom | zie creatie-regel | gewenste staat in het bestand; gelijke staat → geen diff | verify hier én react-base `./scripts/verify.sh` (vloot-render) |
 | Tenant-waarden wijzigen (resources, apps, phpMemoryLimit) | autonoom | idem (declaratief bestand) | verify groen; render-diff tonen bij twijfel |
+| `tenant.components.demoReset` aanzetten (wist de tenant elke nacht) | **voorstel-eerst** | declaratief; `confirmWipe` moet de tenantnaam zijn | verify groen; DEMO-RESET.md |
+| Gouden momentopname nemen of een demo-reset met de hand starten (`kubectl create job --from=cronjob/...`) | mens-vereist | ja; zelfde momentopname, zelfde uitkomst | agent zet het commando klaar; mens voert uit; DEMO-RESET.md |
 | Docs bijwerken (zelfde wijziging als de code) | autonoom | tekstueel; front-matter `last_reviewed` bijwerken | docs-contract-gate |
 | Tenant-bestand verwijderen | mens-vereist | n.v.t. (voorbereiding is een diff) | agent bereidt voor; mens beslist + pusht; REMOVING-TENANT.md |
 | Secrets aanmaken (`create-tenant-secret.sh`, kubectl create secret) | mens-vereist | scripts zijn idempotent, maar secret-handling blijft mensenwerk | mens draait; agent mag het commando klaarzetten |
