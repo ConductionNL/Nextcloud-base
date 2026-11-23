@@ -1,6 +1,6 @@
 ---
 image:
-  tag: "32.0.15-fpm@sha256:2207fa4f5394eaceab05db4b492ca0a489ffac4e69357e64bdf951851f8a512b"
+  tag: "33.0.11-fpm"
 tenant:
   name: live-prod
   environment: prod
