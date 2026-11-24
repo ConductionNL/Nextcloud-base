@@ -17,7 +17,7 @@ tenant:
     versions:
       opencatalogi: "2.1.56-beta.20261118105009"
       integriq: "0.4.19-beta.20261118105601"
-      openregister: "2.1.42-beta.20261102161558"
+      openregister: "2.1.47-beta.1"
   frontend:
     tag: "v1.0.0"
     branding:
