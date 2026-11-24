@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-10-13
+last_reviewed: 2026-10-14
 owner: info@conduction.nl
 ---
 
@@ -48,6 +48,9 @@ hoofdstuk dat je nodig hebt.
 - `GATEWAY-API.md` - een tenant naast zijn Ingress op de gedeelde Gateway zetten
   (migratie weg van ingress-nginx), en waarom dat nog niet vloot-breed kan
 - `TENANT-OPERATIONS.md` - tenant reset, volledig verwijderen, opnieuw opzetten
+- `DEMO-RESET.md` - een demo-tenant elke nacht terug naar een gouden
+  momentopname (`tenant.components.demoReset`): aanzetten, momentopname nemen,
+  controleren, uitzetten
 - `STORAGE-OPERATIONS.md` - PVC resizen, S3-databeheer
 - `DEBUGGING.md` - database-shell/backup, logs, occ-status, one-liners
 - `EMERGENCY.md` - noodprocedures (crashloops, sync-falen, storage vol,
@@ -93,6 +96,13 @@ install-hook uit `values/common.yaml` lokaal, met stubs voor `occ`, `curl` en
 generieke pins, checksum, mapnaam, links in de tarball, info.xml-id, falen dat
 de vorige versie laat staan of terugzet, en een afgebroken wissel.
 `scripts/verify.sh` draait ook deze suite mee.
+
+`nextcloud-platform/tests/run-demo-reset-tests.sh` rendert
+`charts/tenant-demo-reset` en het values-blok van de ApplicationSet
+`nextcloud-tenant-demo-reset`, en draait het reset-script tegen een
+nep-kubectl met echte bestandsoperaties. De cases dekken de momentopname, het
+terugzetten, falen voor en na de eerste onomkeerbare stap en een wissel die
+halverwege stopte. `scripts/verify.sh` draait ook deze suite mee.
 
 ## Conventies (gelden overal)
 

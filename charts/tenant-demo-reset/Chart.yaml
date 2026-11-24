@@ -1,0 +1,5 @@
+apiVersion: v2
+name: tenant-demo-reset
+description: Nachtelijke reset van een demo-tenant naar een gouden momentopname (database en datamap), daarna de voorbeeldsets opnieuw laden. Rendert alleen voor tenants die tenant.components.demoReset aanzetten.
+type: application
+version: 1.0.0

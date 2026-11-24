@@ -182,6 +182,16 @@ No NetworkPolicy changes needed (see Platform Shared Services above).
 
 This is set globally in `values/common.yaml` and should not be overridden with requests in env or tenant files.
 
+## Optionele componenten (`tenant.components`)
+
+Een component onder `tenant.components` heeft een eigen ApplicationSet met een
+post-selector, zodat de bestaande tenant-Applications niet veranderen.
+Vandaag is er een: `demoReset` (`charts/tenant-demo-reset`, ApplicationSet
+`nextcloud-tenant-demo-reset`). Die zet een demo-tenant elke nacht terug naar
+een gouden momentopname en wist daarbij alles wat bezoekers maakten. Alleen
+voor demo-tenants; `confirmWipe` moet de tenantnaam herhalen. Zie
+`docs/DEMO-RESET.md`. Tests: `nextcloud-platform/tests/run-demo-reset-tests.sh`.
+
 ## Conduction Apps
 
 The apps in `tenant.apps.enabled` (default: opencatalogi, openconnector, openregister) are auto-installed in Nextcloud via one hook script in `values/common.yaml` (`before-starting`, with `post-installation` as a YAML anchor to the same text). It runs idempotently using a state file at `/var/www/html/data/.conduction-apps-state`. Installation logs are at `/var/www/html/data/conduction-apps.log`.
