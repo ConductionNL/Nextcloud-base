@@ -47,6 +47,43 @@ Alleen de **hostname** wijzigen is wél een gewone operatie — zie
 `docs/ADDING-TENANT.md` § Cutting Over from a Migration Hostname. Dat raakt de
 namespace, de prefix en de database niet.
 
+## Uitgaande mail (`tenant.mail`)
+
+Standaard verstuurt een tenant geen mail: `common.yaml` zet `smtp.config.php`
+fleet-breed uit en geen enkele tenant had SMTP. Een tenant die mail nodig heeft
+(registratie, wachtwoord vergeten, notificaties) zet het aan in zijn
+tenantbestand:
+
+```yaml
+tenant:
+  mail:
+    enabled: true
+    fromAddress: noreply        # alleen het deel voor de @
+    domain: zuiddrecht.nl       # afzender wordt noreply@zuiddrecht.nl
+    # port: 465                 # standaard 465
+    # secure: ssl               # standaard ssl (impliciete TLS); none vraagt een port
+```
+
+Host en inloggegevens staan nooit in Git maar in `nextcloud-secrets`:
+`smtp-host`, `smtp-username`, `smtp-password` (zie `docs/SECRETS.md`). De
+ApplicationSet zet dan `MAIL_FROM_ADDRESS`, `MAIL_DOMAIN`, `SMTP_*` en mount de
+`smtp.config.php` van de chart. De secret-sleutels zijn `optional`: ontbreken ze,
+dan start de pod gewoon en gaat er geen mail uit. Controleer daarom na het
+aanzetten:
+
+```bash
+kubectl -n <namespace> exec deploy/nextcloud -c nextcloud -- \
+  su -s /bin/sh www-data -c "php occ config:list system --private" | grep -E 'mail_'
+```
+
+Daarna een testmail vanuit Beheer, Basisinstellingen, E-mailserver. De mail-instellingen
+staan in een read-only configbestand; aanpassen gaat via het tenantbestand en de
+Secret, niet via `occ config:system:set` of de beheerpagina.
+
+`validate-values.sh` weigert een onbekende sleutel onder `tenant.mail`, een
+`fromAddress` met een @, een ontbrekend domein en `secure: none` zonder poort.
+Een tenant zonder `tenant.mail` rendert byte voor byte hetzelfde als voorheen.
+
 ## Tenant Reset (Data wissen)
 
 Reset een tenant naar een schone staat **zonder** de configuratie te verwijderen.

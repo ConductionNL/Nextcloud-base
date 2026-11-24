@@ -1,0 +1,15 @@
+---
+tenant:
+  name: canary-accept
+  environment: accept
+  wave: "0"
+  dbType: postgres
+  apps:
+    enabled:
+      - opencatalogi
+      - openconnector
+      - openregister
+  mail:
+    enabled: ja
+    fromAddress: noreply
+    domain: zuiddrecht.nl
